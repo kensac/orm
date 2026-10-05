@@ -146,6 +146,24 @@ describe('select', () => {
     expect(ast.projection[1]!.alias).toBe('myName');
   });
 
+  it('computed projections carry the codec of their return type', () => {
+    const ast = getAst(
+      db().public.users.select((f, fns) => ({
+        isFirst: fns.eq(f.id, 1),
+        hasPosts: fns.exists(db().public.posts.select('id')),
+      })),
+    );
+    expect(ast.projection.map((item) => [item.alias, item.codec])).toEqual([
+      ['isFirst', { codecId: 'pg/bool@1' }],
+      ['hasPosts', { codecId: 'pg/bool@1' }],
+    ]);
+  });
+
+  it('an aliased computed projection carries the codec of its return type', () => {
+    const ast = getAst(db().public.users.select('isFirst', (f, fns) => fns.eq(f.id, 1)));
+    expect(ast.projection.map((item) => item.codec)).toEqual([{ codecId: 'pg/bool@1' }]);
+  });
+
   it('chained select accumulates projections', () => {
     const ast = getAst(db().public.users.select('id').select('name'));
     expect(ast.projection).toHaveLength(2);

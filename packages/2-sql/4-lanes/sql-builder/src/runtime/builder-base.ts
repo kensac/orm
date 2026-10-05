@@ -296,6 +296,10 @@ export function assertCapability(
   }
 }
 
+function codecRefOf(field: ScopeField): CodecRef {
+  return field.codec ?? { codecId: field.codecId };
+}
+
 export function resolveSelectArgs(
   args: unknown[],
   scope: Scope,
@@ -313,7 +317,7 @@ export function resolveSelectArgs(
         throw structuredError('ORM.COLUMN_UNKNOWN', `Column "${colName}" not found in scope`, {
           meta: { column: colName },
         });
-      projections.push(ProjectionItem.of(colName, IdentifierRef.of(colName), field.codec));
+      projections.push(ProjectionItem.of(colName, IdentifierRef.of(colName), codecRefOf(field)));
       newRowFields[colName] = field;
     }
     return { projections, newRowFields };
@@ -332,7 +336,7 @@ export function resolveSelectArgs(
     );
     const result = exprFn(createFieldProxy(scope), fns);
     const field = result.returnType;
-    projections.push(ProjectionItem.of(alias, projectionAstOf(result), field.codec));
+    projections.push(ProjectionItem.of(alias, projectionAstOf(result), codecRefOf(field)));
     newRowFields[alias] = field;
     return { projections, newRowFields };
   }
@@ -350,7 +354,7 @@ export function resolveSelectArgs(
     const record = callbackFn(createFieldProxy(scope), fns);
     for (const [key, expr] of Object.entries(record)) {
       const field = expr.returnType;
-      projections.push(ProjectionItem.of(key, projectionAstOf(expr), field.codec));
+      projections.push(ProjectionItem.of(key, projectionAstOf(expr), codecRefOf(field)));
       newRowFields[key] = field;
     }
     return { projections, newRowFields };
