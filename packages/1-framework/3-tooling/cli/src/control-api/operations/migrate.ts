@@ -155,11 +155,11 @@ export async function executeMigrate<TFamilyId extends string, TTargetId extends
   // to their own head ref.
   const allSpaces: ReadonlyArray<AggregateContractSpace> = [aggregate.app, ...aggregate.extensions];
   const perSpacePlans = new Map<string, PerSpacePlan>();
-  // Already-at-head empty-graph spaces (typically extensions whose
-  // head ref is the empty sentinel, or whose live marker already
-  // matches the target). Kept out of the runner schedule so we don't
-  // write spurious markers for greenfield extensions, but merged back
-  // into the success envelope so every loaded space is represented.
+  // Plans that neither execute operations nor move a marker (at-head
+  // empty-graph spaces, or a space with no marker whose target is the
+  // empty contract). Kept out of the runner schedule so we don't write
+  // spurious markers, but merged back into the success envelope so
+  // every loaded space is represented.
   const atHeadResolutions = new Map<string, PerSpacePlan>();
   for (const space of allSpaces) {
     const isAppSpace = space.spaceId === aggregate.app.spaceId;
@@ -230,7 +230,11 @@ export async function executeMigrate<TFamilyId extends string, TTargetId extends
       });
     }
 
-    perSpacePlans.set(space.spaceId, outcome.plan);
+    if (planRequiresExecution(outcome.plan)) {
+      perSpacePlans.set(space.spaceId, outcome.plan);
+    } else {
+      atHeadResolutions.set(space.spaceId, outcome.plan);
+    }
   }
 
   const canonicalOrder = [...aggregate.extensions.map((m) => m.spaceId), aggregate.app.spaceId];
@@ -240,13 +244,7 @@ export async function executeMigrate<TFamilyId extends string, TTargetId extends
   // plans). Surfaces every loaded space — including at-head empty-
   // graph extensions — in `perSpace[]` so the result reflects the
   // full aggregate, not just the spaces the runner would have touched.
-  // A zero-op plan still counts as pending when it advances a marker
-  // (declared-state resolution for an all-external extension space).
-  const hasPendingWork = applyOrder.some((spaceId) => {
-    const entry = perSpacePlans.get(spaceId);
-    return entry !== undefined && planRequiresExecution(entry);
-  });
-  if (!hasPendingWork) {
+  if (applyOrder.length === 0) {
     const ordered = canonicalOrder
       .filter((spaceId) => perSpacePlans.has(spaceId) || atHeadResolutions.has(spaceId))
       .map((spaceId) => {
@@ -527,7 +525,7 @@ function buildAtHeadResolution(args: {
  * marker sits at the empty contract, so a zero-op plan whose destination is
  * the empty contract leaves it untouched.
  */
-export function planRequiresExecution(entry: PerSpacePlan): boolean {
+function planRequiresExecution(entry: PerSpacePlan): boolean {
   if (entry.plan.operations.length > 0) return true;
   const originHash = entry.plan.origin?.storageHash ?? EMPTY_CONTRACT_HASH;
   return originHash !== entry.plan.destination.storageHash;
