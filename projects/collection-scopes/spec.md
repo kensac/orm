@@ -55,7 +55,7 @@ const posts = await db.Post
 
 - **A chaining method has the shape of a scope, a function from a collection to a collection** (ADR 258). The type state and the row are declared properties; unknown flags are `boolean`. `where` returns `Filtered<Self>`, `orderBy` returns `Ordered<Self>`, `include` returns `Including<Self, Rel>`, `limit`, `offset`, `distinct` and `cursor` return `Self`, and `apply(step)` returns `step(this)`. `select` and `variant` return the shared `Collection` type.
 - **A filtered collection is a subtype of an unfiltered one**, so a conditional reduces to the unfiltered type and any function body is sound. The query API has no control-flow methods.
-- **Query fragments are functions** (ADR 259): `db.scope(fields, body)` for a scope on any model with the given fields, declared with the contract DSL's field builders or `CodecField`; `db.Post.scope(body)` for a scope on one model; `orderByField` for an order field from a request.
+- **Query fragments are functions** (ADR 259): `db.orm.scope(fields, body)` for a scope on any model with the given fields, declared with the contract DSL's field builders or `CodecField`; `db.orm.public.Post.scope(body)` for a scope on one model; `orderByField` for an order field from a request.
 - **A scope is a `Step<Self, Filtered<Self>>` that a package builds from an index definition** (ADR 260). `fulltextSearchScopes<Contract, 'Post'>()` returns one scope per full-text index on the model, named after the index. The ORM client provides the builder `defineIndexScopes`.
 - **`@@fullTextIndex` takes fields in weight groups**, `name:` is the scope's name, and the contract records fields, weights and language as data. One renderer produces the index expression and the query expression.
 - **A scope's order is a default** that `orderBy` anywhere in the chain replaces.
@@ -72,7 +72,7 @@ const posts = await db.Post
 
 ## Place in the larger world
 
-- **ORM client (`sql-orm-client`).** The `Collection` type changes shape: state and row as declared properties, `this: Self` chaining methods, the named facts, `apply`. It gains `CodecField`, `db.Post.scope`, `orderByField`, and `defineIndexScopes`. Public names grow (ADR 258, "Consequences").
+- **ORM client (`sql-orm-client`).** The `Collection` type changes shape: state and row as declared properties, `this: Self` chaining methods, the named facts, `apply`. It gains `CodecField`, `db.orm.scope`, `db.orm.public.Post.scope`, `orderByField`, and `defineIndexScopes`. Public names grow (ADR 258, "Consequences").
 - **Postgres target.** Owns the weighted full-text index: the attribute with weight groups, the structured index data, its DDL, `fullTextMatches` and `fullTextRank` over weight groups, and `fulltextSearchScopes`.
 - **Postgres facade (`@prisma/orm-postgres`).** Re-exports the new client surface and the scope helper.
 - **Contract and emitter.** Carry the full-text index as structured data; storage hashes of contracts that declare one change.
