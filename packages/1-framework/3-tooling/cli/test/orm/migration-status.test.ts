@@ -547,6 +547,28 @@ describe('migration status', () => {
       });
     });
 
+    it('targets each extension space at its own contract for --to @contract', async () => {
+      const project = await projectWithOneMigration();
+      await addAllExternalSpace(project);
+      const db = fakeDatabase({
+        markers: markersWithExternalAtHead(HASH_HEAD),
+        ledger: [{ migrationHash: project.migrationHash }],
+      });
+      const config = withAllExternalExtension(driverConfig(project, db));
+
+      const implicit = await harness(config).run(['migration', 'status', '--json'], {
+        cwd: project.dir,
+      });
+      const explicit = await harness(config).run(
+        ['migration', 'status', '--to', '@contract', '--json'],
+        { cwd: project.dir },
+      );
+
+      expect(explicit.exitCode).toBe(0);
+      expect(explicit.presented?.data).toEqual(implicit.presented?.data);
+      expect(explicit.presented?.data).toMatchObject({ summary: 'Up to date' });
+    });
+
     it('resolves --from @contract offline', async () => {
       const project = await projectWithOneMigration();
       const db = fakeDatabase();

@@ -401,14 +401,17 @@ export const migrationStatusCommand = defineOrmCommand({
       }
       const graph = space.graph();
       const spaceContractHash = space.contract().storage.storageHash;
-      const targetHash = activeRefHash ?? spaceContractHash;
-      if (entry.space === aggregate.app.spaceId) {
+      const isAppSpace = entry.space === aggregate.app.spaceId;
+      const targetHash = isAppSpace ? (activeRefHash ?? spaceContractHash) : spaceContractHash;
+      if (isAppSpace) {
         headlineTargetHash = targetHash;
       }
 
       const markerHash = liveOrigin
         ? database.markersBySpace.get(entry.space)?.storageHash
-        : fromOverrideHash;
+        : isAppSpace
+          ? fromOverrideHash
+          : undefined;
       const originHash = originHashForStatus(markerHash);
       const markerInGraph =
         markerHash === undefined ||
@@ -465,7 +468,7 @@ export const migrationStatusCommand = defineOrmCommand({
         glyphMode,
         styler,
         palette: TONE_MIGRATION_GRAPH_PALETTE,
-        isAppSpace: entry.space === aggregate.app.spaceId,
+        isAppSpace,
         ...(liveOrigin && markerHash !== undefined ? { dbHash: markerHash } : {}),
       });
     }
