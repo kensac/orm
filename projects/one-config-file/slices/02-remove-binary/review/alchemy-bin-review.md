@@ -92,3 +92,64 @@ Suggestion: Use `spaces & symbols` as the stage in the existing capture test, wh
 ## Verdict
 
 Approve after F01 is fixed. F01 is a documentation and comment correction, plus a decision on whether Node is actually required. F02 to F08 are small and can land in this PR or right after it. No finding blocks the bug fix itself.
+
+## Round 2 verification
+
+Range `origin/main...HEAD` in `wip/composer-alchemy-bin` (head 2ac4bea1, 14 commits, rebased). Checks: `bun test` in the cli package (238 tests, 0 fail, 1 skip) and core (240 pass); root `pnpm lint` and `pnpm typecheck` exit 0, no diagnostics in changed files. `git diff 34968220 HEAD -- packages` is empty, so the second strict-pnpm QA run covers the reviewed code.
+
+| ID | Status | Evidence |
+| --- | --- | --- |
+| F01 | FIXED | e7adf94e, 0a1072bf: guide § Runtime table, SKILL.md and the `nodeExecutable` doc comment now say the launcher may move to Bun under `bunx` / `bun run`. |
+| F02 | FIXED | Same commits: the table gives the runtime of `prisma` and of Alchemy for each invocation instead of "shorter forms do not work". |
+| F03 | FIXED (cost accepted) | b2fd0ce2: `devState()` replaces the raw `localState` re-export. Its return type `AlchemyStateLayer` was already public through the state descriptor's `create()`, so no new Alchemy type reaches the subpath. Importing `/local-target` still loads Alchemy's file store; both importers load lazily. |
+| F04 | FIXED | `generate-stack.test.ts` "imports alchemy only through @prisma/composer". |
+| F05 | FIXED | `alchemy-bin.test.ts`: symlinked strict-pnpm layout, string `bin`, `bin` without the key, missing bin file, missing app directory (the `realpathSync` error is now caught). |
+| F06 | FIXED | `alchemy-bin.ts` fix text says Yarn Plug'n'Play is unsupported. |
+| F07 | FIXED | 34d28bb0: quoted PATH entries are unquoted; `path.win32` / `path.posix` follow `runtime.platform`; PATHEXT honoured; win32 tests run on POSIX. |
+| F08 | FIXED | `run-alchemy.test.ts` `spawnCommandLine()` capture test passes stage `spaces & symbols` on every platform. |
+| D01 | FIXED | a1b34d43: `resolveAlchemyBin(appDir)` anchors at the app's `@prisma/composer`; QA run 2 shows the child is the `alchemy` beside `@prisma/composer`, not beside `@prisma/composer-cli`. |
+| D02 | ACCEPTED-AS-IS | Core cannot hold `node:` imports (core-model.md invariant 5). The lookup no longer uses `@internal/cli`'s own location, so the undeclared-dependency concern is gone: it reads the app's install, not the CLI package's. |
+| D03 | PARTIAL, accepted | The walk stays. The module comment gives the reason (alchemy exports neither `package.json` nor its bin and has no `require` condition, which I confirmed in the installed manifest; Bun has no `module.findPackageJSON`). The first step uses Node's resolver. The ADR-0007 addendum does not mention the walk; the module comment is enough. |
+| D04 | ACCEPTED-AS-IS | The cross-package manifest test is gone. After D01 a pin mismatch costs disk space, not correctness. See F11 for what the removal leaves unrecorded. |
+| D05 | FIXED | 2ac4bea1: deploy-cli.md § Runtime paragraph and step 7 link; local-dev.md links instead of repeating. |
+| D06 | FIXED | a1b34d43: adapters return `commandLine`; `reproduceCommand()` prints it (`run-alchemy.test.ts` "is the command line the adapter started", `operations.test.ts`); ADR-0007 addendum. |
+| D07 | FIXED | `resolveAlchemyBin`, `HostRuntime`, `readPackageJson`; ADR-0044 note that `dev` raises the `DEPLOY` converge codes. |
+| D08 | FIXED | Same as F03. |
+
+### Questions from the brief
+
+- **`@prisma/composer/package.json` and the exports map.** It works because `@prisma/composer`'s hand-maintained exports map has `"./package.json": "./package.json"` (an unconditional string, so the `require` condition `createRequire` uses matches). It has been there since the package took that name (8d495c60), so every published version has it. Removing it would break the lookup, and the test "resolves the alchemy installed with a workspace app" (real `examples/orm-demo`, real workspace `@prisma/composer`) would fail, so the dependency is covered.
+- **Version skew (D01).** The child's `alchemy` and the stack file's `alchemy` are now the same by construction: the stack file sits in `<cwd>/.prisma-composer/`, so its `@prisma/composer` import resolves exactly as `createRequire(<cwd>/package.json)` does, and Node and Bun both resolve `alchemy` from `@prisma/composer`'s real path by walking the `node_modules` above it, which is the walk `alchemyPackageDirAbove` does. A different `@prisma/composer-cli` version no longer matters for the Alchemy copy. The remaining skew, the CLI's inlined core writing `PRISMA_COMPOSER_CONTAINER_*` for the app's `@prisma/composer` to read, existed before this PR and is out of scope.
+- **Header command.** The headers name `<node> <bin of the alchemy @prisma/composer depends on> …`, which is not copy-pasteable, but the ADR-0007 addendum amends the promise to "the failure output prints the exact command", and the bisection property holds with it. Acceptable.
+- **`commandLine` quoting.** See F09.
+- **`devState()` typing.** See F03 row.
+- **`@prisma/composer-cli` still needs `alchemy`.** See F11.
+- **Strict-pnpm QA.** Credible: `hoist-pattern=`, fresh install from packed tarballs, no `.pnpm/node_modules` and no root `alchemy`, child path logged, dev reaches `ready`. Deploy and destroy were not run under strict pnpm; they share `alchemyCommandLine` with dev, so I accept that.
+
+### F09 (Low): the printed reproduce command expands `$` and backticks
+
+Location: `packages/0-framework/3-tooling/cli/src/run-alchemy.ts` `shellArg`.
+
+Issue: Arguments outside `[\w@%+=:,./\\-]` are wrapped with `JSON.stringify`, which produces POSIX double quotes. Inside double quotes the shell still expands `$` and backticks. `git check-ref-format` accepts `$`, backticks and `;` in a stage, so `--stage 'a$HOME'` prints `"a$HOME"`, and pasting it runs a different stage. The only test uses a path with a space.
+
+Suggestion: Wrap in single quotes and escape an embedded `'` as `'\''`. Add a test with a stage containing `$` and `'`. Windows `cmd` quoting is a separate question; printing POSIX form everywhere is fine if the doc comment says so.
+
+### F10 (Low): the guide and the skill still say Composer finds alchemy "from its own location"
+
+Location: `docs/guides/deploying.md` lines 126-127; `skills/prisma-composer-core-concepts/SKILL.md` line 339.
+
+Issue: Since a1b34d43 the lookup starts from the app's `@prisma/composer`, not from Composer's own location. deploy-cli.md § Runtime is correct; these two describe the first version.
+
+Suggestion: Say "the `alchemy` that your app's `@prisma/composer` depends on, found from the app directory".
+
+### F11 (Low): nothing records why `@prisma/composer-cli` declares `alchemy`
+
+Location: `packages/9-public/composer-cli/package.json` line 22.
+
+Issue: The lookup no longer reads `@prisma/composer-cli`'s `alchemy`, and the dropped manifest test was the only place that tied the declaration to a reason. The packed dist still imports `alchemy` (3 chunks) and `alchemy/State/LocalState`, through inlined core code. A future reader may remove the dependency as unused; the workspace's hoisted layout would hide the break, and only strict-pnpm users would see it. `check-cli-engine-pin.mjs` scans dist specifiers for the engine only.
+
+Suggestion: One sentence in deploy-cli.md § Runtime (or the composer-cli `tsdown.config.ts` comment): the CLI's inlined core imports `alchemy`, so the package declares it even though the child uses the app's copy.
+
+### Verdict
+
+Ready for approval. Every round-1 finding is fixed or accepted with a stated reason. F09 to F11 are small and can land in this PR before merge; none blocks it.
