@@ -23,6 +23,7 @@ import {
   sqlAttributeSpecs,
 } from '@internal/sql-contract-psl/attribute-specs';
 import { sqlContextInput } from '@internal/sql-contract-psl/test';
+import { opaqueSql } from '@internal/sql-relational-core/ast';
 import { blindCast } from '@internal/utils/casts';
 import { describe, expect, it } from 'vitest';
 import {
@@ -180,7 +181,7 @@ describe('a GIN index over to_tsvector, authored in PSL', () => {
     expect(nodes).toHaveLength(1);
     const node = nodes[0]!;
     expect(node.type).toBe('gin');
-    expect(node.elements).toEqual({ expression: `to_tsvector('english', "text")` });
+    expect(node.elements).toEqual({ expression: opaqueSql(`to_tsvector('english', "text")`) });
     expect(node.table).toBe('Message');
     expect(node.name.startsWith('message_text_search')).toBe(true);
   });
@@ -190,7 +191,7 @@ describe('a GIN index over to_tsvector, authored in PSL', () => {
     expect(nodes).toHaveLength(1);
     const node = nodes[0]!;
     expect(node.type).toBe('gin');
-    expect(node.elements).toEqual({ expression: `to_tsvector('english', "text")` });
+    expect(node.elements).toEqual({ expression: opaqueSql(`to_tsvector('english', "text")`) });
     expect(node.table).toBe('Message');
     expect(node.name.startsWith('message_text_search')).toBe(true);
   });
