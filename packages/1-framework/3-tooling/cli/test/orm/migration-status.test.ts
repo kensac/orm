@@ -8,11 +8,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { BIN_COMMANDS, BIN_GROUPS } from '../../src/orm/cli';
 import { createOrmTestCli } from '../helpers/orm-test-cli';
 import {
+  contractJson,
   createOfflineProject,
   invariantOp,
   type OfflineProject,
   offlineConfig,
   removeOfflineProjects,
+  seedContractSnapshot,
   seedMigrationPackage,
 } from './fixtures/offline-project';
 
@@ -132,6 +134,48 @@ function markersAt(storageHash: string) {
   return new Map([['app', { storageHash, invariants: [] as readonly string[] }]]);
 }
 
+const EXTERNAL_SPACE = 'external';
+const HASH_EXTERNAL_HEAD = `e0e0${'3'.repeat(60)}`;
+
+/** An all-external extension space: a head ref on disk and no migration packages. */
+async function addAllExternalSpace(project: OfflineProject): Promise<void> {
+  await writeRef(join(project.migrationsDir, EXTERNAL_SPACE, 'refs'), 'head', {
+    hash: HASH_EXTERNAL_HEAD,
+    invariants: [],
+  });
+  await seedContractSnapshot({
+    migrationsDir: project.migrationsDir,
+    storageHash: HASH_EXTERNAL_HEAD,
+  });
+}
+
+function allExternalExtension(): Record<string, unknown> {
+  return {
+    kind: 'extension',
+    id: EXTERNAL_SPACE,
+    familyId: 'sql',
+    targetId: 'postgres',
+    version: '1.0.0',
+    create: () => ({}),
+    contractSpace: {
+      contractJson: contractJson(HASH_EXTERNAL_HEAD),
+      headRef: { hash: HASH_EXTERNAL_HEAD, invariants: [] },
+      migrations: [],
+    },
+  };
+}
+
+function withAllExternalExtension(config: Record<string, unknown>): Record<string, unknown> {
+  return { ...config, extensions: [allExternalExtension()] };
+}
+
+function markersWithExternalAtHead(appHash: string) {
+  return new Map([
+    ['app', { storageHash: appHash, invariants: [] as readonly string[] }],
+    [EXTERNAL_SPACE, { storageHash: HASH_EXTERNAL_HEAD, invariants: [] as readonly string[] }],
+  ]);
+}
+
 function codesAndSeverities(
   diagnostics: readonly Diagnostic[],
 ): ReadonlyArray<{ code: string; severity: string }> {
@@ -225,6 +269,33 @@ describe('migration status', () => {
     expect(run.presented?.data).toMatchObject({
       summary: `Database marker ${HASH_HEAD.slice(0, 12)} is not in the on-disk migration graph`,
       spaces: [{ currentContract: HASH_HEAD, targetContract: HASH_HEAD }],
+    });
+  });
+
+  it('stays quiet about an all-external extension space whose marker is at its head', async () => {
+    const project = await projectWithOneMigration();
+    await addAllExternalSpace(project);
+    const db = fakeDatabase({
+      markers: markersWithExternalAtHead(HASH_HEAD),
+      ledger: [{ migrationHash: project.migrationHash }],
+    });
+
+    const run = await harness(withAllExternalExtension(driverConfig(project, db))).run(
+      ['migration', 'status', '--json'],
+      { cwd: project.dir },
+    );
+
+    expect(run.exitCode).toBe(0);
+    expect(run.presented?.diagnostics).toEqual([]);
+    expect(run.presented?.data).toMatchObject({
+      summary: 'Up to date',
+      spaces: expect.arrayContaining([
+        expect.objectContaining({
+          space: EXTERNAL_SPACE,
+          currentContract: HASH_EXTERNAL_HEAD,
+          targetContract: HASH_EXTERNAL_HEAD,
+        }),
+      ]),
     });
   });
 

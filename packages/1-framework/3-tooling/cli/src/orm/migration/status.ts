@@ -410,7 +410,10 @@ export const migrationStatusCommand = defineOrmCommand({
         ? database.markersBySpace.get(entry.space)?.storageHash
         : fromOverrideHash;
       const originHash = originHashForStatus(markerHash);
-      const markerInGraph = markerHash === undefined || isGraphNode(markerHash, graph);
+      const markerInGraph =
+        markerHash === undefined ||
+        isGraphNode(markerHash, graph) ||
+        (graph.nodes.size === 0 && markerHash === space.headRef?.hash);
 
       if (
         liveOrigin &&
