@@ -8,17 +8,17 @@
 
 **Outcome.** Class methods chain, conditionals are sound, and `apply` exists. ADR 258 in full, apart from its "Later decisions". Closes TML-3397 and the chaining part of TML-3403.
 
-**Builds on:** nothing. **Hands to:** slices 2 and 4 a `Collection` whose methods are steps, the named facts `Filtered`, `Ordered`, `Including`, `Step`, and `apply`.
+**Builds on:** nothing. **Hands to:** slices 2 and 4 a `Collection` whose methods have the shape of scopes, the named facts `Filtered`, `Ordered`, `Including`, `Scope`, and `apply`.
 
 Slice spec: [slices/1-collection-keeps-its-class/spec.md](slices/1-collection-keeps-its-class/spec.md). Reference implementation: `bot/spike-this-typed-chaining`, write-up `spikes/this-typed-chaining.md`.
 
 ### 2. Fragment helpers
 
-**Outcome.** `FieldExpression`, `rowFragment`, `RowOf` and `sortField` are exported from the ORM client and the Postgres facade, and the demo uses them. ADR 259.
+**Outcome.** `db.scope`, `db.Post.scope`, `orderByField` and `CodecField` are exported from the ORM client and the Postgres facade, and the demo uses them. ADR 259.
 
 **Builds on:** slice 1. **Hands to:** the demo and docs a complete fragment surface.
 
-Reference: `bot/spike-apply-fragments`, write-up `spikes/apply-fragments.md`. The spike's `when`, `fragment` and `stateFragment` do not land.
+Reference: `bot/spike-pipe-fragments`, write-up `spikes/pipe-fragments.md`. The spike's `when`, `fragment` and `stateFragment` do not land.
 
 ### 3. Weighted full-text index as data
 

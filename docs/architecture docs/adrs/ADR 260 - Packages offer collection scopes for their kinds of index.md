@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 **Date:** 2026-09-29
-**Builds on:** [ADR 258 — A collection keeps its class through the chain](ADR%20258%20-%20A%20collection%20keeps%20its%20class%20through%20the%20chain.md), [ADR 259 — Query steps are functions](ADR%20259%20-%20Query%20steps%20are%20functions.md), [ADR 175 — Shared ORM Collection interface](ADR%20175%20-%20Shared%20ORM%20Collection%20interface.md), [ADR 206 — Operations as TypeScript functions](ADR%20206%20-%20Operations%20as%20TypeScript%20functions.md), [ADR 236 — Target-contributed model attributes](ADR%20236%20-%20Target-contributed%20model%20attributes.md)
+**Builds on:** [ADR 258 — A collection keeps its class through the chain](ADR%20258%20-%20A%20collection%20keeps%20its%20class%20through%20the%20chain.md), [ADR 259 — Query fragments are functions](ADR%20259%20-%20Query%20steps%20are%20functions.md), [ADR 175 — Shared ORM Collection interface](ADR%20175%20-%20Shared%20ORM%20Collection%20interface.md), [ADR 206 — Operations as TypeScript functions](ADR%20206%20-%20Operations%20as%20TypeScript%20functions.md), [ADR 236 — Target-contributed model attributes](ADR%20236%20-%20Target-contributed%20model%20attributes.md)
 
 ---
 
@@ -44,16 +44,16 @@ const posts = await db.Post.search(websearchToTsquery('postgres index')).limit(1
 ```
 
 - `fulltextSearchScopes` comes from the Postgres package. Given the contract and a model, it returns one member for each full-text index on that model. `post_search` is the name the author gave the index.
-- `post_search(q)` is a step: a function that takes a collection of posts and returns it narrowed to posts that match, ordered best match first. Its type is `Step<Self, Filtered<Self>>`, the same type `where` has (ADR 258). `apply` runs it, as it runs any step.
+- `post_search(q)` is a scope: a function that takes a collection of posts and returns it narrowed to posts that match, ordered best match first. Its type is `Scope<Self, Filtered<Self>>`, the same type `where` has (ADR 258). `apply` runs it, as it runs any scope.
 - The result has the caller's type, so it chains with every collection method, and the class's `search` returns the class.
 
 The query uses the index, because it is built from the index's own definition in the contract.
 
 ## Decision
 
-A **scope** is a named step on a model: a function that takes a collection of the model and returns that collection's own type with a filter applied, `Step<Self, Filtered<Self>>`. Steps, `apply` and the named facts are defined in ADR 258. `where` chains and the methods of a custom collection class are scopes that the application writes.
+A **scope** is a function from a collection to a collection, and `apply` runs it (ADR 258). An **index scope** is a scope that filters and keeps the caller's type, `Scope<Self, Filtered<Self>>`. `where` chains and the methods of a custom collection class are scopes that the application writes; this decision is about the scopes a package writes from its indexes.
 
-1. **A package that introduces a kind of index can export a scope helper.** Given the contract and a model, a scope helper returns one scope for each index of that kind on the model. Each scope is named after its index, and each is a step that `apply` runs.
+1. **A package that introduces a kind of index can export a scope helper.** Given the contract and a model, a scope helper returns one scope for each index of that kind on the model. Each scope is named after its index, and `apply` runs it.
 2. **A scope is built from the index's definition in the contract.** The query cannot differ from the index.
 3. **The ORM client provides a builder for scope helpers.** The package author writes an ordinary function that returns a filter and an order. The builder derives the helper's types from it.
 4. **The application decides where a scope appears.** It applies the scope with `apply` at the call, or wraps it in a method of its custom collection class.
@@ -128,7 +128,7 @@ One renderer in the Postgres package produces the search document from `options`
 
 ### 2. The application applies the scope
 
-`fulltextSearchScopes` takes the contract and a model as type arguments and returns an object with one scope for each full-text index on that model. Each scope takes the search query and returns a step. `apply` runs the step on any collection of the model:
+`fulltextSearchScopes` takes the contract and a model as type arguments and returns an object with one scope for each full-text index on that model. Each scope takes the search query and returns an index scope. `apply` runs the step on any collection of the model:
 
 ```ts
 const postScopes = fulltextSearchScopes<Contract, 'Post'>();
@@ -157,7 +157,7 @@ class PostCollection extends Collection<Contract, 'Post'> {
 
 **Why one member for each index.** A single function that takes the index name, as `fullTextSearch<Contract, 'Post'>('post_search')(q)`, gives the same completions, but a scope helper with one member per index reads as a name and gives the reader every scope of the model in one place.
 
-**Why a step, not a member of every collection.** A package cannot add a typed member to every collection without a type registry that the `Collection` type reads. Every application would pay for that in type checking, whether or not it uses the member, and the member's name could collide with a collection method. A fragment costs nothing until it is applied, and it is applied the way every other fragment is.
+**Why a scope value, not a member of every collection.** A package cannot add a typed member to every collection without a type registry that the `Collection` type reads. Every application would pay for that in type checking, whether or not it uses the member, and the member's name could collide with a collection method. A fragment costs nothing until it is applied, and it is applied the way every other fragment is.
 
 ### 3. What a scope does to the query
 
@@ -206,7 +206,7 @@ export const fulltextSearchScopes = defineIndexScopes({ match: isFullTextIndex, 
 
 - **`match` recognises the package's kind of index.** It is a type guard, so it also tells the builder the index's type.
 - **`fulltext` is the scope operation.** It receives the index and the table's name, then the caller's arguments. It returns a scope refinement, a filter and an optional default order.
-- **The builder derives everything else.** It reads the caller's arguments from the operation's parameters, and it types each scope as `Step<Self, Filtered<Self>>` for any `Self` that is a collection of the model.
+- **The builder derives everything else.** It reads the caller's arguments from the operation's parameters, and it types each scope as `Scope<Self, Filtered<Self>>` for any `Self` that is a collection of the model.
 - **The author writes no type-level code.**
 - **The builder checks the operation against the types.** An operation that returns something other than a scope refinement does not compile.
 - **The operation uses the same query operations an application can call.** `fullTextMatches` and `fullTextRank` are the SQL builder's operations, which take the fields in weight groups. An application that writes the query itself, as in "The problem", gets the same SQL, and keeping it equal to the index is then its own responsibility.
@@ -235,7 +235,7 @@ The builder sets `this['index']` to each index of the model in turn, so every sc
 
 The builder reads the model's indexes from the contract type and the model's name, which the application gives as type arguments: `fulltextSearchScopes<Contract, 'Post'>()`. Naming them once, where the scopes are made, is what lets the index names be completed and checked.
 
-The step a scope returns is generic over the collection it receives. It reads the contract, the model's name and its namespace from that collection's type, as three separate type parameters, and refuses a collection of another model. Reading them separately is what makes the step work on `this` inside a custom collection class, whose type TypeScript has not resolved: reading the model's name through `this` gives no members, and reading the three from the class's declared base type works.
+The scope is generic over the collection it receives. It reads the contract, the model's name and its namespace from that collection's type, as three separate type parameters, and refuses a collection of another model. Reading them separately is what makes the step work on `this` inside a custom collection class, whose type TypeScript has not resolved: reading the model's name through `this` gives no members, and reading the three from the class's declared base type works.
 
 **Cost.** An application that does not use a scope pays nothing. `apply` is part of every collection (ADR 258).
 
@@ -265,7 +265,7 @@ The design is meant for any database and for more than text search. Two appendic
 
 **What holds in every case**
 
-- **A scope takes a collection and returns a collection.** That holds whether the database runs it as a filter, as a filter with an order, or as a step of the query.
+- **A scope takes a collection and returns a collection.** That holds whether the database runs it as a filter, as a filter with an order, or as a stage of the query.
 - **The scope is built from storage that the contract describes.**
 
 **What differs**
@@ -284,7 +284,7 @@ The design is meant for any database and for more than text search. Two appendic
 **For applications**
 
 - **An application writes one line to get a model's scopes**, and applies one with `apply` at the call or in a method of its custom collection class.
-- **A scope composes with other steps.** A conditional search, `posts.apply((c) => (q ? c.apply(postScopes.post_search(q)) : c))`, is sound for the reason ADR 258 gives: `Filtered<Self>` is a subtype of `Self`, so the conditional's type is the unfiltered collection.
+- **A scope composes with other scopes.** A conditional search, `posts.apply((c) => (q ? c.apply(postScopes.post_search(q)) : c))`, is sound for the reason ADR 258 gives: `Filtered<Self>` is a subtype of `Self`, so the conditional's type is the unfiltered collection.
 
 **For queries**
 
@@ -295,12 +295,12 @@ The design is meant for any database and for more than text search. Two appendic
 **For packages**
 
 - **A package's scope helper depends on the ORM client package**, because it uses the builder.
-- **The scope's step reads collection members that are marked internal today**: the collection's context, model name, namespace and table name. They become part of what the ORM client promises to package authors.
+- **A scope reads collection members that are marked internal today**: the collection's context, model name, namespace and table name. They become part of what the ORM client promises to package authors.
 - **MongoDB indexes have no name in the contract.** A MongoDB builder must name its scopes some other way, or the contract must record index names.
 
-## Possible later step: scopes declared in the schema
+## Possible later decision: scopes declared in the schema
 
-A later design could let the schema declare a scope, and have the ORM client offer it on every collection, so the application writes no method. Such a scope would be built from the same steps. It needs a way to declare scopes in the schema, a place for them in the contract's domain plane, and a type registry that the `Collection` type reads. Those costs are why this decision stops at helpers.
+A later design could let the schema declare a scope, and have the ORM client offer it on every collection, so the application writes no method. Such a scope would be built from the same scope helpers. It needs a way to declare scopes in the schema, a place for them in the contract's domain plane, and a type registry that the `Collection` type reads. Those costs are why this decision stops at helpers.
 
 ## Alternatives considered
 
@@ -308,12 +308,12 @@ A later design could let the schema declare a scope, and have the ORM client off
 
 - **Declared in the schema, recorded in the contract's domain plane, and offered on every collection through a type registry.** It needs a new block in the schema language, a new member in the domain plane, and a registry that every collection's type reads. See "Possible later step".
 - **A member that a package adds to every collection, as `db.Post.search`.** It needs the same registry. A member of the same name as a collection method or a custom class's method collides with it.
-- **A function that combines a package's additions into a collection class, as `fulltextSearchScopes.mixin(PostCollection)`.** A step already applies to any collection, including `this` in a class. Combining classes adds nothing more.
+- **A function that combines a package's additions into a collection class, as `fulltextSearchScopes.mixin(PostCollection)`.** A scope already applies to any collection, including `this` in a class. Combining classes adds nothing more.
 - **Only the query operations, with the fields and weights written in each query.** Any difference from the index disables it without an error. The operations remain, as what a scope is built from.
 
 ### The form of a scope helper
 
-- **A helper that takes the collection and returns scopes bound to it, as `fulltextSearchScopes(this).post_search(q)`.** It needs no `apply` and no type arguments, because it reads the contract and model from the collection. But each scope is then bound to one collection: it is not a value that can be kept, passed around, or composed with other steps, and an application that keeps the helper's result in a field of its collection class makes it again for every chained call.
+- **A helper that takes the collection and returns scopes bound to it, as `fulltextSearchScopes(this).post_search(q)`.** It needs no `apply` and no type arguments, because it reads the contract and model from the collection. But each scope is then bound to one collection: it is not a value that can be kept, passed around, or composed with other scopes, and an application that keeps the helper's result in a field of its collection class makes it again for every chained call.
 - **One function that takes the index's name, as `searchFullText(collection, 'post_search', q)`.** It gives the clearest error for a wrong name, because the error lists the valid names. It takes four positional arguments, and its result cannot be kept and reused.
 - **A curried function that reads the index name before the model is known, as `fullTextSearch('post_search', q)(collection)`.** The index name cannot be offered as a completion, because the model is not known when it is typed.
 
