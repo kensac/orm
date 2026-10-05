@@ -76,7 +76,7 @@ const posts = await db.Post
 - **Postgres target.** Owns the weighted full-text index: the attribute with weight groups, the structured index data, its DDL, `fullTextMatches` and `fullTextRank` over weight groups, and `fulltextSearchScopes`.
 - **Postgres facade (`@prisma/orm-postgres`).** Re-exports the new client surface and the scope helper.
 - **Contract and emitter.** Carry the full-text index as structured data; storage hashes of contracts that declare one change.
-- **Upgrades.** Instructions for: `DefaultCollectionTypeState` flags as `boolean`; reading state and row with `CollectionStateOf` and `CollectionRowOf`; `ReturnType<C['where']>` giving only `HasWhere`; explicit type arguments on `include`; the new index representation.
+- **Upgrades.** Instructions for: `DefaultCollectionTypeState` flags as `boolean`; reading type state and row with `CollectionTypeStateOf` and `CollectionRowOf`; `ReturnType<C['where']>` giving only `HasWhere`; explicit type arguments on `include`, `distinct` and `distinctOn`; the new index representation.
 - **Mongo ORM client.** Out of scope; ADR 260 records the MongoDB constraints.
 
 ## Cross-cutting requirements
