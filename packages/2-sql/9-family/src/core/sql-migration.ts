@@ -34,7 +34,7 @@ export abstract class SqlMigration<
 > extends Migration<SqlMigrationPlanOperation<TDetails>, 'sql', TTargetId, Start, End> {
   /**
    * Sorted, deduplicated invariant ids declared by this migration's
-   * data-transform ops. Derived from `this.operations` so the field remains
+   * data-transform ops. Derived from a fresh read of `this.operations` so the field remains
    * consistent with the operation list — planner-built plans (`db init`,
    * `db update`) yield `[]` because they emit no data-transform ops.
    *
@@ -43,9 +43,17 @@ export abstract class SqlMigration<
    * `MigrationPlan.providedInvariants?` stays optional.
    */
   get providedInvariants(): readonly string[] {
+    this.resetAuthoringState();
     const ops = this.operations.filter(
       (op): op is SqlMigrationPlanOperation<TDetails> => !isThenable(op),
     );
     return deriveProvidedInvariants(ops);
   }
+
+  /**
+   * Discards state a migration builds while its `operations` are read, such as the schema its
+   * earlier rename operations leave behind, so the next read starts from the start contract again.
+   * The default keeps no state.
+   */
+  protected resetAuthoringState(): void {}
 }

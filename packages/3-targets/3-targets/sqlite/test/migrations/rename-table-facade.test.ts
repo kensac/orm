@@ -1,5 +1,9 @@
 /**
- * `this.renameTable` in a hand-written SQLite migration. It reads the migration's start and end contracts and emits the table rename, then drops each index whose wire name derives from the old table name and creates it under the new name, because SQLite cannot rename an index. SQLite names no primary key, unique constraint or foreign key the contract leaves unnamed, so those need nothing. A table missing from either contract is refused.
+ * `this.renameTable` in a hand-written SQLite migration. It resolves the old name against the
+ * schema as the migration's earlier renames leave it and the new name against the end contract, and
+ * emits the table rename, then drops each index whose wire name derives from the old table name and
+ * creates it under the new name, because SQLite cannot rename an index. SQLite names no primary
+ * key, unique constraint or foreign key the contract leaves unnamed, so those need nothing.
  */
 
 import type { Contract } from '@internal/contract/types';
@@ -16,6 +20,7 @@ import {
   HANDLE_INDEX_HASH,
   handleIndex,
   type ProfileSpec,
+  plainTable,
   reference,
   stubLowerer,
 } from './rename-table-fixtures';
@@ -33,16 +38,19 @@ function jsonOf(contract: Contract<SqlStorage>): ContractJson {
   return new SqliteContractSerializer().serializeContract(contract) as unknown as ContractJson;
 }
 
+type TableRenameOptions = { readonly table: string; readonly to: string };
+
 function renameMigration(
   start: Contract<SqlStorage> | null,
   end: Contract<SqlStorage>,
-  rename: { readonly table: string; readonly to: string },
-): { readonly operations: readonly Promise<Op>[] } {
+  rename: TableRenameOptions,
+  ...more: readonly TableRenameOptions[]
+): SqliteMigration & { readonly operations: readonly Promise<Op>[] } {
   const endJson = jsonOf(end);
   class WithoutStart extends SqliteMigration {
     override readonly endContractJson = endJson;
     override get operations(): readonly Promise<Op>[] {
-      return [...this.renameTable(rename)];
+      return [rename, ...more].flatMap((each) => this.renameTable(each));
     }
   }
   if (start === null) return new WithoutStart(stack);
@@ -54,6 +62,7 @@ function renameMigration(
 }
 
 const RENAME = { table: 'userProfile', to: 'UserProfile' } as const;
+const derivedIndex: ProfileSpec = { indexes: (tableName) => [handleIndex(tableName)] };
 
 async function renameLabels(spec: ProfileSpec): Promise<readonly string[]> {
   const ops = await Promise.all(
@@ -111,7 +120,7 @@ describe('SqliteMigration.renameTable', () => {
     ]);
   });
 
-  it('refuses a table the start contract does not have', () => {
+  it('refuses a table that does not exist at this point of the migration', () => {
     expect(
       () =>
         renameMigration(
@@ -125,7 +134,9 @@ describe('SqliteMigration.renameTable', () => {
     ).toThrow(
       expect.objectContaining({
         code: 'MIGRATION.TABLE_RENAME_UNMATCHED',
-        message: expect.stringContaining('table "ghost" does not exist in the start contract'),
+        message: expect.stringContaining(
+          'table "ghost" does not exist at this point of the migration',
+        ),
       }),
     );
   });
@@ -153,5 +164,73 @@ describe('SqliteMigration.renameTable', () => {
     expect(
       () => renameMigration(null, contractOf('UserProfile', {}, 'to'), RENAME).operations,
     ).toThrow(expect.objectContaining({ code: 'MIGRATION.TABLE_RENAME_UNMATCHED' }));
+  });
+
+  it('refuses a new name that already exists at this point of the migration', () => {
+    expect(
+      () =>
+        renameMigration(
+          contractOf('userProfile', {}, 'from'),
+          contractOf('UserProfile', {}, 'to'),
+          { table: 'userProfile', to: 'account' },
+        ).operations,
+    ).toThrow(
+      expect.objectContaining({
+        code: 'MIGRATION.TABLE_RENAME_UNMATCHED',
+        message: expect.stringContaining(
+          'table "account" already exists at this point of the migration',
+        ),
+      }),
+    );
+  });
+
+  it('renames a table twice in one migration when the end contract declares both new names, each rename from where the last left it', async () => {
+    const ops = await Promise.all(
+      renameMigration(
+        contractOf('userProfile', derivedIndex, 'from'),
+        contractOf('Member', derivedIndex, 'to', { UserProfile: plainTable() }),
+        { table: 'userProfile', to: 'UserProfile' },
+        { table: 'UserProfile', to: 'Member' },
+      ).operations,
+    );
+
+    expect(ops.map((op) => op.label)).toEqual([
+      'Rename table userProfile to UserProfile',
+      'Rename table UserProfile to Member',
+      `Drop index userProfile_handle_idx_${HANDLE_INDEX_HASH} on Member`,
+      `Create index Member_handle_idx_${HANDLE_INDEX_HASH} on Member`,
+    ]);
+  });
+
+  it('refuses a table an earlier rename in the migration took away', () => {
+    expect(
+      () =>
+        renameMigration(
+          contractOf('userProfile', {}, 'from'),
+          contractOf('UserProfile', {}, 'to'),
+          RENAME,
+          RENAME,
+        ).operations,
+    ).toThrow(
+      expect.objectContaining({
+        code: 'MIGRATION.TABLE_RENAME_UNMATCHED',
+        message: expect.stringContaining(
+          'table "userProfile" does not exist at this point of the migration',
+        ),
+      }),
+    );
+  });
+
+  it('refuses a second read of the operations without a reset, since the table is already renamed', () => {
+    const migration = renameMigration(
+      contractOf('userProfile', {}, 'from'),
+      contractOf('UserProfile', {}, 'to'),
+      RENAME,
+    );
+    void migration.operations;
+
+    expect(() => migration.operations).toThrow(
+      expect.objectContaining({ code: 'MIGRATION.TABLE_RENAME_UNMATCHED' }),
+    );
   });
 });
