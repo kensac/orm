@@ -32,7 +32,7 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Linear:** [TML-3477](https://linear.app/prisma-company/issue/TML-3477) · **Folder:** `slices/convert-backfill/`
 
-**Outcome.** `--convert` scaffolds the type change with the placeholder in the slot that carries the conversion, and `--backfill` the backfill transform; both refused on `db update`; the scaffolding stops being automatic. `--rename` on enum values and namespaces and `--convert` on a variant plan the row updates and the schema rename. `--delete` on an enum value nulls where nullable, else refuses.
+**Outcome.** `--convert` scaffolds the type change with the placeholder in the slot that carries the conversion, and `--backfill` the backfill transform; both refused on `db update`; the scaffolding stops being automatic. `--rename` on enum values, namespaces and value object fields, and `--convert` on a variant, plan the row updates, the JSON rewrites and the schema rename. `--delete` on an enum value nulls where nullable, else refuses.
 
 **Builds on.** Slice 2.
 
