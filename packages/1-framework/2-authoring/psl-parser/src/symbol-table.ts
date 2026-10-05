@@ -1,7 +1,4 @@
-import type { AuthoringPslBlockDescriptorNamespace } from '@internal/framework-components/authoring';
-import type { PslExtensionBlock, PslSpan } from '@internal/framework-components/psl-ast';
-import { interpretBlockAttributes, reconstructExtensionBlock } from './block-reconstruction';
-import { findBlockDescriptor } from './extension-block';
+import type { PslSpan } from '@internal/framework-components/psl-ast';
 import type { ParseDiagnostic } from './parse';
 import {
   nodePslSpan,
@@ -11,6 +8,7 @@ import {
   readResolvedConstructorCall,
 } from './resolve';
 import type { PslSources, Range } from './source-file';
+import type { FieldAttributeAst, ModelAttributeAst } from './syntax/ast/attributes';
 import {
   CompositeTypeDeclarationAst,
   type DocumentAst,
@@ -42,13 +40,15 @@ export interface TopLevelScope {
   readonly compositeTypes: Record<string, CompositeTypeSymbol>;
 }
 
+interface NamespaceDeclaration {
+  readonly node: NamespaceDeclarationAst;
+  readonly span: PslSpan;
+}
+
 export interface NamespaceSymbol {
   readonly kind: 'namespace';
   readonly name: string;
-  readonly declarations: {
-    readonly node: NamespaceDeclarationAst;
-    readonly span: PslSpan;
-  }[];
+  readonly declarations: [NamespaceDeclaration, ...NamespaceDeclaration[]];
   readonly models: Record<string, ModelSymbol>;
   readonly compositeTypes: Record<string, CompositeTypeSymbol>;
   readonly blocks: Record<string, BlockSymbol>;
@@ -60,7 +60,7 @@ export interface ModelSymbol {
   readonly node: ModelDeclarationAst;
   readonly span: PslSpan;
   readonly fields: Record<string, FieldSymbol>;
-  readonly attributes: readonly ResolvedAttribute[];
+  readonly attributes: readonly ResolvedAttribute<ModelAttributeAst>[];
 }
 
 export interface CompositeTypeSymbol {
@@ -69,7 +69,7 @@ export interface CompositeTypeSymbol {
   readonly node: CompositeTypeDeclarationAst;
   readonly span: PslSpan;
   readonly fields: Record<string, FieldSymbol>;
-  readonly attributes: readonly ResolvedAttribute[];
+  readonly attributes: readonly ResolvedAttribute<ModelAttributeAst>[];
 }
 
 export interface BlockSymbol {
@@ -78,15 +78,13 @@ export interface BlockSymbol {
   readonly keyword: string;
   readonly node: GenericBlockDeclarationAst;
   readonly span: PslSpan;
-  /** Resolved once so consumers do not independently classify block parameters. */
-  readonly block: PslExtensionBlock;
 }
 
 export interface ResolvedNamedTypeBinding {
   readonly baseType?: string;
   readonly typeConstructor?: ResolvedTypeConstructorCall;
   readonly isConstructor: boolean;
-  readonly attributes: readonly ResolvedAttribute[];
+  readonly attributes: readonly ResolvedAttribute<FieldAttributeAst>[];
 }
 
 /**
@@ -111,8 +109,10 @@ export interface FieldSymbol {
   readonly typeContractSpaceId?: string;
   readonly optional: boolean;
   readonly list: boolean;
+  /** Element-nullability axis (`Foo?[]`); meaningful only when {@link list}. */
+  readonly elementOptional: boolean;
   readonly typeConstructor?: ResolvedTypeConstructorCall;
-  readonly attributes: readonly ResolvedAttribute[];
+  readonly attributes: readonly ResolvedAttribute<FieldAttributeAst>[];
   /** Prevents cascading unsupported-type diagnostics after invalid qualification. */
   readonly malformedType?: boolean;
 }
@@ -120,7 +120,6 @@ export interface FieldSymbol {
 export interface BuildSymbolTableOptions {
   readonly documents: readonly DocumentAst[];
   readonly sources: PslSources;
-  readonly pslBlockDescriptors: AuthoringPslBlockDescriptorNamespace;
 }
 
 export interface SymbolTableResult {
@@ -133,9 +132,8 @@ export interface SymbolTableResult {
  * should consume first-wins symbols rather than re-emitting duplicate diagnostics.
  */
 export function buildSymbolTable(options: BuildSymbolTableOptions): SymbolTableResult {
-  const { documents, sources, pslBlockDescriptors } = options;
+  const { documents, sources } = options;
   const diagnostics: ParseDiagnostic[] = [];
-  const collectedBlocks: BlockSymbol[] = [];
 
   const namespaces: Record<string, NamespaceSymbol> = Object.create(null);
   const namedTypes: Record<string, NamedTypeSymbol> = Object.create(null);
@@ -177,14 +175,7 @@ export function buildSymbolTable(options: BuildSymbolTableOptions): SymbolTableR
       } else if (declaration instanceof GenericBlockDeclarationAst) {
         const name = claim(topLevelNames, declaration.name());
         if (name !== undefined) {
-          blocks[name] = buildBlock(
-            name,
-            declaration,
-            sources,
-            pslBlockDescriptors,
-            diagnostics,
-            collectedBlocks,
-          );
+          blocks[name] = buildBlock(name, declaration, sources);
         }
       } else if (declaration instanceof NamespaceDeclarationAst) {
         const declaredName = declaration.name()?.name();
@@ -196,21 +187,19 @@ export function buildSymbolTable(options: BuildSymbolTableOptions): SymbolTableR
           namespace = {
             kind: 'namespace',
             name,
-            declarations: [],
+            declarations: [{ node: declaration, span: nodePslSpan(declaration.syntax, sources) }],
             models: Object.create(null),
             compositeTypes: Object.create(null),
             blocks: Object.create(null),
           };
           namespaces[name] = namespace;
+        } else {
+          namespace.declarations.push({
+            node: declaration,
+            span: nodePslSpan(declaration.syntax, sources),
+          });
         }
-        extendNamespace(
-          namespace,
-          declaration,
-          diagnostics,
-          sources,
-          pslBlockDescriptors,
-          collectedBlocks,
-        );
+        extendNamespace(namespace, declaration, diagnostics, sources);
       } else if (declaration instanceof TypesBlockAst) {
         for (const binding of declaration.declarations()) {
           const name = claim(topLevelNames, binding.name());
@@ -223,16 +212,10 @@ export function buildSymbolTable(options: BuildSymbolTableOptions): SymbolTableR
     }
   }
 
-  const symbolTable: SymbolTable = {
-    topLevel: { namespaces, namedTypes, blocks, models, compositeTypes },
+  return {
+    symbolTable: { topLevel: { namespaces, namedTypes, blocks, models, compositeTypes } },
+    diagnostics,
   };
-  for (const block of collectedBlocks) {
-    const descriptor = findBlockDescriptor(pslBlockDescriptors, block.keyword);
-    if (descriptor !== undefined) {
-      interpretBlockAttributes(block, descriptor, sources, symbolTable, diagnostics);
-    }
-  }
-  return { symbolTable, diagnostics };
 }
 
 function buildModel(
@@ -271,22 +254,14 @@ function buildBlock(
   name: string,
   node: GenericBlockDeclarationAst,
   sources: PslSources,
-  pslBlockDescriptors: AuthoringPslBlockDescriptorNamespace,
-  diagnostics: ParseDiagnostic[],
-  collectedBlocks: BlockSymbol[],
 ): BlockSymbol {
-  const keyword = node.keyword()?.text ?? '';
-  const descriptor = findBlockDescriptor(pslBlockDescriptors, keyword);
-  const symbol: BlockSymbol = {
+  return {
     kind: 'block',
     name,
-    keyword,
+    keyword: node.keyword()?.text ?? '',
     node,
     span: nodePslSpan(node.syntax, sources),
-    block: reconstructExtensionBlock(node, descriptor, sources, diagnostics),
   };
-  collectedBlocks.push(symbol);
-  return symbol;
 }
 
 function extendNamespace(
@@ -294,11 +269,8 @@ function extendNamespace(
   node: NamespaceDeclarationAst,
   diagnostics: ParseDiagnostic[],
   sources: PslSources,
-  pslBlockDescriptors: AuthoringPslBlockDescriptorNamespace,
-  collectedBlocks: BlockSymbol[],
 ): void {
   const { models, compositeTypes, blocks } = namespace;
-  namespace.declarations.push({ node, span: nodePslSpan(node.syntax, sources) });
 
   for (const member of node.declarations()) {
     const memberName = member.name()?.name();
@@ -324,14 +296,7 @@ function extendNamespace(
     } else if (member instanceof CompositeTypeDeclarationAst) {
       compositeTypes[memberName] = buildCompositeType(memberName, member, sources, diagnostics);
     } else if (member instanceof GenericBlockDeclarationAst) {
-      blocks[memberName] = buildBlock(
-        memberName,
-        member,
-        sources,
-        pslBlockDescriptors,
-        diagnostics,
-        collectedBlocks,
-      );
+      blocks[memberName] = buildBlock(memberName, member, sources);
     }
   }
 }
@@ -392,6 +357,7 @@ function buildField(
       typeName: path[path.length - 1] ?? '',
       optional: false,
       list: false,
+      elementOptional: false,
       malformedType: true,
       attributes,
     };
@@ -413,6 +379,7 @@ function buildField(
     ...(typeContractSpaceId !== undefined ? { typeContractSpaceId } : {}),
     optional: annotation?.isOptional() ?? false,
     list: annotation?.isList() ?? false,
+    elementOptional: annotation?.isElementOptional() ?? false,
     ...(typeConstructor !== undefined ? { typeConstructor } : {}),
     attributes,
   };
@@ -425,7 +392,7 @@ function resolveNamedTypeBinding(
   baseType?: string;
   typeConstructor?: ResolvedTypeConstructorCall;
   isConstructor: boolean;
-  attributes: readonly ResolvedAttribute[];
+  attributes: readonly ResolvedAttribute<FieldAttributeAst>[];
 } {
   const annotation = node.typeAnnotation();
   const isConstructor = annotation?.isConstructor() ?? false;

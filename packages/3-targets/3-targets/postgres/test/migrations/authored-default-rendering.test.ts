@@ -1,12 +1,13 @@
 import { type Contract, coreHash, profileHash } from '@internal/contract/types';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
+import { opaqueSql } from '@internal/sql-relational-core/ast';
 import { SqlColumnDefaultIR, type SqlColumnIR } from '@internal/sql-schema-ir/types';
 import { applicationDomainOf } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
 import { postgresResolveDefault } from '../../src/core/default-normalizer';
 import {
+  buildSetDefaultColumn,
   renderColumnDdl,
-  renderColumnDefaultSql,
 } from '../../src/core/migrations/column-ddl-rendering';
 import { buildPostgresPlanDiff } from '../../src/core/migrations/diff-database-schema';
 import { renderDefaultLiteral } from '../../src/core/migrations/planner-ddl-builders';
@@ -28,6 +29,7 @@ function expectedColumn(nativeType: string, codecId: string, expression: string)
               orders: new StorageTable({
                 columns: {
                   value: {
+                    many: false,
                     nativeType,
                     codecId,
                     nullable: false,
@@ -83,14 +85,13 @@ describe('a sql`...` default on Postgres renders as authored', () => {
       const column = expectedColumn(nativeType, codecId, expression);
 
       const ddl = renderColumnDdl('value', column, new Map());
+      const setDefault = buildSetDefaultColumn('value', defaultNodeOf(column), new Map());
 
       expect({ type: ddl.type, default: ddl.default }).toEqual({
         type: nativeType,
-        default: { kind: 'function', expression },
+        default: { kind: 'function', expression: opaqueSql(expression) },
       });
-      expect(renderColumnDefaultSql(defaultNodeOf(column), new Map())).toBe(
-        `DEFAULT (${expression})`,
-      );
+      expect(setDefault?.default).toEqual(ddl.default);
     },
   );
 
@@ -114,6 +115,8 @@ describe("a literal-shaped sql`'{}'::jsonb` body on Postgres", () => {
     );
     expect(resolved).toEqual({ kind: 'literal', value: {} });
     if (resolved.kind !== 'literal') throw new Error('literal expected');
-    expect(renderDefaultLiteral(resolved.value, { nativeType: 'jsonb' })).toBe("'{}'::jsonb");
+    expect(renderDefaultLiteral(resolved.value, { nativeType: 'jsonb', many: false })).toBe(
+      "'{}'::jsonb",
+    );
   });
 });

@@ -1,16 +1,15 @@
 import type { AuthoringContributions } from '@internal/framework-components/authoring';
 import type { ModelAttributeSpecFactory } from '@internal/psl-parser';
-import { fieldRef, list, modelAttribute, optional, str } from '@internal/psl-parser';
+import { fieldRef, list, modelAttribute, optional, str, structBlock } from '@internal/psl-parser';
 import type { SqlNamespaceInput } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
-import { interpretPslDocumentToSqlContract } from '../src/interpreter';
 import { fixtureDataTypeSupport } from './fixture-data-types';
 import {
   createBuiltinLikeControlMutationDefaults,
+  interpretSqlContract,
   postgresScalarTypeDescriptors,
   postgresTarget,
-  symbolTableInputFromParseArgs,
 } from './fixtures';
 
 const builtinControlMutationDefaults = createBuiltinLikeControlMutationDefaults();
@@ -57,23 +56,13 @@ const stampAuthoringContributions: AuthoringContributions = {
   },
 };
 
-function interpretWith(
-  schema: string,
-  authoringContributions?: AuthoringContributions,
-  pslBlockDescriptors?: Parameters<typeof symbolTableInputFromParseArgs>[0]['pslBlockDescriptors'],
-) {
+function interpretWith(schema: string, authoringContributions?: AuthoringContributions) {
   const capturedEntries: Record<string, Record<string, Record<string, unknown>>> = {};
-  const document = symbolTableInputFromParseArgs({
-    schema,
-    sourceId: 'schema.prisma',
-    ...(pslBlockDescriptors !== undefined ? { pslBlockDescriptors } : {}),
-  });
   const createNamespace = (input: SqlNamespaceInput) => {
     capturedEntries[input.id] = { ...(capturedEntries[input.id] ?? {}), ...input.entries };
     return createTestSqlNamespace(input);
   };
-  const result = interpretPslDocumentToSqlContract({
-    ...document,
+  const result = interpretSqlContract(schema, {
     target: postgresTarget,
     scalarColumnDescriptors: postgresScalarTypeDescriptors,
     controlMutationDefaults: builtinControlMutationDefaults,
@@ -302,7 +291,7 @@ model Gadget {
         keyword: 'stamp_block',
         discriminator: 'stamp',
         name: { required: true },
-        parameters: {},
+        spec: () => structBlock({ parameters: {} }),
       },
     };
     const collidingContributions: AuthoringContributions = {
@@ -329,7 +318,6 @@ model Gadget {
   }
 }`,
         collidingContributions,
-        stampBlockDescriptors,
       ),
     ).toThrow(/entries slot "stamp".*contributed by both/s);
   });

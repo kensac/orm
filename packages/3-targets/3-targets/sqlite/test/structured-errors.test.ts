@@ -1,14 +1,10 @@
-import { CheckExpressionConstraint } from '@internal/sql-relational-core/ast';
-import { col } from '@internal/sql-relational-core/contract-free';
+import { checkExpression, col } from '@internal/sql-relational-core/contract-free';
 import { isStructuredError } from '@internal/utils/structured-error';
 import { describe, expect, it } from 'vitest';
 import { sqliteBigintDescriptor, sqliteRealDescriptor } from '../src/core/codecs';
 import sqliteControlTargetDescriptor from '../src/core/control-target';
 import { CreateTableCall, DropTableCall } from '../src/core/migrations/op-factory-call';
-import {
-  buildColumnDefaultSql,
-  buildColumnTypeSql,
-} from '../src/core/migrations/planner-ddl-builders';
+import { buildColumnTypeSql } from '../src/core/migrations/planner-ddl-builders';
 import { renderOps } from '../src/core/migrations/render-ops';
 import { createSqliteMigrationRunner } from '../src/core/migrations/runner';
 import { escapeLiteral, quoteIdentifier } from '../src/core/sql-utils';
@@ -57,17 +53,18 @@ describe('structured error codes', () => {
     expect(isStructuredError(error)).toBe(true);
     expect(error).toMatchObject({
       code: 'RUNTIME.DECODE_FAILED',
-      message: 'sqlite/bigint@1 database JSON value must be a decimal string',
+      message:
+        'sqlite/bigint@1 JSON value must be a decimal integer string from -9223372036854775808 to 9223372036854775807',
     });
   });
 
-  it('real codec encodeJson of a non-finite value raises RUNTIME.ENCODE_FAILED', () => {
+  it('real codec encodeJson of NaN raises RUNTIME.ENCODE_FAILED', () => {
     const realCodec = sqliteRealDescriptor.factory()({ name: 'test' });
-    const error = capture(() => realCodec.encodeJson(Number.POSITIVE_INFINITY));
+    const error = capture(() => realCodec.encodeJson(Number.NaN));
     expect(isStructuredError(error)).toBe(true);
     expect(error).toMatchObject({
       code: 'RUNTIME.ENCODE_FAILED',
-      message: 'sqlite/real@1 value must be a finite number',
+      message: 'sqlite/real@1 value must be a number other than NaN, which SQLite cannot store',
     });
   });
 
@@ -90,7 +87,12 @@ describe('structured error codes', () => {
 
   it('unsafe native type raises CONTRACT.NATIVE_TYPE_INVALID', () => {
     const error = capture(() =>
-      buildColumnTypeSql({ nativeType: 'TEXT; DROP', nullable: true, codecId: 'sqlite/text@1' }),
+      buildColumnTypeSql({
+        many: false,
+        nativeType: 'TEXT; DROP',
+        nullable: true,
+        codecId: 'sqlite/text@1',
+      }),
     );
     expect(isStructuredError(error)).toBe(true);
     expect(error).toMatchObject({
@@ -99,18 +101,16 @@ describe('structured error codes', () => {
     });
   });
 
-  it('unsafe default expression raises CONTRACT.DEFAULT_INVALID', () => {
-    const error = capture(() =>
-      buildColumnDefaultSql({ kind: 'function', expression: "eek(); DROP TABLE 'x'" }),
-    );
-    expect(isStructuredError(error)).toBe(true);
-    expect(error).toMatchObject({ code: 'CONTRACT.DEFAULT_INVALID' });
-  });
-
   it('unknown typeRef raises CONTRACT.TYPE_UNKNOWN', () => {
     const error = capture(() =>
       buildColumnTypeSql(
-        { nativeType: 'unused', nullable: true, codecId: 'sqlite/text@1', typeRef: 'missing' },
+        {
+          many: false,
+          nativeType: 'unused',
+          nullable: true,
+          codecId: 'sqlite/text@1',
+          typeRef: 'missing',
+        },
         {},
       ),
     );
@@ -131,7 +131,7 @@ describe('structured error codes', () => {
     const call = new CreateTableCall(
       'user',
       [col('id', 'INTEGER')],
-      [new CheckExpressionConstraint({ name: 'chk', expression: '1 = 1' })],
+      [checkExpression('chk', '1 = 1')],
     );
     const error = capture(() => call.renderTypeScript());
     expect(isStructuredError(error)).toBe(true);

@@ -5,10 +5,9 @@ import { mongoFamilyDescriptor } from '@internal/family-mongo/control';
 import { collectScalarTypeConstructors } from '@internal/framework-components/authoring';
 import { createControlStack } from '@internal/framework-components/control';
 import { interpretPslDocumentToMongoContract } from '@internal/mongo-contract-psl';
-import { mongoContract } from '@internal/mongo-contract-psl/provider';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { hasPslInterpreter } from '@internal/psl-parser/interpret';
-import { parse } from '@internal/psl-parser/syntax';
+import { mongoContextInput } from '@internal/mongo-contract-psl/test';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
+import { bindPslSchema, contractSourceContextFromControlStack } from '@internal/psl-parser/test';
 import { mongoTargetDescriptor } from '@internal/target-mongo/control';
 import { describe, expect, it } from 'vitest';
 
@@ -18,14 +17,6 @@ const stack = createControlStack({
   adapter: mongoAdapter,
   driver: mongoDriver,
 });
-
-function namespaceScalarTypeCodecIds(): ReadonlyMap<string, string> {
-  const result = new Map<string, string>();
-  for (const [name, output] of collectScalarTypeConstructors(stack.authoringContributions.type)) {
-    result.set(name, output.codecId);
-  }
-  return result;
-}
 
 const REPRESENTATIVE_SCHEMA = `model sample {
   id        ObjectId @id @map("_id")
@@ -41,6 +32,7 @@ const REPRESENTATIVE_SCHEMA = `model sample {
 const BSON_SCALARS_SCHEMA = `model post {
   id        ObjectId   @id @map("_id")
   views     Int64
+  hits      Int64Number
   price     Decimal128
   thumbnail Binary
   meta      Json
@@ -48,28 +40,21 @@ const BSON_SCALARS_SCHEMA = `model post {
 }
 `;
 
-function emit(
-  scalarTypeCodecIds: ReadonlyMap<string, string>,
-  schema: string = REPRESENTATIVE_SCHEMA,
-) {
-  const { document, sources } = parse(schema, 'representative-schema.prisma');
-  const { symbolTable } = buildSymbolTable({
-    documents: [document],
-    sources,
-    pslBlockDescriptors: stack.authoringContributions.pslBlockDescriptors,
+function emit(schema: string = REPRESENTATIVE_SCHEMA) {
+  const bound = bindPslSchema(schema, {
+    sourceId: 'representative-schema.prisma',
+    context: contractSourceContextFromControlStack(stack),
   });
-  return interpretPslDocumentToMongoContract({
-    documents: [document],
-    symbolTable,
-    sources,
-    scalarTypeCodecIds,
-    controlMutationDefaults: {
-      dataTypeEntries: {},
-      defaultFunctionRegistry: new Map(),
-    },
-    codecLookup: stack.codecLookup,
-    authoringContributions: stack.authoringContributions,
-  });
+  return withSeedDiagnostics(
+    interpretPslDocumentToMongoContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...mongoContextInput(bound.context),
+    }),
+    bound.seedDiagnostics,
+  );
 }
 
 // The legacy scalar-type map channel (name-to-codecId, retired in TML-2985) is gone; the pinned literals
@@ -87,6 +72,7 @@ describe('mongo scalar types derived from the unified namespace', () => {
       ObjectId: { codecId: 'mongo/objectId@1', nativeType: 'objectId' },
       Double: { codecId: 'mongo/double@1', nativeType: 'double' },
       Int64: { codecId: 'mongo/int64@1', nativeType: 'long' },
+      Int64Number: { codecId: 'mongo/int64Number@1', nativeType: 'long' },
       Decimal128: { codecId: 'mongo/decimal128@1', nativeType: 'decimal' },
       Binary: { codecId: 'mongo/binary@1', nativeType: 'binData' },
       Json: { codecId: 'mongo/json@1', nativeType: 'json' },
@@ -112,6 +98,7 @@ describe('mongo scalar types derived from the unified namespace', () => {
       'Int',
       'Int32',
       'Int64',
+      'Int64Number',
       'Json',
       'ObjectId',
       'String',
@@ -119,7 +106,7 @@ describe('mongo scalar types derived from the unified namespace', () => {
   });
 
   it('resolves ObjectId fields (incl. the mandated _id) through the derived map', () => {
-    const result = emit(namespaceScalarTypeCodecIds());
+    const result = emit();
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -141,8 +128,8 @@ describe('mongo scalar types derived from the unified namespace', () => {
     });
   });
 
-  it('resolves Int64, Decimal128, Binary, Json and Bson to their codecs and BSON validator types', () => {
-    const result = emit(namespaceScalarTypeCodecIds(), BSON_SCALARS_SCHEMA);
+  it('resolves Int64, Int64Number, Decimal128, Binary, Json and Bson to their codecs and BSON validator types', () => {
+    const result = emit(BSON_SCALARS_SCHEMA);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -154,6 +141,7 @@ describe('mongo scalar types derived from the unified namespace', () => {
               post: {
                 fields: {
                   views: { type: { kind: 'scalar', codecId: 'mongo/int64@1' } },
+                  hits: { type: { kind: 'scalar', codecId: 'mongo/int64Number@1' } },
                   price: { type: { kind: 'scalar', codecId: 'mongo/decimal128@1' } },
                   thumbnail: { type: { kind: 'scalar', codecId: 'mongo/binary@1' } },
                   meta: { type: { kind: 'scalar', codecId: 'mongo/json@1' } },
@@ -174,6 +162,7 @@ describe('mongo scalar types derived from the unified namespace', () => {
                     jsonSchema: {
                       properties: {
                         views: { bsonType: 'long' },
+                        hits: { bsonType: 'long' },
                         price: { bsonType: 'decimal' },
                         thumbnail: { bsonType: 'binData' },
                         meta: {
@@ -217,30 +206,22 @@ describe('mongo scalar types derived from the unified namespace', () => {
 
 describe('deprecated Mongo scalar names through the PSL contract source', () => {
   function interpretWith(schema: string) {
-    const { document, sources } = parse(schema, 'schema.prisma');
-    const { symbolTable } = buildSymbolTable({
-      documents: [document],
-      sources,
-      pslBlockDescriptors: stack.authoringContributions.pslBlockDescriptors,
-    });
     const warnings: ContractSourceDiagnostic[] = [];
-    const source = mongoContract('schema.prisma').source;
-    if (!hasPslInterpreter(source)) throw new Error('mongoContract has an interpreter');
-    const result = source.interpret(
-      { documents: [document], sources, symbolTable },
-      {
-        composedExtensions: [],
-        composedExtensionContracts: new Map(),
-        authoringContributions: stack.authoringContributions,
-        codecLookup: stack.codecLookup,
-        dataTypeLookup: stack.dataTypeLookup,
-        controlMutationDefaults: stack.controlMutationDefaults,
-        resolvedInputs: [],
-        capabilities: stack.capabilities,
-        reportWarning: (diagnostic) => {
-          warnings.push(diagnostic);
-        },
+    const context = contractSourceContextFromControlStack(stack, {
+      reportWarning: (diagnostic: ContractSourceDiagnostic) => {
+        warnings.push(diagnostic);
       },
+    });
+    const bound = bindPslSchema(schema, { sourceId: 'schema.prisma', context });
+    const result = withSeedDiagnostics(
+      interpretPslDocumentToMongoContract({
+        documents: bound.documents,
+        sources: bound.sources,
+        symbolTable: bound.symbolTable,
+        binder: bound.binder,
+        ...mongoContextInput(bound.context),
+      }),
+      bound.seedDiagnostics,
     );
     if (!result.ok) throw new Error(JSON.stringify(result.failure));
     const json = JSON.stringify(

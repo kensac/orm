@@ -23,23 +23,26 @@ import type {
   AuthoringEntityTypeNamespace,
   AuthoringPslBlockDescriptorNamespace,
   AuthoringTypeNamespace,
-  PslExtensionBlock,
+  ParsedPslExtensionBlock,
 } from '@internal/framework-components/authoring';
-import type { AnyCodecDescriptor, CodecLookup } from '@internal/framework-components/codec';
+import type {
+  AnyCodecDescriptor,
+  CodecLookupWithDescriptors,
+} from '@internal/framework-components/codec';
 import { dataTypeId } from '@internal/framework-components/codec';
-import { buildSymbolTable, createPslDiagnosticCollector } from '@internal/psl-parser';
+import {
+  buildSymbolTable,
+  createPslDiagnosticCollector,
+  jsonValue,
+  mapBlock,
+} from '@internal/psl-parser';
 import { parse } from '@internal/psl-parser/syntax';
 import type { SqlValueSetDerivingEntityTypeOutput } from '@internal/sql-contract/value-set-derivation-hook';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
-import { interpretPslDocumentToSqlContract } from '../src/interpreter';
 import { resolveFieldTypeDescriptor } from '../src/psl-column-resolution';
 import { fixtureDataTypeSupport } from './fixture-data-types';
-import {
-  postgresScalarTypeDescriptors,
-  postgresTarget,
-  symbolTableInputFromParseArgs,
-} from './fixtures';
+import { interpretSqlContract, postgresScalarTypeDescriptors, postgresTarget } from './fixtures';
 
 const NATIVE_ENUM_DISCRIMINATOR = 'test-native-enum';
 const PLAIN_REF_DISCRIMINATOR = 'test-plain-ref';
@@ -50,27 +53,33 @@ const pslBlockDescriptors: AuthoringPslBlockDescriptorNamespace = {
     keyword: 'native_enum',
     discriminator: NATIVE_ENUM_DISCRIMINATOR,
     name: { required: true },
-    parameters: {},
-    variadicParameters: true,
+    spec: () =>
+      mapBlock({
+        value: { type: jsonValue(), documentation: 'The explicit member value.' },
+        allowBare: true,
+      }),
   },
   plain_ref: {
     kind: 'pslBlock',
     keyword: 'plain_ref',
     discriminator: PLAIN_REF_DISCRIMINATOR,
     name: { required: true },
-    parameters: {},
-    variadicParameters: true,
+    spec: () =>
+      mapBlock({
+        value: { type: jsonValue(), documentation: 'The explicit member value.' },
+        allowBare: true,
+      }),
   },
 };
 
 type TestNativeEnum = { readonly typeName: string; readonly members: readonly string[] };
 type TestPlainRef = { readonly name: string };
 
-function lowerTestNativeEnum(block: PslExtensionBlock): TestNativeEnum {
-  return { typeName: block.name, members: Object.keys(block.parameters) };
+function lowerTestNativeEnum(block: ParsedPslExtensionBlock): TestNativeEnum {
+  return { typeName: block.name, members: Object.keys(block.values) };
 }
 
-function lowerTestPlainRef(block: PslExtensionBlock): TestPlainRef {
+function lowerTestPlainRef(block: ParsedPslExtensionBlock): TestPlainRef {
   return { name: block.name };
 }
 
@@ -85,7 +94,7 @@ const nativeEnumEntityTypeOutput = {
     kind: 'valueSet' as const,
     values: entity.members,
   }),
-} satisfies AuthoringEntityTypeFactoryOutput<PslExtensionBlock, TestNativeEnum> &
+} satisfies AuthoringEntityTypeFactoryOutput<ParsedPslExtensionBlock, TestNativeEnum> &
   SqlValueSetDerivingEntityTypeOutput;
 
 const entityTypes: AuthoringEntityTypeNamespace = {
@@ -159,7 +168,7 @@ const codecsById = new Map<string, AnyCodecDescriptor>([
   [rejectsCodec.codecId, rejectsCodec],
 ]);
 
-const codecLookup: CodecLookup = {
+const codecLookup: CodecLookupWithDescriptors = {
   get: () => undefined,
   targetTypesFor: () => undefined,
   renderOutputTypeFor: () => undefined,
@@ -208,14 +217,8 @@ const baseInput = {
 } as const;
 
 function interpretWith(schema: string) {
-  const document = symbolTableInputFromParseArgs({
-    schema,
-    sourceId: 'schema.prisma',
-    pslBlockDescriptors,
-  });
-  return interpretPslDocumentToSqlContract({
+  return interpretSqlContract(schema, {
     ...baseInput,
-    ...document,
     authoringContributions,
   });
 }
@@ -271,6 +274,31 @@ namespace docs {
         },
       },
     });
+  });
+
+  it('refuses a field typed by a non-enum block', () => {
+    const result = interpretWith(`
+namespace docs {
+  native_enum AalLevel {
+    aal1
+  }
+
+  model AuthSession {
+    id Int @id
+    aal AalLevel
+  }
+}
+`);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.diagnostics.map(({ code, message }) => ({ code, message }))).toEqual([
+      {
+        code: 'PSL_UNSUPPORTED_FIELD_TYPE',
+        message:
+          'Field "AuthSession.aal" is typed by the native_enum "AalLevel", which is not a column type.',
+      },
+    ]);
   });
 
   it('does not set a typeRef on an entity-ref-resolved column', () => {
@@ -480,11 +508,7 @@ model AuthSession {
 `,
       'schema.prisma',
     );
-    const { symbolTable } = buildSymbolTable({
-      documents: [document],
-      sources,
-      pslBlockDescriptors,
-    });
+    const { symbolTable } = buildSymbolTable({ documents: [document], sources });
     const field = symbolTable.topLevel.models['AuthSession']?.fields['aal'];
     expect(field).toBeDefined();
     if (!field) return;
@@ -492,13 +516,21 @@ model AuthSession {
     const diagnostics = createPslDiagnosticCollector(sources);
     const result = resolveFieldTypeDescriptor({
       field,
+      resolution: {
+        kind: 'contributedType',
+        symbol: {
+          kind: 'contributedType',
+          name: 'enum',
+          path: ['pg', 'enum'],
+          descriptor: {
+            kind: 'typeConstructor',
+            entityRefArg: { index: 0, entityKind: NATIVE_ENUM_DISCRIMINATOR },
+            output: { codecId: nativeEnumCodec.codecId },
+          },
+        },
+      },
       enumTypeDescriptors: new Map(),
       namedTypeDescriptors: new Map(),
-      scalarColumnDescriptors: postgresScalarTypeDescriptors,
-      authoringContributions,
-      composedExtensions: new Set(),
-      familyId: 'sql',
-      targetId: 'postgres',
       diagnostics,
       sources,
       entityLabel: 'Field "AuthSession.aal"',

@@ -15,17 +15,17 @@ import type { Refs } from '@internal/migration-tools/refs';
 import { readRefs } from '@internal/migration-tools/refs';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import {
-  CliStructuredError,
+  type CliStructuredError,
   errorDatabaseConnectionRequired,
   errorPathUnreachable,
   errorRuntime,
-  errorUnexpected,
   mapRefResolutionError,
   requireLiveDatabase,
 } from '../../utils/cli-errors';
 import { closeQuietly, resolveMigrationPaths } from '../../utils/command-helpers';
 import { createControlClient } from '../client';
 import type { CreateControlClient } from '../types';
+import { errorFromCaught } from './caught-errors';
 import { buildReadAggregate } from './contract-space-aggregate-loader';
 import { planSpacePath } from './migrate';
 import {
@@ -236,12 +236,9 @@ export async function executeMigrateShowPlan(
         targetHash = liveMarkerRefHash(allMarkers.get(aggregate.app.spaceId));
       }
     } catch (error) {
-      if (CliStructuredError.is(error)) {
-        return notOk(error);
-      }
       return notOk(
-        errorUnexpected(error instanceof Error ? error.message : String(error), {
-          why: `Failed to read live DB marker: ${error instanceof Error ? error.message : String(error)}`,
+        errorFromCaught(error, (message) => `Failed to read live DB marker: ${message}`, {
+          connection: typeof dbConnection === 'string' ? dbConnection : undefined,
         }),
       );
     } finally {

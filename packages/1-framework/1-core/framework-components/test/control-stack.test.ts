@@ -1,4 +1,5 @@
 import type { JsonValue } from '@internal/contract/types';
+import { InternalError } from '@internal/utils/internal-error';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { describe, expect, it } from 'vitest';
 import type { CreateControlStackInput } from '../src/control/control-stack';
@@ -605,9 +606,29 @@ describe('assembleAuthoringContributions', () => {
       keyword,
       discriminator,
       name: { required: true },
-      parameters: {},
+      spec: () => ({}),
     };
   }
+
+  it('rejects a pslBlockDescriptors entry whose spec is not callable', () => {
+    expect(() =>
+      assembleAuthoringContributions([
+        createDescriptor({
+          authoring: {
+            entityTypes: {
+              foo: { kind: 'entity', discriminator: 'fake-foo', output: { factory: () => ({}) } },
+            },
+            pslBlockDescriptors: {
+              fooBlock: {
+                ...makeDeclarativePslBlockDescriptor('fake-foo'),
+                spec: 'not-a-factory',
+              } as unknown as never,
+            },
+          },
+        }),
+      ]),
+    ).toThrow(/Malformed authoring pslBlock contribution at "fooBlock"/);
+  });
 
   it('merges pslBlockDescriptors namespaces from multiple descriptors', () => {
     const result = assembleAuthoringContributions([
@@ -1224,6 +1245,29 @@ describe('extractCodecLookup', () => {
       { id: 'desc', types: { codecTypes: { codecDescriptors: [stubDescriptor('a@1')] } } },
     ]);
     expect(lookup.renderValueLiteralFor?.('unknown@1', 'val', 'output')).toBeUndefined();
+  });
+
+  it('skips a parameterized codec whose factory needs its params, but not one that throws an internal error', () => {
+    const needsParams: AnyCodecDescriptor = {
+      ...stubDescriptor('needs@1'),
+      isParameterized: true,
+      factory: () => {
+        throw new Error('length is required');
+      },
+    };
+    const broken: AnyCodecDescriptor = {
+      ...stubDescriptor('broken@1'),
+      isParameterized: true,
+      factory: () => {
+        throw new InternalError('a codec broke an invariant');
+      },
+    };
+    const lookupOf = (descriptor: AnyCodecDescriptor) =>
+      extractCodecLookup([
+        { id: 'desc', types: { codecTypes: { codecDescriptors: [descriptor] } } },
+      ]);
+    expect(lookupOf(needsParams).get('needs@1')).toBeUndefined();
+    expect(() => lookupOf(broken)).toThrow(InternalError);
   });
 
   it('renderValueLiteralFor returns undefined when the codec has no renderValueLiteral', () => {

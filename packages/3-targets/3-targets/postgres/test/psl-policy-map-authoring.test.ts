@@ -8,11 +8,18 @@
  * per-build batch as indexes (one flush covering both).
  */
 
-import { createDataTypeLookup } from '@internal/framework-components/codec';
+import { createDataTypeLookup, emptyCodecLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
-import { buildSymbolTable } from '@internal/psl-parser';
+import { buildSymbolTable, createBinder, interpretExtensionBlocks } from '@internal/psl-parser';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
 import { parse } from '@internal/psl-parser/syntax';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import {
   afterAll,
@@ -45,6 +52,23 @@ const assembled = assembleAuthoringContributions([
   },
 ]);
 
+function blockResolutionBinder(
+  symbolTable: Parameters<typeof interpretExtensionBlocks>[0]['symbolTable'],
+  sources: Parameters<typeof interpretExtensionBlocks>[0]['sources'],
+) {
+  return createBinder({
+    sources,
+    symbolTable,
+    context: {
+      authoringContributions: {
+        ...assembleAuthoringContributions([]),
+        pslBlockDescriptors: assembled.pslBlockDescriptors,
+      },
+      controlMutationDefaults: { defaultFunctionRegistry: new Map() },
+    },
+  }).binder;
+}
+
 const postgresTarget = {
   kind: 'target' as const,
   familyId: 'sql' as const,
@@ -62,33 +86,67 @@ const scalarColumnDescriptors = new Map<string, { codecId: string; nativeType: s
 
 function parsePsl(source: string) {
   const { document, sources } = parse(source, 'psl-policy-map-authoring.test.psl');
-  return buildSymbolTable({
+  const { symbolTable, diagnostics: collectionDiagnostics } = buildSymbolTable({
     documents: [document],
     sources,
-    pslBlockDescriptors: assembled.pslBlockDescriptors,
   });
+  const blocks = interpretExtensionBlocks({
+    symbolTable,
+    sources,
+    pslBlockDescriptors: assembled.pslBlockDescriptors,
+    binder: blockResolutionBinder(symbolTable, sources),
+  });
+  return {
+    symbolTable,
+    parsedBlocks: blocks.parsedBlocks,
+    diagnostics: [...collectionDiagnostics, ...blocks.diagnostics],
+  };
 }
+
+const scalarTypeConstructors = Object.fromEntries(
+  [...scalarColumnDescriptors].map(([name, output]) => [
+    name,
+    { kind: 'typeConstructor' as const, output },
+  ]),
+);
 
 function interpret(source: string) {
   const { document, sources } = parse(source, 'psl-policy-map-authoring.test.psl');
-  const { symbolTable, diagnostics } = buildSymbolTable({
+  const { diagnostics } = buildSymbolTable({
     documents: [document],
     sources,
-    pslBlockDescriptors: assembled.pslBlockDescriptors,
   });
   expect(diagnostics).toEqual([]);
-  return interpretPslDocumentToSqlContract({
-    documents: [document],
-    dataTypeLookup: postgresDataTypeLookup,
-    symbolTable,
-    sources,
-    target: postgresTarget,
-    scalarColumnDescriptors,
-    authoringContributions: assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
-    capabilities: { sql: { scalarList: true } },
+  const bound = bindPslSchema(source, {
+    sourceId: 'psl-policy-map-authoring.test.psl',
+    context: {
+      composedExtensions: [],
+      composedExtensionContracts: new Map(),
+      authoringContributions: {
+        ...assembled,
+        type: { ...scalarTypeConstructors, ...assembled.type },
+        attributeSpecs: sqlAttributeSpecs,
+      },
+      pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+      codecLookup: { ...emptyCodecLookup, descriptorFor: () => undefined },
+      controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+      dataTypeLookup: postgresDataTypeLookup,
+      resolvedInputs: [],
+      capabilities: { sql: { scalarList: true } },
+    },
   });
+  return withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target: postgresTarget,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
 }
 
 function policyDoc(policyBlocks: string, modelAttributes = ''): string {
@@ -234,15 +292,15 @@ namespace public {
 
   it('two reopened spellings sharing one head stay a duplicate-entity diagnostic (head-keyed)', () => {
     const result = interpret(`
+model profile {
+  id       Int @id
+  owner_id Int
+  email    String
+
+  @@rls
+}
+
 namespace public {
-  model profile {
-    id       Int @id
-    owner_id Int
-    email    String
-
-    @@rls
-  }
-
   policy_select p_read {
     target = profile
     roles  = [app_user]

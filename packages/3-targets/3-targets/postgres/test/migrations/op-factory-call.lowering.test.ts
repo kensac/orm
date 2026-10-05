@@ -1,6 +1,7 @@
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
-import { col, lit } from '@internal/sql-relational-core/contract-free';
+import { opaqueSql } from '@internal/sql-relational-core/ast';
+import { col, fn, lit } from '@internal/sql-relational-core/contract-free';
 import { parseNaming } from '@internal/sql-schema-ir/naming';
 import { describe, expect, it } from 'vitest';
 import {
@@ -48,6 +49,7 @@ function recordingCheckLowerer(): { lowerer: ExecuteRequestLowerer; received: un
   const received: unknown[] = [];
   const lowerer: ExecuteRequestLowerer = {
     lower: () => Object.freeze({ sql: 'UNUSED', params: Object.freeze([]) }),
+    renderColumnDefault: async () => '',
     lowerToExecuteRequest: async (ast) => {
       received.push(ast);
       return Object.freeze({
@@ -144,6 +146,17 @@ describe('AddColumnCall', () => {
       { moduleSpecifier: '@internal/postgres/migration', symbol: 'lit' },
     ]);
   });
+
+  it('renders a function default holding both quote kinds as a template literal', () => {
+    const call = new AddColumnCall(
+      'public',
+      'user',
+      col('label', 'text', { default: fn(`concat("prefix", 'user')`) }),
+    );
+    expect(call.renderTypeScript()).toBe(
+      'this.addColumn({ schema: "public", table: "user", column: col("label", "text", { default: fn(`concat("prefix", \'user\')`) }) })',
+    );
+  });
 });
 
 describe('DropColumnCall', () => {
@@ -218,6 +231,18 @@ describe('AlterColumnTypeCall', () => {
     const op = await call.toOp(lowerer);
     expect(op.execute[0]?.sql).toBe(
       'ALTER TABLE "public"."user" ALTER COLUMN "age" TYPE bigint USING age::bigint * 2',
+    );
+  });
+
+  it('ends a USING clause containing a line comment with a line break', async () => {
+    const { lowerer } = recordingCheckLowerer();
+    const call = new AlterColumnTypeCall('public', 'user', 'age', {
+      ...options,
+      using: 'age::bigint -- widen',
+    });
+    const op = await call.toOp(lowerer);
+    expect(op.execute[0]?.sql).toBe(
+      'ALTER TABLE "public"."user" ALTER COLUMN "age" TYPE bigint USING age::bigint -- widen\n',
     );
   });
 
@@ -312,56 +337,101 @@ describe('DropNotNullCall', () => {
 });
 
 describe('SetDefaultCall', () => {
-  it('lowers typed checks and sets the default clause verbatim', async () => {
-    const { lowerer, received } = recordingCheckLowerer();
-    const call = new SetDefaultCall('public', 'user', 'status', "DEFAULT 'pending'");
-    const op = await call.toOp(lowerer);
-
-    expect(received).toHaveLength(3);
-    expect(op.operationClass).toBe('additive');
-    expect(op.execute).toEqual([
-      {
-        description: 'set default on "status"',
-        sql: `ALTER TABLE "public"."user" ALTER COLUMN "status" SET DEFAULT 'pending'`,
-      },
-    ]);
-    expect(op.precheck).toEqual([
-      { description: 'ensure column "status" exists', sql: 'LOWERED 1', params: ['p1'] },
-    ]);
-    expect(op.postcheck).toEqual([
-      { description: 'verify column "status" has a default', sql: 'LOWERED 3', params: ['p3'] },
-    ]);
-    expect(call.label).toBe('Set default on "user"."status"');
+  const status = col('status', 'text', {
+    default: lit('pending'),
+    codecRef: { codecId: 'pg/text@1' },
   });
 
-  it('honors an explicit widening operationClass', async () => {
-    const { lowerer } = recordingCheckLowerer();
-    const call = new SetDefaultCall('public', 'user', 'status', "DEFAULT 'pending'", 'widening');
+  function renderingLowerer() {
+    const { lowerer, received } = recordingCheckLowerer();
+    const rendered: unknown[] = [];
+    const withDefaults: ExecuteRequestLowerer = {
+      ...lowerer,
+      renderColumnDefault: async (column, table) => {
+        rendered.push({ column, table });
+        return "DEFAULT 'pending'";
+      },
+    };
+    return { lowerer: withDefaults, received, rendered };
+  }
+
+  it('sets the default clause the adapter writes for the column, and lowers typed checks', async () => {
+    const { lowerer, received, rendered } = renderingLowerer();
+    const call = new SetDefaultCall('public', 'user', status);
     const op = await call.toOp(lowerer);
-    expect(op.operationClass).toBe('widening');
+
+    expect({
+      rendered,
+      checks: received.length,
+      operationClass: op.operationClass,
+      execute: op.execute,
+      precheck: op.precheck,
+      postcheck: op.postcheck,
+      label: call.label,
+    }).toEqual({
+      rendered: [{ column: status, table: 'user' }],
+      checks: 3,
+      operationClass: 'additive',
+      execute: [
+        {
+          description: 'set default on "status"',
+          sql: `ALTER TABLE "public"."user" ALTER COLUMN "status" SET DEFAULT 'pending'`,
+        },
+      ],
+      precheck: [
+        { description: 'ensure column "status" exists', sql: 'LOWERED 1', params: ['p1'] },
+      ],
+      postcheck: [
+        { description: 'verify column "status" has a default', sql: 'LOWERED 3', params: ['p3'] },
+      ],
+      label: 'Set default on "user"."status"',
+    });
+  });
+
+  it('checks no default afterwards when it changes one, since the old default would pass for the new one and the runner would skip the change', async () => {
+    const { lowerer } = renderingLowerer();
+    const call = new SetDefaultCall('public', 'user', status, 'widening');
+    const op = await call.toOp(lowerer);
+    expect({
+      operationClass: op.operationClass,
+      precheck: op.precheck,
+      postcheck: op.postcheck,
+    }).toEqual({
+      operationClass: 'widening',
+      precheck: [
+        { description: 'ensure column "status" exists', sql: 'LOWERED 1', params: ['p1'] },
+      ],
+      postcheck: [],
+    });
   });
 
   it('toOp() throws when no lowerer is provided', async () => {
-    const call = new SetDefaultCall('public', 'user', 'status', "DEFAULT 'pending'");
+    const call = new SetDefaultCall('public', 'user', status);
     await expect(async () => call.toOp()).rejects.toThrow('createPostgresMigrationPlanner');
   });
 
-  it('renders this.setDefault, including operationClass only when non-additive', () => {
-    const additive = new SetDefaultCall('public', 'user', 'status', "DEFAULT 'pending'");
-    expect(additive.renderTypeScript()).toBe(
-      'this.setDefault({ schema: "public", table: "user", column: "status", defaultSql: "DEFAULT \'pending\'" })',
+  it('renders this.setDefault with the column, including operationClass only when non-additive', () => {
+    const additive = new SetDefaultCall('public', 'user', status);
+    const widening = new SetDefaultCall('public', 'user', status, 'widening');
+    const column =
+      'col("status", "text", { default: lit("pending"), codecRef: { codecId: "pg/text@1" } })';
+    expect({
+      additive: additive.renderTypeScript(),
+      widening: widening.renderTypeScript(),
+      imports: additive.importRequirements().map((requirement) => requirement.symbol),
+    }).toEqual({
+      additive: `this.setDefault({ schema: "public", table: "user", column: ${column} })`,
+      widening: `this.setDefault({ schema: "public", table: "user", column: ${column}, operationClass: "widening" })`,
+      imports: ['col', 'lit'],
+    });
+  });
+
+  it('renders a default holding both quote kinds as a template literal', () => {
+    const meta = col('meta', 'jsonb', { default: fn(`'{"a": 1}'::jsonb`) });
+    const call = new SetDefaultCall('public', 'user', meta);
+    expect(call.renderTypeScript()).toBe(
+      'this.setDefault({ schema: "public", table: "user", column: col("meta", "jsonb", { default: fn(`\'{"a": 1}\'::jsonb`) }) })',
     );
-    const widening = new SetDefaultCall(
-      'public',
-      'user',
-      'status',
-      "DEFAULT 'pending'",
-      'widening',
-    );
-    expect(widening.renderTypeScript()).toBe(
-      'this.setDefault({ schema: "public", table: "user", column: "status", defaultSql: "DEFAULT \'pending\'", operationClass: "widening" })',
-    );
-    expect(additive.importRequirements()).toEqual([]);
   });
 });
 
@@ -623,11 +693,24 @@ describe('CreateIndexCall', () => {
     const ddlNode = received[0] as PostgresCreateIndex;
     expect(ddlNode).toBeInstanceOf(PostgresCreateIndex);
     expect(ddlNode.unique).toBe(true);
-    expect(ddlNode.where).toBe('deleted_at IS NULL');
-    expect(ddlNode.elements).toEqual({ expression: 'lower(email)' });
+    expect(ddlNode.where).toEqual(opaqueSql('deleted_at IS NULL'));
+    expect(ddlNode.elements).toEqual({ expression: opaqueSql('lower(email)') });
     expect(op.execute[0]?.sql).toBe('LOWERED 1');
     expect(call.renderTypeScript()).toBe(
       'this.createIndex({ schema: "public", table: "user", index: "user_email_eq", expression: "lower(email)", extras: { where: "deleted_at IS NULL", unique: true } })',
+    );
+  });
+
+  it('renders an expression and a where holding both quote kinds as template literals', () => {
+    const call = new CreateIndexCall(
+      'public',
+      'user',
+      'user_kind_idx',
+      { expression: `("kind" || 'x')` },
+      { where: `"kind" <> 'guest'` },
+    );
+    expect(call.renderTypeScript()).toBe(
+      'this.createIndex({ schema: "public", table: "user", index: "user_kind_idx", expression: `("kind" || \'x\')`, extras: { where: `"kind" <> \'guest\'` } })',
     );
   });
 });
@@ -999,6 +1082,37 @@ describe('CreatePostgresRlsPolicyCall', () => {
         '  roles: ["app_user"],',
         '  using: "(tenant_id = 1)",',
         '  permissive: true,',
+        '} })',
+      ].join('\n'),
+    );
+  });
+
+  it('renders using and withCheck holding both quote kinds as template literals', () => {
+    const call = new CreatePostgresRlsPolicyCall(
+      'public',
+      'post',
+      new PostgresRlsPolicy({
+        naming: parseNaming('Members', undefined),
+        tableName: 'post',
+        namespaceId: 'public',
+        operation: 'all',
+        roles: ['app_user'],
+        using: `"status" = 'published'`,
+        withCheck: `"status" <> 'archived'`,
+        permissive: false,
+      }),
+    );
+    expect(call.renderTypeScript()).toBe(
+      [
+        'this.createRlsPolicy({ schema: "public", table: "post", policy: {',
+        '  naming: { kind: "exact", name: "Members" },',
+        '  tableName: "post",',
+        '  namespaceId: "public",',
+        '  operation: "all",',
+        '  roles: ["app_user"],',
+        '  using: `"status" = \'published\'`,',
+        '  withCheck: `"status" <> \'archived\'`,',
+        '  permissive: false,',
         '} })',
       ].join('\n'),
     );

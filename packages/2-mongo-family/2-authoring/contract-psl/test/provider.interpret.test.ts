@@ -6,12 +6,28 @@ import type {
 } from '@internal/config/config-types';
 import type { AuthoringEntityContext } from '@internal/framework-components/authoring';
 import { createDataTypeLookup, emptyCodecLookup } from '@internal/framework-components/codec';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { hasPslInterpreter, type PslInterpretInput } from '@internal/psl-parser/interpret';
+import {
+  buildSymbolTable,
+  createBinder,
+  jsonValue,
+  mapBlock,
+  mapPslDiagnostics,
+} from '@internal/psl-parser';
+import {
+  hasPslInterpreter,
+  type PslInterpretCapable,
+  type PslInterpretInput,
+  withSeedDiagnostics,
+} from '@internal/psl-parser/interpret';
 import { PslSources, parse } from '@internal/psl-parser/syntax';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it } from 'vitest';
+import { describeUnresolvedMongoType } from '../src/describe-unresolved-type';
 import { mongoContract } from '../src/exports/provider';
+import {
+  describeUnsupportedMongoAttribute,
+  mongoAttributeSpecs,
+} from '../src/mongo-attribute-specs';
 
 const SOURCE_ID = './schema.prisma';
 
@@ -34,10 +50,14 @@ function createMongoTestContext(overrides?: Partial<ContractSourceContext>): Con
       entityTypes: {},
       pslBlockDescriptors: {},
       modelAttributes: {},
-      attributeSpecs: { model: {}, field: {} },
+      attributeSpecs: mongoAttributeSpecs,
+    },
+    pslDiagnostics: {
+      describeUnsupportedAttribute: describeUnsupportedMongoAttribute,
+      describeUnresolvedType: describeUnresolvedMongoType,
     },
     dataTypeLookup: createDataTypeLookup([]),
-    codecLookup: emptyCodecLookup,
+    codecLookup: { ...emptyCodecLookup, descriptorFor: () => undefined },
     controlMutationDefaults: {
       defaultFunctionRegistry: new Map(),
       generatorDescriptors: [],
@@ -52,14 +72,25 @@ function buildInterpretInput(
   schema: string,
   context: ContractSourceContext,
   filename = SOURCE_ID,
-): PslInterpretInput {
+): PslInterpretInput & { readonly binderDiagnostics: ReturnType<typeof mapPslDiagnostics> } {
   const { document, sources } = parse(schema, filename);
-  const { symbolTable } = buildSymbolTable({
+  const { symbolTable } = buildSymbolTable({ documents: [document], sources });
+  const { binder, diagnostics } = createBinder({ symbolTable, sources, context });
+  return {
     documents: [document],
     sources,
-    pslBlockDescriptors: context.authoringContributions.pslBlockDescriptors,
-  });
-  return { documents: [document], sources, symbolTable };
+    symbolTable,
+    binder,
+    binderDiagnostics: mapPslDiagnostics(diagnostics, sources),
+  };
+}
+
+function interpretViaSource(
+  source: PslInterpretCapable,
+  input: ReturnType<typeof buildInterpretInput>,
+  context: ContractSourceContext,
+) {
+  return withSeedDiagnostics(source.interpret(input, context), input.binderDiagnostics);
 }
 
 function interpretCapableSource(schemaPath: string) {
@@ -109,7 +140,8 @@ model User {
     if (loadResult.ok) return;
 
     const context = createMongoTestContext();
-    const interpretResult = source.interpret(
+    const interpretResult = interpretViaSource(
+      source,
       buildInterpretInput(schema, context, schemaPath),
       context,
     );
@@ -117,17 +149,17 @@ model User {
     expect(interpretResult.ok).toBe(false);
     if (interpretResult.ok) return;
     expect(interpretResult.failure.diagnostics).toEqual(loadResult.failure.diagnostics);
-    expect(interpretResult.failure.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'PSL_UNSUPPORTED_FIELD_TYPE',
-          sourceId: schemaPath,
-          span: expect.objectContaining({
-            start: expect.objectContaining({ line: 4 }),
-          }),
+    expect(interpretResult.failure.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PSL_UNRESOLVED_REFERENCE',
+        message:
+          'Field "User.bad" has type "Mystery", which is not a scalar type, an enum, a composite type or a model. The Mongo scalar types are String and ObjectId.',
+        sourceId: schemaPath,
+        span: expect.objectContaining({
+          start: expect.objectContaining({ line: 4 }),
         }),
-      ]),
-    );
+      }),
+    ]);
   });
 
   it('returns the same contract load returns for a clean schema', async () => {
@@ -149,7 +181,8 @@ model User {
     if (!loadResult.ok) return;
 
     const context = createMongoTestContext();
-    const interpretResult = source.interpret(
+    const interpretResult = interpretViaSource(
+      source,
       buildInterpretInput(schema, context, schemaPath),
       context,
     );
@@ -176,20 +209,23 @@ model Other {
     const context = createMongoTestContext();
     const input = buildInterpretInput(schema, context);
 
-    let result: ReturnType<typeof source.interpret> | undefined;
+    let result: ReturnType<typeof interpretViaSource> | undefined;
     expect(() => {
-      result = source.interpret(input, context);
+      result = interpretViaSource(source, input, context);
     }).not.toThrow();
 
     expect(result).toBeDefined();
     if (result === undefined || result.ok) {
       throw new Error('expected interpret to report diagnostics');
     }
-    expect(result.failure.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: 'PSL_UNSUPPORTED_FIELD_TYPE', sourceId: SOURCE_ID }),
-      ]),
-    );
+    expect(result.failure.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PSL_UNRESOLVED_REFERENCE',
+        message:
+          'Field "Other.bad" has type "Mystery", which is not a scalar type, an enum, a composite type or a model. The Mongo scalar types are String and ObjectId.',
+        sourceId: SOURCE_ID,
+      }),
+    ]);
   });
 
   it('does not throw on a recovered CST from a syntax-broken schema', () => {
@@ -214,7 +250,7 @@ model Other {
     const context = createMongoTestContext();
     const cases = [
       {
-        code: 'PSL_UNSUPPORTED_FIELD_TYPE',
+        code: 'PSL_UNRESOLVED_REFERENCE',
         line: 3,
         schema: `model User {
   id ObjectId @id @map("_id")
@@ -247,7 +283,8 @@ model Post {
     ];
 
     for (const testCase of cases) {
-      const result = source.interpret(
+      const result = interpretViaSource(
+        source,
         buildInterpretInput(testCase.schema, context, 'memory-schema.prisma'),
         context,
       );
@@ -300,7 +337,8 @@ model Other {
     if (loadResult.ok) return;
 
     const context = createMongoTestContext();
-    const interpretResult = source.interpret(
+    const interpretResult = interpretViaSource(
+      source,
       buildInterpretInput(schema, context, schemaPath),
       context,
     );
@@ -330,10 +368,10 @@ it('attributes multi-document semantic failures to the owning file, not the entr
   const { symbolTable } = buildSymbolTable({
     documents: [entry.document, owned.document],
     sources,
-    pslBlockDescriptors: context.authoringContributions.pslBlockDescriptors,
   });
+  const { binder } = createBinder({ symbolTable, sources, context });
   const result = interpretCapableSource('provider.prisma').interpret(
-    { documents: [entry.document], sources, symbolTable },
+    { documents: [entry.document], sources, symbolTable, binder },
     context,
   );
   expect(result.ok).toBe(false);
@@ -372,8 +410,11 @@ it('preserves unlocated and foreign-file contribution diagnostics at the public 
           keyword: 'enum',
           discriminator: 'enum',
           name: { required: true },
-          parameters: {},
-          variadicParameters: true,
+          spec: () =>
+            mapBlock({
+              value: { type: jsonValue(), documentation: 'The member value.' },
+              allowBare: true,
+            }),
         },
       },
       entityTypes: {

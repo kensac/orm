@@ -15,11 +15,13 @@ import {
   optional,
   record,
   str,
+  structBlock,
 } from '@internal/psl-parser';
 import { parse } from '@internal/psl-parser/syntax';
 import { describe, expect, it, vi } from 'vitest';
 import { MarkupKind } from 'vscode-languageserver';
 import { providePslSignatureHelp } from '../src/signature-help';
+import { testBinder } from './helpers/binder';
 
 const parseArgument = vi.fn(str().parse);
 const text = { ...str(), parse: parseArgument };
@@ -113,7 +115,7 @@ const pslBlockDescriptors: AuthoringPslBlockDescriptorNamespace = {
     keyword: 'policy',
     discriminator: 'signature-policy',
     name: { required: true },
-    parameters: {},
+    spec: () => structBlock({ parameters: {} }),
     attributes: { probe: () => blockSpec },
   },
 };
@@ -123,7 +125,7 @@ function help(markedSource: string, labelOffsets = true) {
   expect(offset).toBeGreaterThanOrEqual(0);
   const { document, sources } = parse(markedSource.replace('|', ''), 'language-server-test.psl');
   const sourceFile = sources.sourceFileFor(document.syntax);
-  const { symbolTable } = buildSymbolTable({ documents: [document], sources, pslBlockDescriptors });
+  const { symbolTable } = buildSymbolTable({ documents: [document], sources });
   parseArgument.mockClear();
   const result = providePslSignatureHelp({
     document,
@@ -131,6 +133,7 @@ function help(markedSource: string, labelOffsets = true) {
     position: sourceFile.positionAt(offset),
     clientSupportsLabelOffsets: labelOffsets,
     candidates: {
+      binder: testBinder({ sources, symbolTable, authoringContributions, pslBlockDescriptors }),
       pslBlockDescriptors,
       symbolTable,
       authoringContributions,

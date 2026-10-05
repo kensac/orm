@@ -8,10 +8,13 @@ import type {
   AuthoringEntityTypeDescriptor,
 } from '@internal/framework-components/authoring';
 import {
-  collectScalarTypeConstructors,
+  getAuthoringTypeConstructor,
   instantiateAuthoringEntityType,
 } from '@internal/framework-components/authoring';
-import type { CodecLookup, DataTypeLookup } from '@internal/framework-components/codec';
+import type {
+  CodecLookupWithDescriptors,
+  DataTypeLookup,
+} from '@internal/framework-components/codec';
 import type {
   AssembledAuthoringContributions,
   ControlMutationDefaults,
@@ -20,7 +23,7 @@ import type {
   BlockSymbol,
   FieldSymbol,
   ModelSymbol,
-  PslExtensionBlock,
+  ParsedPslExtensionBlock,
   PslSpan,
   ResolvedAttribute,
   ResolvedTypeConstructorCall,
@@ -28,19 +31,24 @@ import type {
 import {
   buildSymbolTable,
   createPslDiagnosticCollector,
+  diagnosticSource,
   keywordPslSpan,
   nodePslSpan,
   readResolvedAttribute,
   readResolvedAttributes,
 } from '@internal/psl-parser';
-import type { DocumentAst, PslSources, SourceFile } from '@internal/psl-parser/syntax';
-import { StringLiteralExprAst } from '@internal/psl-parser/syntax';
+import type {
+  DocumentAst,
+  KeyValuePairAst,
+  PslSources,
+  SourceFile,
+} from '@internal/psl-parser/syntax';
+import { dottedPathsIn, StringLiteralExprAst } from '@internal/psl-parser/syntax';
 import type { SqlNamespaceBase, SqlNamespaceInput } from '@internal/sql-contract/types';
 import { deriveValueSetFromEntity } from '@internal/sql-contract/value-set-derivation-hook';
 import {
   buildEntityTypesByDiscriminator,
-  type ColumnDescriptor,
-  resolveFieldTypeDescriptor,
+  instantiateFieldTypeConstructor,
 } from '@internal/sql-contract-psl/resolution';
 import {
   buildSqlContractFromDefinition,
@@ -76,13 +84,12 @@ export interface InterpretPrisma7DocumentsInput {
   readonly binding: Prisma7TargetBinding;
   readonly controlMutationDefaults: ControlMutationDefaults;
   readonly authoringContributions: AssembledAuthoringContributions;
-  readonly codecLookup: CodecLookup;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly dataTypeLookup: DataTypeLookup;
   readonly composedExtensions: readonly string[];
 }
 
 const SUMMARY = 'Prisma 7 schema interpretation failed';
-const EMPTY_DESCRIPTORS: ReadonlyMap<string, ColumnDescriptor> = new Map();
 
 interface SourceBlock {
   readonly block: BlockSymbol;
@@ -144,20 +151,64 @@ function stringArgument(attribute: ResolvedAttribute): string | undefined {
   return StringLiteralExprAst.cast(expression.syntax)?.value();
 }
 
-function scalarValue(block: PslExtensionBlock, key: string): string | undefined {
-  const parameter = block.parameters[key];
-  if (parameter?.kind !== 'value') return undefined;
-  try {
-    const parsed: unknown = JSON.parse(parameter.raw);
-    return typeof parsed === 'string' ? parsed : undefined;
-  } catch {
-    return undefined;
+function blockEntry(source: SourceBlock, key: string): KeyValuePairAst | undefined {
+  for (const entry of source.block.node.entries()) {
+    if (entry.key()?.name() === key) return entry;
+  }
+  return undefined;
+}
+
+function scalarValue(source: SourceBlock, key: string): string | undefined {
+  const value = blockEntry(source, key)?.value();
+  if (value === undefined) return undefined;
+  return StringLiteralExprAst.cast(value.syntax)?.value();
+}
+
+function parameterSpan(source: SourceBlock, key: string): PslSpan {
+  const entry = blockEntry(source, key);
+  return entry === undefined ? source.block.span : nodePslSpan(entry.syntax, source.sources);
+}
+
+/** Prisma 7 accepts no dotted path in a datasource or generator block, though the parser reads one as a value. */
+function reportDottedBlockValues(
+  block: BlockSymbol,
+  sourceId: string,
+  sources: PslSources,
+  diagnostics: ContractSourceDiagnostic[],
+): void {
+  for (const entry of block.node.entries()) {
+    const value = entry.value();
+    if (value === undefined) continue;
+    for (const path of dottedPathsIn(value)) {
+      diagnostics.push({
+        code: 'PSL_INVALID_EXTENSION_BLOCK_MEMBER',
+        message: `${block.keyword} "${block.name}": the value of "${entry.key()?.name() ?? ''}" holds the dotted path ${path.path().join('.')}, which Prisma 7 does not accept in a ${block.keyword} block.`,
+        sourceId,
+        span: nodePslSpan(path.syntax, sources),
+      });
+    }
   }
 }
 
-function parameterSpan(block: PslExtensionBlock, key: string): PslSpan {
-  const parameter = block.parameters[key];
-  return parameter === undefined ? block.span : parameter.span;
+function reportDuplicateBlockEntries(
+  source: SourceBlock,
+  diagnostics: ContractSourceDiagnostic[],
+): void {
+  const seen = new Set<string>();
+  for (const entry of source.block.node.entries()) {
+    const key = entry.key()?.name();
+    if (key === undefined) continue;
+    if (seen.has(key)) {
+      diagnostics.push({
+        code: 'PSL_EXTENSION_DUPLICATE_PARAMETER',
+        message: `Duplicate parameter "${key}" in "${source.block.keyword}" block "${source.block.name}"; first occurrence wins`,
+        sourceId: source.sourceId,
+        span: nodePslSpan(entry.syntax, source.sources),
+      });
+      continue;
+    }
+    seen.add(key);
+  }
 }
 
 export function interpretPrisma7Documents(
@@ -192,7 +243,6 @@ export function interpretPrisma7Documents(
     const { symbolTable, diagnostics: tableDiagnostics } = buildSymbolTable({
       documents: [document],
       sources,
-      pslBlockDescriptors: {},
     });
     for (const diagnostic of tableDiagnostics) {
       diagnostics.push({
@@ -214,8 +264,10 @@ export function interpretPrisma7Documents(
       switch (block.keyword) {
         case 'datasource':
           datasources.push({ block, sourceId, sources, sourceFile });
+          reportDottedBlockValues(block, sourceId, sources, diagnostics);
           break;
         case 'generator':
+          reportDottedBlockValues(block, sourceId, sources, diagnostics);
           break;
         case 'enum':
           if (claimName('enum', block.name, sourceId, block.span)) {
@@ -281,7 +333,6 @@ export function interpretPrisma7Documents(
   const namespaceEntities = lowerNativeEnums(enums, input, diagnostics);
 
   const modelNames = new Set([...models.map((model) => model.symbol.name), ...ignoredModels]);
-  const scalarColumnDescriptors = collectScalarTypeConstructors(input.authoringContributions.type);
   const composedExtensions = new Set(input.composedExtensions);
   const builds = new Map<string, ModelBuild>();
   for (const declaration of models) {
@@ -304,7 +355,6 @@ export function interpretPrisma7Documents(
         ignoredModels,
         enums,
         namespaceEntities,
-        scalarColumnDescriptors,
         composedExtensions,
         input,
         diagnostics,
@@ -468,8 +518,8 @@ function checkDatasource(
     );
     return;
   }
-  const block = datasource.block.block;
-  const provider = scalarValue(block, 'provider');
+  reportDuplicateBlockEntries(datasource, diagnostics);
+  const provider = scalarValue(datasource, 'provider');
   if (provider === undefined || !binding.providers.includes(provider)) {
     diagnostics.push(
       prisma7Diagnostic(
@@ -478,7 +528,7 @@ function checkDatasource(
           ? `The datasource block declares no string \`provider\`; this contract source reads Prisma 7 schemas for provider "${namedProvider}".`
           : `The datasource provider is "${provider}"; this contract source reads Prisma 7 schemas for provider "${namedProvider}".`,
         datasource.sourceId,
-        parameterSpan(block, 'provider'),
+        parameterSpan(datasource, 'provider'),
       ),
     );
   }
@@ -488,13 +538,13 @@ function checkDatasource(
       'Removing referentialIntegrity, or replacing it with relationMode = "foreignKeys"',
   };
   for (const [property, edit] of Object.entries(relationModeEdits)) {
-    if (scalarValue(block, property) !== 'prisma') continue;
+    if (scalarValue(datasource, property) !== 'prisma') continue;
     diagnostics.push(
       prisma7Diagnostic(
         'PSL.PRISMA7_RELATION_MODE_UNSUPPORTED',
         `${property} = "prisma" is not supported: the contract declares the foreign keys its relations need, and in this mode Prisma 7 creates none. ${edit}, makes Prisma 7's next migration add those foreign keys, and that migration fails if any existing row breaks one.`,
         datasource.sourceId,
-        parameterSpan(block, property),
+        parameterSpan(datasource, property),
       ),
     );
   }
@@ -659,9 +709,20 @@ function readEnumDeclaration(
     }
   }
   const members: EnumDeclaration['members'][number][] = [];
+  const seenMemberNames = new Set<string>();
   for (const entry of block.node.entries()) {
     const name = entry.key()?.name();
     if (name === undefined) continue;
+    if (seenMemberNames.has(name)) {
+      diagnostics.push({
+        code: 'PSL_EXTENSION_DUPLICATE_PARAMETER',
+        message: `Duplicate parameter "${name}" in "${block.keyword}" block "${block.name}"; first occurrence wins`,
+        sourceId,
+        span: nodePslSpan(entry.syntax, sources),
+      });
+      continue;
+    }
+    seenMemberNames.add(name);
     let value = name;
     const span = nodePslSpan(entry.syntax, sources);
     for (const attributeNode of entry.attributes()) {
@@ -723,17 +784,20 @@ function lowerNativeEnums(
         },
       },
     };
-    const block: PslExtensionBlock & { readonly namespaceId: string } = {
+    const values: Record<string, string> = Object.create(null);
+    const parameterSpans: Record<string, PslSpan> = Object.create(null);
+    for (const member of declaration.members) {
+      values[member.name] = member.value;
+      parameterSpans[member.name] = member.span;
+    }
+    const block: ParsedPslExtensionBlock<Record<string, string>> & {
+      readonly namespaceId: string;
+    } = {
       kind: entityKind,
       keyword: entityKind,
       name: declaration.name,
-      parameters: Object.fromEntries(
-        declaration.members.map((member) => [
-          member.name,
-          { kind: 'value', raw: JSON.stringify(member.value), span: member.span },
-        ]),
-      ),
-      blockAttributes: [],
+      values,
+      parameterSpans,
       attributes: { map: { args: { name: declaration.typeName }, span: declaration.span } },
       span: declaration.span,
       namespaceId: declaration.namespaceId,
@@ -824,7 +888,6 @@ interface ReadFieldArgs {
   readonly ignoredModels: ReadonlySet<string>;
   readonly enums: ReadonlyMap<string, EnumDeclaration>;
   readonly namespaceEntities: NamespaceEntities;
-  readonly scalarColumnDescriptors: ReadonlyMap<string, ColumnDescriptor>;
   readonly composedExtensions: ReadonlySet<string>;
   readonly input: InterpretPrisma7DocumentsInput;
   readonly diagnostics: ContractSourceDiagnostic[];
@@ -1010,36 +1073,31 @@ function readField(args: ReadFieldArgs): void {
     };
   }
 
-  const namespaceExtensionEntities = args.namespaceEntities.get(model.namespaceId);
+  const typeConstructor = getAuthoringTypeConstructor(input.authoringContributions, call.path);
+  if (typeConstructor === undefined) {
+    diagnostics.push(
+      prisma7Diagnostic(
+        'PSL.PRISMA7_UNSUPPORTED_TYPE',
+        `${label} type "${field.typeName}" could not be resolved against target "${binding.target.targetId}".`,
+        sourceId,
+        field.span,
+      ),
+    );
+    return;
+  }
   const typeDiagnostics = createPslDiagnosticCollector(model.sources);
-  const resolved = resolveFieldTypeDescriptor({
-    field: { ...field, typeConstructor: call },
-    enumTypeDescriptors: EMPTY_DESCRIPTORS,
-    namedTypeDescriptors: EMPTY_DESCRIPTORS,
-    scalarColumnDescriptors: args.scalarColumnDescriptors,
-    authoringContributions: input.authoringContributions,
-    composedExtensions: args.composedExtensions,
-    familyId: binding.target.familyId,
-    targetId: binding.target.targetId,
+  const resolved = instantiateFieldTypeConstructor({
+    call,
+    descriptor: typeConstructor,
     diagnostics: typeDiagnostics,
-    sources: model.sources,
+    source: diagnosticSource(model.sources, field.node.syntax),
     entityLabel: label,
     namespaceId: model.namespaceId,
-    ...ifDefined('namespaceExtensionEntities', namespaceExtensionEntities),
+    namespaceExtensionEntities: args.namespaceEntities.get(model.namespaceId),
     codecLookup: input.codecLookup,
   });
   diagnostics.push(...typeDiagnostics.toExternal());
   if (!resolved.ok) {
-    if (!resolved.alreadyReported) {
-      diagnostics.push(
-        prisma7Diagnostic(
-          'PSL.PRISMA7_UNSUPPORTED_TYPE',
-          `${label} type "${field.typeName}" could not be resolved against target "${binding.target.targetId}".`,
-          sourceId,
-          field.span,
-        ),
-      );
-    }
     return;
   }
   const updatedAtGeneratorId =
@@ -1127,7 +1185,8 @@ function readField(args: ReadFieldArgs): void {
     descriptor: resolved.descriptor,
     nullable: field.optional || field.list,
     // Prisma 7 creates no CHECK constraint on list columns; Prisma 8 would derive one.
-    ...(field.list ? { many: true, noCheck: ['elementNotNull' as const] } : {}),
+    many: field.list,
+    ...(field.list ? { elementNullable: false, noCheck: ['elementNotNull' as const] } : {}),
     ...ifDefined('default', lowered?.storage),
     ...ifDefined('executionDefaults', executionDefaults),
   });

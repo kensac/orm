@@ -361,7 +361,7 @@ describe('migrate', () => {
       {
         kind: 'run-command',
         label: 'Check every space against the database',
-        command: '{bin} migration status',
+        command: 'prisma-test migration status',
       },
     ]);
   });

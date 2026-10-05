@@ -1,6 +1,7 @@
 import type {
   ContractSourceContext,
   ContractSourceDiagnostic,
+  ContractSourceDiagnostics,
 } from '@internal/config/config-types';
 import type { Contract, JsonValue } from '@internal/contract/types';
 import {
@@ -12,10 +13,11 @@ import {
   type AuthoringEntityContext,
   type AuthoringEntityTypeNamespace,
   type AuthoringFieldPresetDescriptor,
-  type AuthoringPslBlockDescriptorNamespace,
+  type AuthoringTypeConstructorDescriptor,
   type AuthoringTypeNamespace,
   collectScalarTypeConstructors,
-  type PslExtensionBlock,
+  type ParsedPslExtensionBlock,
+  readEnumBlockMembers,
   resolveEnumCodecId,
 } from '@internal/framework-components/authoring';
 import type { ExtensionPackRef, TargetPackRef } from '@internal/framework-components/components';
@@ -23,27 +25,36 @@ import type {
   ControlMutationDefaultEntry,
   ControlMutationDefaults,
 } from '@internal/framework-components/control';
-import type { FuncCallSig, SymbolTable } from '@internal/psl-parser';
+import type { FuncCallSig, PslBlockSpecDescriptor, SymbolTable } from '@internal/psl-parser';
 import {
   blockAttribute,
   buildSymbolTable,
   int,
+  jsonValue,
+  mapBlock,
   num,
   oneOf,
   optional,
   str,
 } from '@internal/psl-parser';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
 import type { DocumentAst, PslSources, SourceFile } from '@internal/psl-parser/syntax';
 import { parse } from '@internal/psl-parser/syntax';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import type { SqlNamespaceBase, SqlNamespaceInput } from '@internal/sql-contract/types';
 import { type EnumTypeHandle, enumType } from '@internal/sql-contract-ts/contract-builder';
-import { blindCast } from '@internal/utils/casts';
+import type { Result } from '@internal/utils/result';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import type { InterpretPslDocumentToSqlContractInput } from '../src/interpreter';
+import { interpretPslDocumentToSqlContract } from '../src/interpreter';
+import { describeUnsupportedSqlAttribute } from '../src/psl-field-resolution';
+import { sqlAttributeSpecs } from '../src/sql-attribute-specs';
+import { sqlContextInput } from '../src/test';
 import { postgresCodecLookup } from './fixture-codec-descriptors';
 import { fixtureDataTypeSupport } from './fixture-data-types';
 
 function testEnumFactory(
-  block: PslExtensionBlock,
+  block: ParsedPslExtensionBlock<Readonly<Record<string, JsonValue | undefined>>>,
   ctx: AuthoringEntityContext,
 ): EnumTypeHandle | undefined {
   const sourceId = ctx.sourceId ?? 'unknown';
@@ -76,89 +87,10 @@ function testEnumFactory(
     });
     return undefined;
   }
-  const members: { name: string; value: unknown }[] = [];
-  let memberError = false;
-  const seenValues = new Set<string>();
+  const members = readEnumBlockMembers(block, codecId, codec, ctx);
+  if (members === undefined) return undefined;
 
-  for (const [memberName, paramValue] of Object.entries(block.parameters)) {
-    let value: unknown;
-    if (paramValue.kind === 'bare') {
-      try {
-        value = codec.decodeJson(memberName as unknown as JsonValue);
-      } catch {
-        diagnostics?.push({
-          code: 'PSL_ENUM_BARE_MEMBER_NON_STRING_CODEC',
-          message: `enum "${block.name}" member "${memberName}" has no value and codec "${codecId}" does not accept a bare name as input`,
-          sourceId,
-          span: paramValue.span,
-        });
-        memberError = true;
-        continue;
-      }
-    } else if (paramValue.kind === 'value') {
-      let jsonValue: unknown;
-      try {
-        jsonValue = JSON.parse(paramValue.raw);
-      } catch {
-        diagnostics?.push({
-          code: 'PSL_EXTENSION_INVALID_VALUE',
-          message: `enum "${block.name}" member "${memberName}" value "${paramValue.raw}" is not valid JSON`,
-          sourceId,
-          span: paramValue.span,
-        });
-        memberError = true;
-        continue;
-      }
-      try {
-        value = codec.decodeJson(
-          blindCast<JsonValue, 'JSON.parse returns JsonValue-compatible value'>(jsonValue),
-        );
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        diagnostics?.push({
-          code: 'PSL_EXTENSION_INVALID_VALUE',
-          message: `enum "${block.name}" member "${memberName}" was rejected by codec "${codecId}": ${reason}`,
-          sourceId,
-          span: paramValue.span,
-        });
-        memberError = true;
-        continue;
-      }
-    } else {
-      continue;
-    }
-    const valueKey = String(value);
-    if (seenValues.has(valueKey)) {
-      diagnostics?.push({
-        code: 'PSL_ENUM_DUPLICATE_MEMBER_VALUE',
-        message: `enum "${block.name}": duplicate member value "${valueKey}"`,
-        sourceId,
-        span: paramValue.span,
-      });
-      memberError = true;
-      continue;
-    }
-    seenValues.add(valueKey);
-    members.push({ name: memberName, value });
-  }
-
-  if (memberError) return undefined;
-
-  if (members.length === 0) {
-    diagnostics?.push({
-      code: 'PSL_ENUM_MISSING_TYPE',
-      message: `enum "${block.name}" must have at least one member`,
-      sourceId,
-      span: block.span,
-    });
-    return undefined;
-  }
-
-  return enumType(
-    block.name,
-    { codecId, nativeType },
-    ...members.map((m) => ({ name: m.name, value: m.value })),
-  );
+  return enumType(block.name, { codecId, nativeType }, ...members);
 }
 
 export const testEnumPslBlockDescriptor = {
@@ -166,8 +98,11 @@ export const testEnumPslBlockDescriptor = {
   keyword: 'enum',
   discriminator: 'enum',
   name: { required: true },
-  parameters: {},
-  variadicParameters: true,
+  spec: () =>
+    mapBlock({
+      value: { type: jsonValue(), documentation: 'The explicit member value.' },
+      allowBare: true,
+    }),
   attributes: {
     type: () =>
       blockAttribute('type', {
@@ -181,7 +116,7 @@ export const testEnumPslBlockDescriptor = {
         ],
       }),
   },
-};
+} satisfies PslBlockSpecDescriptor;
 
 export const testEnumEntityContributions = {
   enum: {
@@ -225,6 +160,7 @@ export function testRenderCheckExpressions(input: {
   readonly tableName: string;
   readonly columnName: string;
   readonly many: boolean;
+  readonly elementNullable: boolean;
   readonly memberValues: readonly (string | number)[] | undefined;
 }): ReadonlyArray<{
   readonly kind: 'membership' | 'elementNotNull';
@@ -246,11 +182,11 @@ export function testRenderCheckExpressions(input: {
       kind: 'membership',
       columnName: input.columnName,
       expression: input.many
-        ? `${column}::${arrayType}[] <@ ARRAY[${members}]::${arrayType}[]`
+        ? `array_remove(${column}::${arrayType}[], NULL) <@ ARRAY[${members}]::${arrayType}[]`
         : `${column} IN (${members})`,
     });
   }
-  if (input.many) {
+  if (input.many && !input.elementNullable) {
     candidates.push({
       kind: 'elementNotNull',
       columnName: input.columnName,
@@ -358,7 +294,14 @@ export const postgresScalarAuthoringTypes: AuthoringTypeNamespace = {
     kind: 'typeConstructor',
     args: [
       { kind: 'number', name: 'precision', integer: true, minimum: 1, optional: true },
-      { kind: 'number', name: 'scale', integer: true, minimum: 0, optional: true },
+      {
+        kind: 'number',
+        name: 'scale',
+        integer: true,
+        minimum: -1000,
+        maximum: 1000,
+        optional: true,
+      },
     ],
     output: {
       codecId: 'pg/numeric@1',
@@ -420,7 +363,7 @@ export const pgvectorAuthoringContributions = {
   field: {},
   pslBlockDescriptors: {},
   modelAttributes: {},
-  attributeSpecs: { model: {}, field: {} },
+  attributeSpecs: sqlAttributeSpecs,
   type: {
     ...postgresScalarAuthoringTypes,
     pgvector: {
@@ -443,7 +386,6 @@ export function buildSymbolTableInput(
   schema: string,
   options?: {
     readonly sourceId?: string;
-    readonly pslBlockDescriptors?: AuthoringPslBlockDescriptorNamespace;
   },
 ): {
   documents: readonly DocumentAst[];
@@ -455,14 +397,9 @@ export function buildSymbolTableInput(
   enumInferenceCodecs: { readonly text: string; readonly int: string };
 } {
   const sourceId = options?.sourceId ?? 'schema.prisma';
-  const pslBlockDescriptors = options?.pslBlockDescriptors ?? {};
   const { document, sources } = parse(schema, sourceId);
   const sourceFile = sources.sourceFileFor(document.syntax);
-  const { symbolTable, diagnostics } = buildSymbolTable({
-    documents: [document],
-    sources,
-    pslBlockDescriptors,
-  });
+  const { symbolTable, diagnostics } = buildSymbolTable({ documents: [document], sources });
   const seedDiagnostics: ContractSourceDiagnostic[] = diagnostics.map((diagnostic) => ({
     code: diagnostic.code,
     message: diagnostic.message,
@@ -483,7 +420,6 @@ export function buildSymbolTableInput(
 export function symbolTableInputFromParseArgs(args: {
   readonly schema: string;
   readonly sourceId?: string;
-  readonly pslBlockDescriptors?: AuthoringPslBlockDescriptorNamespace;
 }): {
   documents: readonly DocumentAst[];
   symbolTable: SymbolTable;
@@ -495,10 +431,85 @@ export function symbolTableInputFromParseArgs(args: {
 } {
   return buildSymbolTableInput(args.schema, {
     ...(args.sourceId !== undefined ? { sourceId: args.sourceId } : {}),
-    ...(args.pslBlockDescriptors !== undefined
-      ? { pslBlockDescriptors: args.pslBlockDescriptors }
-      : {}),
   });
+}
+
+function contextForInterpretOptions(
+  options: Pick<
+    InterpretPslDocumentToSqlContractInput,
+    | 'authoringContributions'
+    | 'controlMutationDefaults'
+    | 'codecLookup'
+    | 'dataTypeLookup'
+    | 'composedExtensions'
+    | 'composedExtensionContracts'
+    | 'capabilities'
+    | 'scalarColumnDescriptors'
+  >,
+): ContractSourceContext {
+  const authoring = options.authoringContributions;
+  const scalarsFromColumnDescriptors: Record<string, AuthoringTypeConstructorDescriptor> = {};
+  for (const [name, descriptor] of options.scalarColumnDescriptors ?? []) {
+    scalarsFromColumnDescriptors[name] = {
+      kind: 'typeConstructor',
+      output: { codecId: descriptor.codecId, nativeType: descriptor.nativeType },
+    };
+  }
+  return {
+    composedExtensions: options.composedExtensions ?? [],
+    composedExtensionContracts: options.composedExtensionContracts,
+    authoringContributions: {
+      type: { ...scalarsFromColumnDescriptors, ...authoring?.type },
+      field: authoring?.field ?? {},
+      entityTypes: authoring?.entityTypes ?? {},
+      pslBlockDescriptors: authoring?.pslBlockDescriptors ?? {},
+      modelAttributes: authoring?.modelAttributes ?? {},
+      attributeSpecs: authoring?.attributeSpecs ?? sqlAttributeSpecs,
+      dataTypes: authoring?.dataTypes ?? {},
+      ...(authoring?.valueObjectStorageType === undefined
+        ? {}
+        : { valueObjectStorageType: authoring.valueObjectStorageType }),
+    },
+    pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+    codecLookup: options.codecLookup ?? postgresCodecLookup,
+    dataTypeLookup: options.dataTypeLookup,
+    controlMutationDefaults: options.controlMutationDefaults ?? {
+      defaultFunctionRegistry: new Map(),
+      generatorDescriptors: [],
+    },
+    resolvedInputs: [],
+    capabilities: options.capabilities,
+  };
+}
+
+export function interpretSqlContract(
+  schema: string,
+  options: Omit<
+    InterpretPslDocumentToSqlContractInput,
+    'documents' | 'sources' | 'symbolTable' | 'binder'
+  >,
+  sourceId?: string,
+): Result<Contract, ContractSourceDiagnostics> {
+  const bound = bindPslSchema(schema, {
+    sourceId: sourceId ?? 'schema.prisma',
+    context: contextForInterpretOptions(options),
+  });
+  return withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target: options.target,
+      createNamespace: options.createNamespace,
+      ...(options.composedExtensionPackRefs?.length
+        ? { composedExtensionPackRefs: options.composedExtensionPackRefs }
+        : {}),
+      enumInferenceCodecs: options.enumInferenceCodecs ?? postgresEnumInferenceCodecs,
+    }),
+    bound.seedDiagnostics,
+  );
 }
 
 export const sqliteScalarAuthoringTypes: AuthoringTypeNamespace = {
@@ -541,9 +552,10 @@ export function createPostgresTestContext(
       entityTypes: {},
       pslBlockDescriptors: {},
       modelAttributes: {},
-      attributeSpecs: { model: {}, field: {} },
+      attributeSpecs: sqlAttributeSpecs,
       valueObjectStorageType: 'Jsonb',
     },
+    pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
     codecLookup: postgresCodecLookup,
     controlMutationDefaults: createBuiltinLikeControlMutationDefaults(),
     dataTypeLookup: fixtureDataTypeSupport.lookup,

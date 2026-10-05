@@ -12,12 +12,18 @@
  *  3. Nullable variant (`pg.enum(E)?`).
  */
 
-import type { Codec, CodecLookup } from '@internal/framework-components/codec';
+import type { AuthoringTypeConstructorDescriptor } from '@internal/framework-components/authoring';
+import type { Codec, CodecLookupWithDescriptors } from '@internal/framework-components/codec';
 import { createDataTypeLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { parse } from '@internal/psl-parser/syntax';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import { describe, expect, it } from 'vitest';
 import {
@@ -49,7 +55,7 @@ const pgEnumCodec = {
   decodeJson: (json) => json,
 } as Codec;
 
-const codecLookup: CodecLookup = {
+const codecLookup: CodecLookupWithDescriptors = {
   get: (id) => (id === PG_ENUM_CODEC_ID ? pgEnumCodec : undefined),
   targetTypesFor: () => undefined,
   renderOutputTypeFor: () => undefined,
@@ -94,26 +100,45 @@ const scalarColumnDescriptors = new Map<string, { codecId: string; nativeType: s
   ['Int', { codecId: 'pg/int4@1', nativeType: 'int4' }],
 ]);
 
+const scalarTypeConstructors: Record<string, AuthoringTypeConstructorDescriptor> =
+  Object.fromEntries(
+    [...scalarColumnDescriptors].map(([name, output]) => [
+      name,
+      { kind: 'typeConstructor' as const, output },
+    ]),
+  );
+
 function interpret(source: string, capabilities: Record<string, Record<string, boolean>> = {}) {
-  const { document, sources } = parse(source, 'psl-pg-enum-column.test.psl');
-  const { symbolTable } = buildSymbolTable({
-    documents: [document],
-    sources,
-    pslBlockDescriptors: assembled.pslBlockDescriptors,
+  const bound = bindPslSchema(source, {
+    sourceId: 'psl-pg-enum-column.test.psl',
+    context: {
+      composedExtensions: [],
+      composedExtensionContracts: new Map(),
+      authoringContributions: {
+        ...assembled,
+        type: { ...scalarTypeConstructors, ...assembled.type },
+        attributeSpecs: sqlAttributeSpecs,
+      },
+      pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+      codecLookup,
+      controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+      dataTypeLookup: postgresDataTypeLookup,
+      resolvedInputs: [],
+      capabilities,
+    },
   });
-  return interpretPslDocumentToSqlContract({
-    documents: [document],
-    dataTypeLookup: postgresDataTypeLookup,
-    symbolTable,
-    sources,
-    capabilities,
-    target: postgresTarget,
-    scalarColumnDescriptors,
-    authoringContributions: assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
-    codecLookup,
-  });
+  return withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target: postgresTarget,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
 }
 
 const aalLevelSource = `
@@ -219,7 +244,44 @@ namespace auth {
         entityName: 'AalLevel',
       },
     });
-    expect(aalsColumn?.many).toBe(true);
+    expect(aalsColumn?.many).toEqual({ elementNullable: false });
+  });
+
+  it('keeps typeParams.typeName on a pg.enum(E)[] domain field, like the single field', () => {
+    const source = `
+namespace auth {
+  native_enum AalLevel {
+    aal1 = "aal1"
+    aal2 = "aal2"
+    @@map("aal_level")
+  }
+
+  model AuthSession {
+    id   Int                 @id
+    aal  pg.enum(AalLevel)
+    aals pg.enum(AalLevel)[]
+  }
+}
+`;
+    const result = interpret(source, { sql: { scalarList: true } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const fields = result.value.domain.namespaces['auth']?.models['AuthSession']?.fields;
+    const aal = {
+      nullable: false,
+      many: false,
+      type: {
+        kind: 'scalar',
+        codecId: 'pg/enum@1',
+        typeParams: { typeName: 'auth.aal_level' },
+      },
+    };
+    expect({ aal: fields?.['aal'], aals: fields?.['aals'] }).toEqual({
+      aal,
+      aals: { ...aal, many: { elementNullable: false } },
+    });
   });
 
   it('stores a list of member names written as a default on a pg.enum(E)[] field', () => {
@@ -269,7 +331,7 @@ namespace auth {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
-      'PSL_DEFAULT_TYPE_INCOMPATIBLE',
+      'PSL_VALUE_TYPE_INCOMPATIBLE',
     );
   });
 
@@ -389,6 +451,34 @@ namespace auth {
     expect(result.failure.diagnostics).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'PSL_UNKNOWN_ENTITY_REF' })]),
     );
+  });
+
+  it('refuses pg.enum(E) on a composite type member, which has no column to store the enum in', () => {
+    const source = `
+native_enum Level {
+  low = "low"
+  @@map("level")
+}
+
+type Session {
+  level pg.enum(Level)
+}
+
+model User {
+  id Int @id
+}
+`;
+    const result = interpret(source);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.diagnostics.map(({ code, message }) => ({ code, message }))).toEqual([
+      {
+        code: 'PSL_UNSUPPORTED_FIELD_TYPE',
+        message:
+          'Field "Session.level" is typed by the storage enum "Level", which a composite type member cannot use: a member has no column to store it in. Use a PSL enum instead.',
+      },
+    ]);
   });
 
   it('a pg.enum() call with no arguments is a diagnostic', () => {

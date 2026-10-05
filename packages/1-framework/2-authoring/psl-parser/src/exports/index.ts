@@ -1,4 +1,5 @@
 export type {
+  ParsedPslExtensionBlock,
   PslAttribute,
   PslAttributeArgument,
   PslAttributeNamedArgument,
@@ -13,12 +14,8 @@ export type {
   PslExtensionBlock,
   PslExtensionBlockAttribute,
   PslExtensionBlockAttributeArg,
-  PslExtensionBlockParamBare,
-  PslExtensionBlockParamList,
-  PslExtensionBlockParamOption,
-  PslExtensionBlockParamRef,
-  PslExtensionBlockParamScalarValue,
-  PslExtensionBlockParamValue,
+  PslExtensionBlockParsedAttribute,
+  PslExtensionBlockPrintEntry,
   PslField,
   PslFieldAttribute,
   PslModel,
@@ -46,6 +43,7 @@ export { funcCall } from '../attribute-spec/combinators/func-call';
 export { identifier } from '../attribute-spec/combinators/identifier';
 export { int } from '../attribute-spec/combinators/int';
 export { json } from '../attribute-spec/combinators/json';
+export { jsonValue } from '../attribute-spec/combinators/json-value';
 export type { ListOptions } from '../attribute-spec/combinators/list';
 export { list } from '../attribute-spec/combinators/list';
 export { num } from '../attribute-spec/combinators/num';
@@ -74,6 +72,7 @@ export type {
   AttributeLevel,
   AttributeOut,
   AttributeSpec,
+  BlockAttributeCtx,
   EntityRefArgType,
   FieldAttributeCtx,
   FixedIdentifierArgType,
@@ -81,8 +80,10 @@ export type {
   IdentifierArgType,
   InferAttr,
   InspectableArgType,
+  JsonValueArgType,
   ModelAttributeCtx,
   NamedOut,
+  NullArgType,
   NumLiteral,
   OptionalArgType,
   OutOf,
@@ -98,21 +99,50 @@ export type {
 export type {
   AttributeSymbol,
   Binder,
+  BinderContext,
   BinderResult,
   BoundSpec,
-  CreateBinderOptions,
+  CreateBinderInput,
+  DescribeUnresolvedType,
   DescribeUnsupportedAttribute,
   PslSymbol,
   Resolution,
+  UnresolvedTypeReference,
   UnsupportedAttribute,
 } from '../binder';
 export {
+  contributedTypeOf,
   createBinder,
   PSL_UNRESOLVED_REFERENCE,
+  typeReferenceNode,
 } from '../binder';
+export { mapBlock, structBlock } from '../block-spec/constructors';
+export type { PslBlockSpecDescriptor } from '../block-spec/descriptor';
+export { blockSpecFactoryOf } from '../block-spec/descriptor';
+export type {
+  InterpretExtensionBlockAttributesInput,
+  InterpretExtensionBlockInput,
+  InterpretExtensionBlocksResult,
+} from '../block-spec/interpret';
+export {
+  interpretExtensionBlock,
+  interpretExtensionBlockAttributes,
+  interpretExtensionBlocks,
+} from '../block-spec/interpret';
+export type {
+  BlockEntryValueSpec,
+  BlockSpec,
+  BlockSpecContext,
+  BlockSpecFactory,
+  InferBlock,
+  MapBlockSpec,
+  StructBlockSpec,
+} from '../block-spec/types';
 export type {
   ContributedMember,
   ContributedNamespaceSymbol,
+  ContributedTypeDescriptor,
+  ContributedTypeNamespace,
   ContributedTypeScope,
   ContributedTypeSymbol,
 } from '../contributed-type-scope';
@@ -129,7 +159,8 @@ export type {
   EntitySelector,
   ResolvedEntityReference,
 } from '../entity-reference';
-export { findBlockDescriptor, validateExtensionBlockFromSymbol } from '../extension-block';
+export { entityReference, matchesSelector } from '../entity-reference';
+export { findBlockDescriptor } from '../extension-block';
 export { NAME_THE_PSL_SOURCE_LOSES } from '../name-the-psl-source-loses';
 export {
   keywordPslSpan,
@@ -140,6 +171,7 @@ export {
 } from '../resolve';
 export { isPrismaNextSchema, renameLegacyDirective } from '../schema-directive';
 export type { Scope, ScopeResolution } from '../scope';
+export { isNamespaceLike, memberEntries } from '../scope';
 export type {
   BlockSymbol,
   BuildSymbolTableOptions,

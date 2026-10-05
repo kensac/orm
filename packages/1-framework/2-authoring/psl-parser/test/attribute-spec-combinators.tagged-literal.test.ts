@@ -8,13 +8,13 @@ import { buildSymbolTable } from '../src/symbol-table';
 import { FieldAttributeAst } from '../src/syntax/ast/attributes';
 import type { ExpressionAst } from '../src/syntax/ast/expressions';
 import { createSyntaxTree } from '../src/syntax/red';
+import { binderContext } from './support';
 
 function makeCtx(sources: PslSources): FieldAttributeCtx {
   const { document, sources: modelSources } = parse('model M {\n  id Int @id\n}\n', 'test.psl');
   const { symbolTable } = buildSymbolTable({
     documents: [document],
     sources: modelSources,
-    pslBlockDescriptors: {},
   });
   const selfModel = symbolTable.topLevel.models['M'];
   if (!selfModel) throw new Error('expected model M in the symbol table');
@@ -23,12 +23,7 @@ function makeCtx(sources: PslSources): FieldAttributeCtx {
   const { binder } = createBinder({
     sources: modelSources,
     symbolTable,
-    typeConstructors: {},
-    attributeSpecs: { model: {}, field: {} },
-    controlMutationDefaults: {
-      defaultFunctionRegistry: new Map(),
-      dataTypeEntries: {},
-    },
+    context: binderContext(),
   });
   return { sources, symbols: symbolTable, selfModel, field, binder };
 }
@@ -45,41 +40,43 @@ function argOf(exprSource: string): { expr: ExpressionAst; ctx: FieldAttributeCt
 }
 
 describe('taggedLiteral', () => {
-  const type = taggedLiteral(['sql', 'pg.sql'], { documentation: 'Raw SQL, used verbatim.' });
+  const type = taggedLiteral(['json', 'postgis.geometry'], {
+    documentation: 'A JSON document or a geometry.',
+  });
 
   it('labels itself with the first tag', () => {
     expect(type.kind).toBe('taggedLiteral');
-    expect(type.label).toBe('sql`...`');
-    expect(type.tags).toEqual(['sql', 'pg.sql']);
-    expect(type.documentation).toBe('Raw SQL, used verbatim.');
+    expect(type.label).toBe('json`...`');
+    expect(type.tags).toEqual(['json', 'postgis.geometry']);
+    expect(type.documentation).toBe('A JSON document or a geometry.');
   });
 
   it('returns the tag, the canonicalized body, and the span of the whole literal', () => {
-    const { expr, ctx } = argOf('pg.sql`\n  now()\n`');
+    const { expr, ctx } = argOf('postgis.geometry`\n  POINT(0 0)\n`');
     const result = type.parse(expr, ctx);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual({
-        tag: 'pg.sql',
-        canonicalization: { ok: true, body: 'now()' },
-        span: { start: { offset: 3, line: 1, column: 4 }, end: { offset: 20, line: 3, column: 2 } },
+        tag: 'postgis.geometry',
+        canonicalization: { ok: true, body: 'POINT(0 0)' },
+        span: { start: { offset: 3, line: 1, column: 4 }, end: { offset: 35, line: 3, column: 2 } },
       });
     }
   });
 
   it('accepts a double-quoted string', () => {
-    const { expr, ctx } = argOf('sql"now()"');
+    const { expr, ctx } = argOf('json"[1]"');
     expect(type.parse(expr, ctx)).toMatchObject({
       ok: true,
-      value: { tag: 'sql', canonicalization: { ok: true, body: 'now()' } },
+      value: { tag: 'json', canonicalization: { ok: true, body: '[1]' } },
     });
   });
 
   it('accepts a tag it does not list, leaving the tag check to lowering', () => {
-    const { expr, ctx } = argOf('sqlite.sql`x`');
+    const { expr, ctx } = argOf('sql`x`');
     expect(type.parse(expr, ctx)).toMatchObject({
       ok: true,
-      value: { tag: 'sqlite.sql', canonicalization: { ok: true, body: 'x' } },
+      value: { tag: 'sql', canonicalization: { ok: true, body: 'x' } },
     });
   });
 

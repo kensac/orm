@@ -6,19 +6,23 @@ import {
   type ColumnHelperFor,
   type ColumnHelperForStrict,
   column,
+  decodeJsonString,
+  refuseJsonValue,
 } from '@internal/framework-components/codec';
 import { CastExpr, type ProjectionExpr } from '@internal/sql-relational-core/ast';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { PostgresCodecDescriptor } from './codec-descriptor';
 import { type PrecisionParams, precisionParamsSchema } from './codec-helpers';
 import { PG_TIMESTAMPTZ_DATE_CODEC_ID } from './codec-ids';
-import { pgTimestamptz } from './data-types';
-import { PG_TIMESTAMPTZ_NATIVE_TYPE } from './temporal-codec-helpers';
+import { pgTimestamptz, pgTimestamptzCanonical } from './data-types';
+import {
+  EARLIEST_POSTGRES_TIMESTAMP_MILLISECONDS,
+  PG_TIMESTAMPTZ_NATIVE_TYPE,
+  utcTimestamptzText,
+} from './temporal-codec-helpers';
 
 const TIMESTAMPTZ_TEXT =
-  /^(\d{4,6})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(?:Z|([+-])(\d{2})(?::?(\d{2}))?(?::?(\d{2}))?)( BC)?$/;
-
-const MIN_TIMESTAMPTZ_MILLISECONDS = new Date('-004713-11-24T00:00:00.000Z').getTime();
+  /^([+-]\d{6}|\d{4,6})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(?:Z|([+-])(\d{2})(?::?(\d{2}))?(?::?(\d{2}))?)( BC)?$/;
 
 function invalidDate(): RangeError {
   return new RangeError(
@@ -26,22 +30,32 @@ function invalidDate(): RangeError {
   );
 }
 
+function isRepresentable(value: Date): boolean {
+  return (
+    value instanceof Date &&
+    Number.isFinite(value.getTime()) &&
+    value.getTime() >= EARLIEST_POSTGRES_TIMESTAMP_MILLISECONDS
+  );
+}
+
 function validateDate(value: Date): Date {
-  if (
-    !(value instanceof Date) ||
-    !Number.isFinite(value.getTime()) ||
-    value.getTime() < MIN_TIMESTAMPTZ_MILLISECONDS
-  )
-    throw invalidDate();
+  if (!isRepresentable(value)) throw invalidDate();
   return value;
 }
 
 function decodeDate(wire: unknown): Date {
-  const match = typeof wire === 'string' ? TIMESTAMPTZ_TEXT.exec(wire) : null;
-  if (!match) throw invalidDate();
+  const date = typeof wire === 'string' ? parseDate(wire) : undefined;
+  if (date === undefined) throw invalidDate();
+  return date;
+}
+
+/** The instant a timestamp with time zone as PostgreSQL writes it names, or `undefined` when the text is not one. */
+function parseDate(text: string): Date | undefined {
+  const match = TIMESTAMPTZ_TEXT.exec(text);
+  if (!match) return undefined;
   const [
     ,
-    yearText,
+    yearText = '',
     monthText,
     dayText,
     hourText,
@@ -69,7 +83,7 @@ function decodeDate(wire: unknown): Date {
   local.setUTCFullYear(safeYear, month, day);
   local.setUTCHours(hour, minute, second, milliseconds);
   if (
-    Number(yearText) === 0 ||
+    (era !== undefined && (Number(yearText) === 0 || /^[+-]/.test(yearText))) ||
     local.getUTCFullYear() !== safeYear ||
     local.getUTCMonth() !== month ||
     local.getUTCDate() !== day ||
@@ -80,21 +94,16 @@ function decodeDate(wire: unknown): Date {
     Number(offsetMinute) > 59 ||
     Number(offsetSecond) > 59
   )
-    throw invalidDate();
+    return undefined;
   const offset =
     (Number(offsetHour) * 3600 + Number(offsetMinute) * 60 + Number(offsetSecond)) *
     (sign === '-' ? -1 : 1);
   const value = new Date(local.getTime() - offset * 1000 + cycles * 146097 * 86400000);
-  return validateDate(value);
+  return isRepresentable(value) ? value : undefined;
 }
 
 function encodeDate(value: Date): string {
-  validateDate(value);
-  const iso = value.toISOString();
-  const year = value.getUTCFullYear();
-  if (year > 0 && year < 10000) return iso;
-  const dateAndTime = iso.slice(year === 0 ? 4 : 7);
-  return `${String(year <= 0 ? 1 - year : year).padStart(4, '0')}${dateAndTime}${year <= 0 ? ' BC' : ''}`;
+  return utcTimestamptzText(validateDate(value), PG_TIMESTAMPTZ_DATE_CODEC_ID);
 }
 
 export class PgTimestamptzDateCodec extends CodecImpl<
@@ -110,10 +119,17 @@ export class PgTimestamptzDateCodec extends CodecImpl<
     return decodeDate(wire);
   }
   encodeJson(value: Date): JsonValue {
-    return encodeDate(value);
+    return pgTimestamptzCanonical(validateDate(value).toISOString());
   }
   decodeJson(json: JsonValue): Date {
-    return decodeDate(json);
+    return (
+      parseDate(decodeJsonString(PG_TIMESTAMPTZ_DATE_CODEC_ID, json)) ??
+      refuseJsonValue(
+        PG_TIMESTAMPTZ_DATE_CODEC_ID,
+        'a timestamp with time zone as PostgreSQL writes it',
+        json,
+      )
+    );
   }
 }
 

@@ -78,6 +78,7 @@ function createTestContract(
                     col,
                     {
                       nullable: spec.nullable,
+                      many: false,
                       type: { kind: 'scalar' as const, codecId: spec.codecId },
                     },
                   ]),
@@ -480,7 +481,7 @@ withTempDir(({ createTempDir }) => {
           nextActions: expect.arrayContaining([
             expect.objectContaining({
               label: expect.stringContaining(
-                'Run `{bin} db verify --schema-only --strict --db <url>`',
+                'Run `prisma-test db verify --schema-only --strict --db <url>`',
               ),
             }),
           ]),
