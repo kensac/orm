@@ -1,8 +1,7 @@
-import type { SqlDriver } from '@internal/sql-relational-core/ast';
-import { createDevDatabase, timeouts } from '@repo/test-utils';
+import { timeouts } from '@repo/test-utils';
 import pg from 'pg';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createBoundDriverFromBinding, type PostgresBinding } from '../src/postgres-driver';
+import { openDevDriver, queryRowsInMode } from './sql-queryable-test-utils';
 
 const SELECT_ROW = `select
   true as bool,
@@ -42,52 +41,13 @@ describe.each(['pgClient', 'pgPool'] as const)('%s server text transport', (bind
       close = undefined;
     }, timeouts.spinUpPpgDev);
 
-    async function openDriver(): Promise<SqlDriver<PostgresBinding>> {
-      const database = await createDevDatabase();
-      const driver = createBoundDriverFromBinding(
-        binding === 'pgClient'
-          ? {
-              kind: 'pgClient',
-              client: new pg.Client({ connectionString: database.connectionString }),
-            }
-          : { kind: 'pgPool', pool: new pg.Pool({ connectionString: database.connectionString }) },
-        { disabled: mode === 'buffered' },
-      );
-      close = async () => {
-        await driver.close();
-        await database.close();
-      };
-      return driver;
-    }
-
-    async function rows(driver: SqlDriver<PostgresBinding>) {
-      let statementName: unknown;
-      const result: Array<Record<string, unknown>> = [];
-      for await (const row of driver.query<Record<string, unknown>>({
-        sql: SELECT_ROW,
-        params: [],
-        ...(mode === 'named cursor'
-          ? {
-              preparedStatementHandle: {
-                get: () => statementName,
-                set: (value: unknown) => {
-                  statementName = value;
-                },
-              },
-            }
-          : {}),
-      })) {
-        result.push(row);
-      }
-      return result;
-    }
-
     it(
       'returns every column as server text and leaves pg global parsers unchanged',
       async () => {
-        const driver = await openDriver();
+        const opened = await openDevDriver(binding, mode);
+        close = opened.close;
 
-        expect(await rows(driver)).toEqual([SERVER_TEXT]);
+        expect(await queryRowsInMode(opened.driver, mode, SELECT_ROW)).toEqual([SERVER_TEXT]);
         expect({
           bool: pg.types.getTypeParser(pg.types.builtins.BOOL)('t'),
           int4: pg.types.getTypeParser(pg.types.builtins.INT4)('2'),

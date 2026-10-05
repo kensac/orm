@@ -1,9 +1,9 @@
 import type { SqlDriver } from '@internal/sql-relational-core/ast';
-import { createDevDatabase, timeouts } from '@repo/test-utils';
+import { timeouts } from '@repo/test-utils';
 import pg from 'pg';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createBoundDriverFromBinding, type PostgresBinding } from '../src/postgres-driver';
-import { executeSql } from './sql-queryable-test-utils';
+import type { PostgresBinding } from '../src/postgres-driver';
+import { executeSql, openDevDriver, queryRowsInMode } from './sql-queryable-test-utils';
 
 const values = [
   'standard',
@@ -27,43 +27,13 @@ describe.each(['pgClient', 'pgPool'] as const)('%s JSON transport', (binding) =>
     }, timeouts.spinUpPpgDev);
 
     async function openDriver(): Promise<SqlDriver<PostgresBinding>> {
-      const database = await createDevDatabase();
-      const driver = createBoundDriverFromBinding(
-        binding === 'pgClient'
-          ? {
-              kind: 'pgClient',
-              client: new pg.Client({ connectionString: database.connectionString }),
-            }
-          : { kind: 'pgPool', pool: new pg.Pool({ connectionString: database.connectionString }) },
-        { disabled: mode === 'buffered' },
-      );
-      close = async () => {
-        await driver.close();
-        await database.close();
-      };
-      return driver;
+      const opened = await openDevDriver(binding, mode);
+      close = opened.close;
+      return opened.driver;
     }
 
-    async function rows(driver: SqlDriver<PostgresBinding>, sql: string, text: string) {
-      let statementName: unknown;
-      const result: Array<{ json: string; jsonb: string }> = [];
-      for await (const row of driver.query<{ json: string; jsonb: string }>({
-        sql,
-        params: [text],
-        ...(mode === 'named cursor'
-          ? {
-              preparedStatementHandle: {
-                get: () => statementName,
-                set: (value: unknown) => {
-                  statementName = value;
-                },
-              },
-            }
-          : {}),
-      })) {
-        result.push(row);
-      }
-      return result;
+    function rows(driver: SqlDriver<PostgresBinding>, sql: string, text: string) {
+      return queryRowsInMode<{ json: string; jsonb: string }>(driver, mode, sql, [text]);
     }
 
     it(
