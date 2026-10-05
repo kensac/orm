@@ -12,9 +12,9 @@ Every dispatch runs on Opus. Validation gate unless stated: `pnpm typecheck`, `p
 
 **Builds on.** `main`.
 
-**Hands to.** A working-schema mechanism both planners and facades share; `renameTable` calls that compute companions against the working copy; non-data drops classed `widening`.
+**Hands to.** A working-schema mechanism on both targets that the facades use and the planners will use from dispatch 3; `renameTable` calls that compute companions against the working copy; non-data drops classed `widening`.
 
-**Focus.** Copy mechanism, not history. The shelved branch is `tml-3422-intent-hints-model-rename`; its tests for the working schema, companion renames and classification come over minus the hint cases.
+**Focus.** Copy mechanism, not history. The scope includes `packages/1-framework/3-tooling/migration/src/migration-base.ts` for the authoring-state reset hook the facade needs, and `examples/prisma7-adoption/test/handover.test.ts` where the reclassification changes an expectation. The shelved branch is `tml-3422-intent-hints-model-rename`; its tests for the working schema, companion renames and classification come over minus the hint cases.
 
 ### 2 — Statement grammar and resolver in the framework
 
