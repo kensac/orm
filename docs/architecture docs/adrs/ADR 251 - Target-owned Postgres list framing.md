@@ -35,7 +35,7 @@ The Postgres target implements list framing with `postgres-array`. `parsePostgre
 
 Runtime and control-plane parser policies are related but not identical. Runtime query execution uses `serverTextTypes`, which returns raw text for every OID; scalar values then continue through their scalar codecs, and only list columns go through the list decoder. Control-plane queries use `controlTextTypes`, which forces registered array OIDs to raw text so array-valued control fields can be parsed before shared validation.
 
-The Postgres runtime driver configures `pg` to return raw server text for every OID, so every array arrives as raw text. Builtin arrays and enum arrays therefore enter the same target path during runtime decoding: raw array text, parsed by the target, decoded by the element codec. Lower-level direct-query consumers of the Postgres driver also see registered array result columns as raw Postgres array text rather than native JavaScript arrays.
+The Postgres runtime driver configures `pg` to return raw server text for every OID, so every array arrives as raw text. Builtin arrays and enum arrays therefore enter the same target path during runtime decoding: raw array text, parsed by the target, decoded by the element codec. Lower-level direct-query consumers of the Postgres driver see every result column, including arrays, as raw server text rather than values parsed by `pg`.
 
 The control policy's array-OID set is static and guarded. `PG_TYPES_ARRAY_OIDS` must match the array OIDs currently registered by `pg-types`; a divergence test fails when the hand-copied set falls behind. The guard is necessary because a missing registered array OID would silently reintroduce driver framing for that builtin type in control-plane reads.
 
