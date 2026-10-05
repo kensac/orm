@@ -123,10 +123,7 @@ function markerRowDecodeWhy(detail: string): string {
   return `Invalid contract marker row: ${detail}`;
 }
 
-function decodeMarkerInteger(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value;
-  }
+function decodeMarkerInteger(value: string): number {
   if (!/^-?\d+$/.test(value)) {
     throw new TypeError(`expected integer text, got ${JSON.stringify(value)}`);
   }
@@ -150,7 +147,9 @@ function decodePostgresMarkerRow(row: unknown, space: string): Record<string, un
   try {
     return {
       ...record,
-      canonical_version: decodeMarkerInteger(record.canonical_version),
+      ...(typeof record.canonical_version === 'string'
+        ? { canonical_version: decodeMarkerInteger(record.canonical_version) }
+        : {}),
       invariants: parsePostgresListText(record.invariants),
     };
   } catch (error) {
