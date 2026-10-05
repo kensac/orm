@@ -40,7 +40,12 @@ import {
 } from './collection-contract';
 import { assertDistinctOnCompatibleOrder } from './order-by-guards';
 import { ormError } from './orm-errors';
-import { buildOrmQueryPlan, deriveParamsFromAst, resolveTableColumns } from './query-plan-meta';
+import {
+  buildOrmQueryPlan,
+  deriveParamsFromAst,
+  resolveExposedTableColumns,
+  resolveTableColumns,
+} from './query-plan-meta';
 import {
   buildDedupedTableSource,
   buildMtiJoins,
@@ -101,7 +106,7 @@ function buildProjection(
   const columns =
     selectedFields !== undefined
       ? [...selectedFields]
-      : resolveTableColumns(contract, namespaceId, tableName);
+      : resolveExposedTableColumns(contract, namespaceId, tableName);
 
   return columns.map((column) =>
     ProjectionItem.of(
@@ -139,7 +144,9 @@ function resolvePolymorphicProjectionSelection(
     };
   }
 
-  const baseTableColumns = new Set(resolveTableColumns(contract, namespaceId, polyInfo.baseTable));
+  const baseTableColumns = new Set(
+    resolveExposedTableColumns(contract, namespaceId, polyInfo.baseTable),
+  );
   const baseFieldToColumn = getFieldToColumnMap(contract, namespaceId, modelName);
   const variantFieldMaps = Array.from(polyInfo.variants.values(), (variant) => ({
     variant,

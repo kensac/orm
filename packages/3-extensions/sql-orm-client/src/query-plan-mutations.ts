@@ -24,7 +24,11 @@ import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
 import { resolvePolymorphismInfo, resolvePrimaryKeyColumns } from './collection-contract';
 import { ormError } from './orm-errors';
-import { buildOrmQueryPlan, deriveParamsFromAst, resolveTableColumns } from './query-plan-meta';
+import {
+  buildOrmQueryPlan,
+  deriveParamsFromAst,
+  resolveExposedTableColumns,
+} from './query-plan-meta';
 import { buildPrimaryKeyJoinOn } from './query-plan-source';
 import { storageTableForContract, tableSourceForContract } from './storage-resolution';
 import { combineWhereExprs } from './where-utils';
@@ -38,7 +42,7 @@ function buildReturningColumns(
   const columns =
     returningColumns && returningColumns.length > 0
       ? [...returningColumns]
-      : resolveTableColumns(contract, namespaceId, tableName);
+      : resolveExposedTableColumns(contract, namespaceId, tableName);
 
   return columns.map((column) =>
     ProjectionItem.of(

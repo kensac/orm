@@ -4,8 +4,13 @@ import type { SqlStorage } from '@internal/sql-contract/types';
 import { type AnyQueryAst, collectOrderedParamRefs } from '@internal/sql-relational-core/ast';
 import type { SqlQueryPlan } from '@internal/sql-relational-core/plan';
 import { ifDefined } from '@internal/utils/defined';
+import { getFieldToColumnMap } from './collection-contract';
 import { ormError } from './orm-errors';
-import { storageTableForContract } from './storage-resolution';
+import {
+  domainModelNamesInNamespace,
+  domainModelTableInNamespace,
+  storageTableForContract,
+} from './storage-resolution';
 
 export function deriveParamsFromAst(ast: AnyQueryAst): {
   params: unknown[];
@@ -32,6 +37,46 @@ export function resolveTableColumns(
       meta: { namespaceId, tableName },
     });
   }
+}
+
+const exposedColumnsCache = new WeakMap<object, Map<string, ReadonlySet<string>>>();
+
+function exposedColumnsOf(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  tableName: string,
+): ReadonlySet<string> {
+  let perContract = exposedColumnsCache.get(contract);
+  if (perContract === undefined) {
+    perContract = new Map();
+    exposedColumnsCache.set(contract, perContract);
+  }
+  const cacheKey = JSON.stringify([namespaceId, tableName]);
+  const cached = perContract.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const exposed = new Set<string>();
+  for (const modelName of domainModelNamesInNamespace(contract, namespaceId)) {
+    if (domainModelTableInNamespace(contract, namespaceId, modelName) !== tableName) continue;
+    for (const column of Object.values(getFieldToColumnMap(contract, namespaceId, modelName))) {
+      exposed.add(column);
+    }
+  }
+  perContract.set(cacheKey, exposed);
+  return exposed;
+}
+
+/**
+ * The columns of `tableName` that a field of some model stored in it maps, in table order: the columns a row may carry when no `select` narrows it. A column no field maps is storage the domain does not expose, and the ORM never reads it.
+ */
+export function resolveExposedTableColumns(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  tableName: string,
+): string[] {
+  const exposed = exposedColumnsOf(contract, namespaceId, tableName);
+  return resolveTableColumns(contract, namespaceId, tableName).filter((column) =>
+    exposed.has(column),
+  );
 }
 
 export function buildOrmPlanMeta(
