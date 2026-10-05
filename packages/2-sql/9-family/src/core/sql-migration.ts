@@ -49,11 +49,4 @@ export abstract class SqlMigration<
     );
     return deriveProvidedInvariants(ops);
   }
-
-  /**
-   * Discards state a migration builds while its `operations` are read, such as the schema its
-   * earlier rename operations leave behind, so the next read starts from the start contract again.
-   * The default keeps no state.
-   */
-  protected resetAuthoringState(): void {}
 }

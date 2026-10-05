@@ -87,7 +87,7 @@ describe('PostgresMigration authoring state', () => {
     ]);
   });
 
-  it('builds the artifacts, then reads providedInvariants twice, each from the start contract', async () => {
+  it('builds the artifacts again and reads providedInvariants, each from the start contract', async () => {
     const migration = migrationOf((m) => [
       ...m.renameTable({ table: 'userProfile', to: 'UserProfile' }),
     ]);
@@ -95,7 +95,9 @@ describe('PostgresMigration authoring state', () => {
     const first = await buildMigrationArtifacts(migration, null);
     expect(migration.providedInvariants).toEqual([]);
     expect(migration.providedInvariants).toEqual([]);
+    const second = await buildMigrationArtifacts(migration, null);
 
+    expect(second.opsJson).toBe(first.opsJson);
     expect((JSON.parse(first.opsJson) as readonly Op[]).map((op) => op.label)).toEqual([
       'Rename table "userProfile" to "UserProfile"',
       `Rename index "${OLD_INDEX}" to "UserProfile_handle_idx_${HANDLE_HASH}" on "UserProfile"`,

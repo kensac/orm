@@ -10,6 +10,7 @@ import type { Contract } from '@internal/contract/types';
 import type { SqlMigrationPlanOperation } from '@internal/family-sql/control';
 import type { SqlControlAdapter } from '@internal/family-sql/control-adapter';
 import type { ControlStack } from '@internal/framework-components/control';
+import { Migration } from '@internal/migration-tools/migration';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
 import type { SqlitePlanTargetDetails } from '../../src/core/migrations/planner-target-details';
@@ -219,6 +220,19 @@ describe('SqliteMigration.renameTable', () => {
         ),
       }),
     );
+  });
+
+  it('reads the same operations again after the authoring state is reset', async () => {
+    const migration = renameMigration(
+      contractOf('userProfile', derivedIndex, 'from'),
+      contractOf('UserProfile', derivedIndex, 'to'),
+      RENAME,
+    );
+    const first = await Promise.all(migration.operations);
+    Migration.resetAuthoringStateOf(migration);
+    const second = await Promise.all(migration.operations);
+
+    expect(second).toEqual(first);
   });
 
   it('refuses a second read of the operations without a reset, since the table is already renamed', () => {

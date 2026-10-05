@@ -24,7 +24,7 @@ function jsonOf(contract: Contract<SqlStorage>): ContractJson {
 }
 
 describe('SqliteMigration authoring state', () => {
-  it('builds the artifacts, then reads providedInvariants twice, each from the start contract', async () => {
+  it('builds the artifacts again and reads providedInvariants, each from the start contract', async () => {
     const spec = { indexes: (tableName: string) => [handleIndex(tableName)] };
     const startJson = jsonOf(contractOf('userProfile', spec, 'from'));
     const endJson = jsonOf(contractOf('UserProfile', spec, 'to'));
@@ -40,7 +40,9 @@ describe('SqliteMigration authoring state', () => {
     const first = await buildMigrationArtifacts(migration, null);
     expect(migration.providedInvariants).toEqual([]);
     expect(migration.providedInvariants).toEqual([]);
+    const second = await buildMigrationArtifacts(migration, null);
 
+    expect(second.opsJson).toBe(first.opsJson);
     expect((JSON.parse(first.opsJson) as readonly Op[]).map((op) => op.label)).toEqual([
       'Rename table userProfile to UserProfile',
       `Drop index userProfile_handle_idx_${HANDLE_INDEX_HASH} on UserProfile`,
