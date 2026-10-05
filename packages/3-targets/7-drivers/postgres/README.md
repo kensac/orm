@@ -27,7 +27,7 @@ Provide PostgreSQL transport and connection management. Execute SQL statements a
 
 - **Connection Management**: Acquire and release database connections
 - **Statement Execution**: Execute SQL statements with parameters
-- **Query Result Parser Policy**: Configure `pg` so query rows expose JSON, temporal scalars, and registered array OIDs as raw server text where the runtime or adapter owns decoding
+- **Query Result Parser Policy**: Configure `pg` so runtime query rows expose every column as raw server text, because codecs own decoding; control-plane queries keep `pg` parsing except for array columns
 - **Query Explanation**: Execute EXPLAIN queries for query analysis
 - **Connection Pooling**: Manage connection pools (when applicable)
 - **Transport Protocol**: Handle PostgreSQL protocol (TCP, HTTP, etc.)
@@ -78,9 +78,11 @@ flowchart TD
 
 ### Row parser policy
 
-Buffered and cursor query paths pass `temporalTextTypes` to `pg`. That policy returns raw server text for temporal scalar OIDs and for every array OID registered by `pg-types`; unknown array OIDs already arrive as raw text from `pg`. Runtime decoding for contract-declared list columns then parses the raw array text in the Postgres target and maps the scalar element codec. Direct driver query consumers that read array-valued columns see Postgres array literal strings such as `'{a,b}'`, not driver-framed JavaScript arrays.
+Buffered, cursor, and named cursor query paths pass `serverTextTypes` to `pg`. That policy returns raw server text for every type OID, so `pg` never parses a value. Every runtime row then goes through codec decoding, and each Postgres codec reads the server text for its type: `t` for a `bool`, `\x0102` for a `bytea`, `NaN` for a `float8`, `{a,b}` for an array, and the JSON text for a `json` or `jsonb` value. A stored JSON string such as `"standard"` keeps its quotes until codec decoding. Direct driver query consumers see the same server text strings.
 
-The same policy returns `json` and `jsonb` as text so their codecs decode each value once. A stored JSON string such as `"standard"` retains its quotes until codec decoding. The policy is scoped to each driver query; caller-owned clients and the global `pg` type parsers keep their defaults.
+The control driver passes `controlTextTypes` instead. Control-plane queries read catalog rows without codecs, so that policy keeps `pg` parsing for scalar types and returns raw text only for the array OIDs that `pg-types` registers (`PG_TYPES_ARRAY_OIDS`), which the control plane parses itself.
+
+Both policies are scoped to each driver query; caller-owned clients and the global `pg` type parsers keep their defaults.
 
 ## Related Subsystems
 
