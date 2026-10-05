@@ -1,0 +1,26 @@
+PASS  jsonb read: JSON string "standard"  ->  string "standard"
+PASS  jsonb read: JSON string "123"  ->  string "123"
+PASS  jsonb read: JSON string "true"  ->  string "true"
+PASS  jsonb read: JSON string "null"  ->  string "null"
+PASS  jsonb read: JSON number  ->  number 123.5
+PASS  jsonb read: JSON object  ->  object {"name":"standard","nested":{"n":1}}
+PASS  jsonb read: JSON array  ->  object ["standard",123,true,null]
+PASS  jsonb read: SQL NULL  ->  null null
+PASS  jsonb read: JSON null written as jsonb  ->  null null
+PASS  bool true  ->  boolean true
+PASS  int4  ->  number 42
+PASS  float8  ->  number 1.5
+PASS  bytea  ->  Uint8Array [1,2,255]
+PASS  interval  ->  object {"months":14,"days":3,"micros":"14706500000n"}
+PASS  native enum  ->  string "happy"
+PASS  bool false  ->  boolean false
+PASS  float8 NaN  ->  number NaN
+PASS  native enum second member  ->  string "sad"
+PASS  update returning: JSON string "standard"  ->  string "standard"
+PASS  update returning: JSON string "123"  ->  string "123"
+PASS  update returning: JSON object  ->  object {"name":"standard"}
+PASS  update returning: JSON array  ->  object ["standard",123]
+PASS  create returning: JSON string "standard"  ->  string "standard"
+PASS  create returning: bool  ->  boolean true
+
+24 passed, 0 failed
