@@ -7,15 +7,19 @@
  */
 
 import {
-  type AuthoringTypeNamespace,
-  collectScalarTypeConstructors,
-} from '@internal/framework-components/authoring';
-import { type CodecLookup, createDataTypeLookup } from '@internal/framework-components/codec';
+  type CodecLookupWithDescriptors,
+  createDataTypeLookup,
+} from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { parse } from '@internal/psl-parser/syntax';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import { type SqlColumnIRInput, SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { ifDefined } from '@internal/utils/defined';
 import { describe, expect, it } from 'vitest';
@@ -27,41 +31,16 @@ import { postgresDataTypeEntries } from '../../src/core/data-type-entries';
 import { postgresDataTypes } from '../../src/core/data-types';
 import { parsePostgresDefault } from '../../src/core/default-normalizer';
 import { type PostgresSchema, postgresCreateNamespace } from '../../src/core/postgres-schema';
-import { CODEC_ID_BY_INFERRED_TYPE } from '../../src/core/psl-infer/infer-default-codec';
+import { INFERRED_PSL_TYPE_NAMES } from '../../src/core/psl-build/postgres-type-map';
 import { postgresCodecRegistry } from '../../src/core/registry';
+import {
+  postgresNativeAuthoringTypes,
+  postgresScalarAuthoringTypes,
+} from '../../src/core/type-constructors';
 import { printPslFromFlat } from './fixtures';
 
-/** The type constructors the printed schema names, bound to the codec `contract emit` resolves. */
-const authoringTypes = {
-  String: { kind: 'typeConstructor', output: { codecId: 'pg/text@1', nativeType: 'text' } },
-  Boolean: { kind: 'typeConstructor', output: { codecId: 'pg/bool@1', nativeType: 'bool' } },
-  Int: { kind: 'typeConstructor', output: { codecId: 'pg/int4@1', nativeType: 'int4' } },
-  SmallInt: { kind: 'typeConstructor', output: { codecId: 'pg/int2@1', nativeType: 'int2' } },
-  BigInt: { kind: 'typeConstructor', output: { codecId: 'pg/int8@1', nativeType: 'int8' } },
-  Float: { kind: 'typeConstructor', output: { codecId: 'pg/float8@1', nativeType: 'float8' } },
-  Jsonb: { kind: 'typeConstructor', output: { codecId: 'pg/jsonb@1', nativeType: 'jsonb' } },
-  Timestamp: {
-    kind: 'typeConstructor',
-    args: [{ kind: 'number', name: 'precision', integer: true, minimum: 0, optional: true }],
-    output: {
-      codecId: 'pg/timestamp-temporal@1',
-      nativeType: 'timestamp',
-      typeParams: { precision: { kind: 'arg', index: 0 } },
-    },
-  },
-  Numeric: {
-    kind: 'typeConstructor',
-    args: [
-      { kind: 'number', name: 'precision', integer: true, minimum: 1, optional: true },
-      { kind: 'number', name: 'scale', integer: true, minimum: 0, optional: true },
-    ],
-    output: {
-      codecId: 'pg/numeric@1',
-      nativeType: 'numeric',
-      typeParams: { precision: { kind: 'arg', index: 0 }, scale: { kind: 'arg', index: 1 } },
-    },
-  },
-} as const satisfies AuthoringTypeNamespace;
+/** The type constructors the printed schema names, as the adapter contributes them. */
+const authoringTypes = { ...postgresScalarAuthoringTypes, ...postgresNativeAuthoringTypes };
 
 const assembled = assembleAuthoringContributions([
   {
@@ -85,7 +64,7 @@ const target = {
   authoring: { type: authoringTypes },
 };
 
-const codecLookup: CodecLookup = {
+const codecLookup: CodecLookupWithDescriptors = {
   get: (id) => postgresCodecRegistry.descriptorFor(id)?.factory({})({ name: id }),
   descriptorFor: (id) => postgresCodecRegistry.descriptorFor(id),
   targetTypesFor: (id) => postgresCodecRegistry.descriptorFor(id)?.targetTypes,
@@ -131,28 +110,36 @@ function roundTrippedDefaults(columns: readonly SqlColumnIRInput[]) {
       },
     }),
   );
-  const { document, sources } = parse(printed, 'schema.prisma');
-  const { symbolTable } = buildSymbolTable({
-    documents: [document],
-    sources,
-  });
-  const emitted = interpretPslDocumentToSqlContract({
-    documents: [document],
-    symbolTable,
-    sources,
-    capabilities: { sql: { scalarList: true } },
-    target,
-    scalarColumnDescriptors: collectScalarTypeConstructors(authoringTypes),
-    authoringContributions: assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
-    codecLookup,
-    dataTypeLookup: createDataTypeLookup(postgresDataTypes),
-    controlMutationDefaults: {
-      defaultFunctionRegistry: new Map(),
-      generatorDescriptors: [],
+  const bound = bindPslSchema(printed, {
+    sourceId: 'schema.prisma',
+    context: {
+      composedExtensions: [],
+      composedExtensionContracts: new Map(),
+      authoringContributions: {
+        ...assembled,
+        type: { ...authoringTypes, ...assembled.type },
+        attributeSpecs: sqlAttributeSpecs,
+      },
+      pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+      codecLookup,
+      controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+      dataTypeLookup: createDataTypeLookup(postgresDataTypes),
+      resolvedInputs: [],
+      capabilities: { sql: { scalarList: true } },
     },
   });
+  const emitted = withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
   if (!emitted.ok) {
     throw new Error(`${printed}\n\n${JSON.stringify(emitted.failure.diagnostics, null, 2)}`);
   }
@@ -165,7 +152,7 @@ function roundTrippedDefaults(columns: readonly SqlColumnIRInput[]) {
   );
 }
 
-describe('a printed default reads back as the value the database reported', () => {
+describe('a printed default reads back as the value the database reported, in the text the contract stores', () => {
   it('round-trips every literal form the printer writes', () => {
     expect(
       roundTrippedDefaults([
@@ -183,6 +170,7 @@ two lines é'::text`,
         introspected('ratio', 'float8', "'NaN'::numeric"),
         introspected('active', 'bool', 'true'),
         introspected('meta', 'jsonb', `'{"plan": "free", "seats": 1}'::jsonb`),
+        introspected('ticked', 'jsonb', '\'{"tick": "`", "slash": "\\\\"}\'::jsonb'),
         introspected('stamp', 'timestamp(3)', "'2024-01-01 00:00:00'::timestamp(3)"),
         introspected('scores', 'int4', "'{1,2}'::integer[]", { many: true }),
         introspected('docs', 'jsonb', `ARRAY['{}'::jsonb, '[]'::jsonb]`, { many: true }),
@@ -197,15 +185,83 @@ two lines é'::text`,
       ratio: { kind: 'literal', value: 'NaN' },
       active: { kind: 'literal', value: true },
       meta: { kind: 'literal', value: { plan: 'free', seats: 1 } },
-      stamp: { kind: 'literal', value: '2024-01-01 00:00:00' },
+      ticked: { kind: 'literal', value: { tick: '`', slash: '\\' } },
+      stamp: { kind: 'literal', value: '2024-01-01T00:00:00' },
       scores: { kind: 'literal', value: [1, 2] },
       docs: { kind: 'literal', value: [{}, []] },
     });
   });
 
-  it('prints a type constructor for every inferred type name the round trip covers', () => {
+  it.each([
+    ['timestamp', "'2024-01-01 00:00:00'::timestamp without time zone", '2024-01-01T00:00:00'],
+    [
+      'timestamp(3)',
+      "'2024-01-01 00:00:00.5'::timestamp(3) without time zone",
+      '2024-01-01T00:00:00.5',
+    ],
+    ['timestamptz', "'2024-01-01 01:00:00+00'::timestamp with time zone", '2024-01-01T01:00:00Z'],
+    [
+      'timestamptz(6)',
+      "'2024-01-01 01:00:00.123456+00'::timestamp(6) with time zone",
+      '2024-01-01T01:00:00.123456Z',
+    ],
+    [
+      'timestamptz',
+      "'0044-03-15 00:00:00+00 BC'::timestamp with time zone",
+      '-000043-03-15T00:00:00Z',
+    ],
+    ['date', "'2024-01-01'::date", '2024-01-01'],
+    ['date', "'0044-03-15 BC'::date", '-000043-03-15'],
+    ['time', "'12:34:56.5'::time without time zone", '12:34:56.5'],
+    ['time(3)', "'12:34:56.123'::time(3) without time zone", '12:34:56.123'],
+    ['timetz', "'12:34:56+02'::time with time zone", '12:34:56+02:00'],
+    ['timestamp', "'infinity'::timestamp without time zone", 'infinity'],
+    ['timestamptz', "'-infinity'::timestamp with time zone", '-infinity'],
+    ['date', "'infinity'::date", 'infinity'],
+  ])('round-trips a %s default of %s', (nativeType, rawDefault, value) => {
+    expect(roundTrippedDefaults([introspected('stamp', nativeType, rawDefault)])).toEqual({
+      stamp: { kind: 'literal', value },
+    });
+  });
+
+  it('round-trips a list of timestamps', () => {
     expect(
-      Object.keys(authoringTypes).filter((name) => !CODEC_ID_BY_INFERRED_TYPE.has(name)),
-    ).toEqual([]);
+      roundTrippedDefaults([
+        introspected(
+          'stamps',
+          'timestamp(3)',
+          "ARRAY['2024-01-01 00:00:00'::timestamp(3) without time zone]",
+          { many: true },
+        ),
+      ]),
+    ).toEqual({ stamps: { kind: 'literal', value: ['2024-01-01T00:00:00'] } });
+  });
+
+  it('round-trips a default of every parameterized type the type map writes', () => {
+    expect(
+      roundTrippedDefaults([
+        introspected('name', 'character varying(10)', "'abc'::character varying"),
+        introspected('code', 'character(10)', "'abc'::bpchar"),
+        introspected('hundreds', 'numeric(5,-2)', '12300'),
+        introspected('tiny', 'numeric(2,5)', '0.00012'),
+        introspected('stamp', 'timestamp(3)', "'2024-01-01 00:00:00'::timestamp(3)"),
+        introspected('at', 'timestamptz(3)', "'2024-01-01 00:00:00+00'::timestamptz(3)"),
+        introspected('clock', 'time(3)', "'12:00:00'::time(3)"),
+        introspected('zoned', 'timetz(3)', "'12:00:00+00'::timetz(3)"),
+      ]),
+    ).toEqual({
+      name: { kind: 'literal', value: 'abc' },
+      code: { kind: 'literal', value: 'abc' },
+      hundreds: { kind: 'literal', value: '12300' },
+      tiny: { kind: 'literal', value: '0.00012' },
+      stamp: { kind: 'literal', value: '2024-01-01T00:00:00' },
+      at: { kind: 'literal', value: '2024-01-01T00:00:00Z' },
+      clock: { kind: 'literal', value: '12:00:00' },
+      zoned: { kind: 'literal', value: '12:00:00Z' },
+    });
+  });
+
+  it('has a type constructor for every type name the type map writes', () => {
+    expect([...INFERRED_PSL_TYPE_NAMES].filter((name) => !(name in authoringTypes))).toEqual([]);
   });
 });

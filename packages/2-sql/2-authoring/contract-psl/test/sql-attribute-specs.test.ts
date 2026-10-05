@@ -7,31 +7,42 @@ import type {
   ModelSymbol,
   Param,
 } from '@internal/psl-parser';
-import { createPslDiagnosticCollector } from '@internal/psl-parser';
+import { createBinder, createPslDiagnosticCollector } from '@internal/psl-parser';
 import { describe, expect, it } from 'vitest';
+import { getAttribute } from '../src/psl-attribute-parsing';
 import {
-  createSqlBinder,
   fieldSpecContext,
-  findFieldAttributeNode,
-  findModelAttributeNode,
   interpretFieldAttribute,
   interpretModelAttribute,
   modelSpecContext,
   sqlAttributeSpecs,
 } from '../src/sql-attribute-specs';
 import { fixtureDataTypeSupport } from './fixture-data-types';
-import { buildSymbolTableInput, createBuiltinLikeControlMutationDefaults } from './fixtures';
+import {
+  buildSymbolTableInput,
+  createBuiltinLikeControlMutationDefaults,
+  createPostgresTestContext,
+} from './fixtures';
 
 const controlMutationDefaults = {
   ...createBuiltinLikeControlMutationDefaults(),
   dataTypeEntries: fixtureDataTypeSupport.entries,
 };
 
-function project(schema: string, modelName: string) {
+function project(schema: string, modelName: string, namespaceName?: string) {
   const input = buildSymbolTableInput(schema);
-  const model = input.symbolTable.topLevel.models[modelName];
+  const scope =
+    namespaceName === undefined
+      ? input.symbolTable.topLevel
+      : input.symbolTable.topLevel.namespaces[namespaceName];
+  const model = scope?.models[modelName];
   if (model === undefined) throw new Error(`model ${modelName} missing`);
-  return { ...input, model };
+  const { binder } = createBinder({
+    symbolTable: input.symbolTable,
+    sources: input.sources,
+    context: createPostgresTestContext(),
+  });
+  return { ...input, model, binder };
 }
 
 function field(model: ModelSymbol, name: string): FieldSymbol {
@@ -72,10 +83,10 @@ function oneOfMetadata<Ctx extends AttributeCtx>(type: ArgType<unknown, Ctx>) {
   return type;
 }
 
-function interpretDefault(schema: string, fieldName: string) {
-  const { symbolTable, sources, model } = project(schema, 'Post');
+function interpretDefault(schema: string, fieldName: string, namespaceName?: string) {
+  const { symbolTable, sources, model, binder } = project(schema, 'Post', namespaceName);
   const target = field(model, fieldName);
-  const node = findFieldAttributeNode(target, 'default');
+  const node = getAttribute(target.attributes, 'default')?.node;
   if (node === undefined) throw new Error('no @default on field');
   const diagnostics = createPslDiagnosticCollector(sources);
   const value = interpretFieldAttribute({
@@ -86,13 +97,14 @@ function interpretDefault(schema: string, fieldName: string) {
         symbols: symbolTable,
         model,
         field: target,
+        binder,
         controlMutationDefaults,
       }),
     ),
     model,
     field: target,
     sources,
-    binder: createSqlBinder({ symbolTable, sources }).binder,
+    binder,
     diagnostics,
   });
   return { value, diagnostics: diagnostics.toExternal() };
@@ -108,7 +120,7 @@ namespace scoped {
     const namespace = input.symbolTable.topLevel.namespaces['scoped'];
     const model = namespace?.models['Variant'];
     if (!namespace || !model) throw new Error('missing variant');
-    const node = findModelAttributeNode(model, 'base');
+    const node = getAttribute(model.attributes, 'base')?.node;
     if (!node) throw new Error('missing base attribute');
     const diagnostics = createPslDiagnosticCollector(input.sources);
     const value = interpretModelAttribute({
@@ -117,7 +129,11 @@ namespace scoped {
       spec: sqlAttributeSpecs.model.base(),
       model,
       sources: input.sources,
-      binder: createSqlBinder({ symbolTable: input.symbolTable, sources: input.sources }).binder,
+      binder: createBinder({
+        symbolTable: input.symbolTable,
+        sources: input.sources,
+        context: createPostgresTestContext(),
+      }).binder,
       diagnostics,
     });
     expect(diagnostics.toExternal()).toEqual([]);
@@ -128,7 +144,7 @@ namespace scoped {
 });
 
 describe('sqlAttributeSpecs', () => {
-  const { symbolTable, model } = project(
+  const { symbolTable, model, binder } = project(
     'model Post {\n  id Int @id\n  tags String[]\n}\n',
     'Post',
   );
@@ -141,6 +157,7 @@ describe('sqlAttributeSpecs', () => {
     symbols: symbolTable,
     model,
     field: field(model, 'id'),
+    binder,
     controlMutationDefaults,
   });
 
@@ -235,7 +252,7 @@ describe('sqlAttributeSpecs', () => {
 });
 
 describe('sqlAttributeSpecs.field.default', () => {
-  const { symbolTable, model } = project(
+  const { symbolTable, model, binder } = project(
     'model Post {\n  id Int @id\n  tags String[]\n}\n',
     'Post',
   );
@@ -243,6 +260,7 @@ describe('sqlAttributeSpecs.field.default', () => {
     symbols: symbolTable,
     model,
     field: field(model, 'id'),
+    binder,
     controlMutationDefaults,
   });
 
@@ -255,6 +273,7 @@ describe('sqlAttributeSpecs.field.default', () => {
       'str',
       'num',
       'bool',
+      'null',
       'funcCall',
       'funcCall',
       'funcCall',
@@ -287,6 +306,7 @@ describe('sqlAttributeSpecs.field.default', () => {
       symbols: symbolTable,
       model,
       field: field(model, 'id'),
+      binder,
       controlMutationDefaults: {
         defaultFunctionRegistry: controlMutationDefaults.defaultFunctionRegistry,
         dataTypeEntries: {},
@@ -302,6 +322,7 @@ describe('sqlAttributeSpecs.field.default', () => {
       symbols: symbolTable,
       model,
       field: field(model, 'tags'),
+      binder,
       controlMutationDefaults,
     });
     const value = oneOfMetadata(positionalType(sqlAttributeSpecs.field.default(listCtx)));
@@ -314,14 +335,15 @@ describe('sqlAttributeSpecs.field.default', () => {
     ).toEqual(['autoincrement', 'now', 'uuid', 'cuid', 'ulid', 'nanoid']);
     expect(value.alternatives.filter((alt) => alt.kind === 'taggedLiteral')).toMatchObject([
       {
-        label: 'json`...`',
-        tags: ['json'],
-        documentation: 'Reads the body as a JSON document and stores it as the default value.',
+        label: 'sql`...`',
+        tags: ['sql'],
+        documentation:
+          "A SQL expression in the target database's language. Prisma passes it to the database unchanged.",
       },
       {
-        label: 'sql`...`',
-        tags: ['sql', 'pg.sql'],
-        documentation: "Uses the SQL in the string, verbatim, as the column's default expression.",
+        label: 'json`...`',
+        tags: ['json'],
+        documentation: 'Reads the text as a JSON document and stores it as the default value.',
       },
     ]);
   });
@@ -336,6 +358,7 @@ describe('sqlAttributeSpecs.field.default', () => {
       symbols: enumProject.symbolTable,
       model: enumProject.model,
       field: priority,
+      binder: enumProject.binder,
       controlMutationDefaults,
     });
     const enumDefault = oneOfMetadata(positionalType(sqlAttributeSpecs.field.default(enumCtx)));
@@ -353,6 +376,7 @@ describe('sqlAttributeSpecs.field.default', () => {
       symbols: emptyProject.symbolTable,
       model: emptyProject.model,
       field: kind,
+      binder: emptyProject.binder,
       controlMutationDefaults,
     });
     const emptyDefault = oneOfMetadata(positionalType(sqlAttributeSpecs.field.default(emptyCtx)));
@@ -401,6 +425,28 @@ model Post {
 }
 `;
     expect(interpretDefault(schema, 'role')).toEqual({
+      value: { value: 'Member' },
+      diagnostics: [],
+    });
+  });
+
+  it('takes the enum the field type resolves to in its scope, not a same-named top-level enum', () => {
+    const schema = `
+enum Role {
+  Guest
+}
+namespace ns {
+  enum Role {
+    Admin
+    Member
+  }
+  model Post {
+    id Int @id
+    role Role @default(Member)
+  }
+}
+`;
+    expect(interpretDefault(schema, 'role', 'ns')).toEqual({
       value: { value: 'Member' },
       diagnostics: [],
     });

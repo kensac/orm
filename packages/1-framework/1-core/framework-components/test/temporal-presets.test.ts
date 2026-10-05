@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkUncomposedNamespace,
+  fieldPresetSpellings,
   getAuthoringFieldPreset,
 } from '../src/shared/field-preset-resolution';
 import {
@@ -128,17 +128,17 @@ describe('getAuthoringFieldPreset', () => {
   });
 });
 
-describe('checkUncomposedNamespace', () => {
-  const context = { familyId: 'fam', targetId: 'tgt', authoringContributions: contributions };
-
-  it('returns the namespace of an attribute from an uncomposed extension', () => {
-    expect(checkUncomposedNamespace('ext.foo', new Set(), context)).toBe('ext');
+describe('fieldPresetSpellings', () => {
+  it('lists every preset under the namespace with its arguments, nested namespaces included', () => {
+    const stamp = temporalCodecPreset({ codecId: 'test/date@1', nativeType: 'date' });
+    const nested = { field: { ext: { stamp, clock: { created: temporal.createdAt } } } };
+    expect(fieldPresetSpellings(nested, 'ext')).toEqual([
+      'ext.stamp(onCreate, onUpdate)',
+      'ext.clock.created()',
+    ]);
   });
 
-  it.each(['db.Text', 'fam.foo', 'tgt.foo', 'temporal.foo', 'composed.foo', 'plain', '.x', 'x.'])(
-    'accepts %s',
-    (name) => {
-      expect(checkUncomposedNamespace(name, new Set(['composed']), context)).toBeUndefined();
-    },
-  );
+  it('lists nothing for a namespace that holds no preset at any depth', () => {
+    expect(fieldPresetSpellings({ field: { ext: { empty: {} } } }, 'ext')).toEqual([]);
+  });
 });

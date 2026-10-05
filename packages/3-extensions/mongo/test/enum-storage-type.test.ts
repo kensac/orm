@@ -1,11 +1,11 @@
 import mongoAdapter from '@internal/adapter-mongo/control';
 import mongoDriver from '@internal/driver-mongo/control';
 import { mongoFamilyDescriptor } from '@internal/family-mongo/control';
-import { collectScalarTypeConstructors } from '@internal/framework-components/authoring';
 import { createControlStack } from '@internal/framework-components/control';
 import { interpretPslDocumentToMongoContract } from '@internal/mongo-contract-psl';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { parse } from '@internal/psl-parser/syntax';
+import { mongoContextInput } from '@internal/mongo-contract-psl/test';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
+import { bindPslSchema, contractSourceContextFromControlStack } from '@internal/psl-parser/test';
 import { mongoTargetDescriptor } from '@internal/target-mongo/control';
 import { describe, expect, it } from 'vitest';
 
@@ -17,27 +17,20 @@ const stack = createControlStack({
 });
 
 function interpret(schema: string) {
-  const { document, sources } = parse(schema, 'schema.prisma');
-  const { symbolTable } = buildSymbolTable({
-    documents: [document],
-    sources,
+  const bound = bindPslSchema(schema, {
+    sourceId: 'schema.prisma',
+    context: contractSourceContextFromControlStack(stack),
   });
-  return interpretPslDocumentToMongoContract({
-    documents: [document],
-    symbolTable,
-    sources,
-    scalarTypeCodecIds: new Map(
-      [...collectScalarTypeConstructors(stack.authoringContributions.type)].map(
-        ([name, output]) => [name, output.codecId],
-      ),
-    ),
-    controlMutationDefaults: {
-      dataTypeEntries: {},
-      defaultFunctionRegistry: new Map(),
-    },
-    codecLookup: stack.codecLookup,
-    authoringContributions: stack.authoringContributions,
-  });
+  return withSeedDiagnostics(
+    interpretPslDocumentToMongoContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...mongoContextInput(bound.context),
+    }),
+    bound.seedDiagnostics,
+  );
 }
 
 describe('a Mongo enum over a codec without exactly one BSON type', () => {
@@ -45,10 +38,10 @@ describe('a Mongo enum over a codec without exactly one BSON type', () => {
     ['mongo/json@1', 8],
     ['mongo/bson@1', 0],
   ])(
-    'refuses @@type("%s"), which declares %i BSON types, at the @@type argument',
+    'refuses @@type("%s"), which declares %i BSON types, at the @@type argument and nowhere else',
     (codecId, count) => {
       const typeAttribute = `@@type("${codecId}")`;
-      const schema = `enum Shape {\n  ${typeAttribute}\n  a\n}\n`;
+      const schema = `enum Shape {\n  ${typeAttribute}\n  a\n}\nmodel Figure {\n  id    ObjectId @id @map("_id")\n  shape Shape\n  other Shape?\n}\n`;
       const result = interpret(schema);
 
       expect(result.ok).toBe(false);
@@ -57,7 +50,7 @@ describe('a Mongo enum over a codec without exactly one BSON type', () => {
       expect(result.failure.diagnostics).toEqual([
         expect.objectContaining({
           code: 'PSL_EXTENSION_INVALID_VALUE',
-          message: `enum "Shape" @@type codec "${codecId}" declares ${count} BSON types; an enum needs exactly one`,
+          message: `enum "Shape" @@type codec "${codecId}" declares ${count} BSON types; an enum needs exactly one. Use a codec with one BSON type, such as mongo/string@1.`,
           span: expect.objectContaining({
             start: expect.objectContaining({ offset: start }),
             end: expect.objectContaining({ offset: start + codecId.length + 2 }),

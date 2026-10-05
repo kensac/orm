@@ -12,13 +12,9 @@
  * recovery, a later slice, is the first producer — so the tests below pass
  * the blocks in directly.
  */
+
 import sqlFamilyPack from '@internal/family-sql/pack';
-import type { PslPrinterOptions } from '@internal/family-sql/psl-infer';
-import {
-  type AuthoringTypeNamespace,
-  collectScalarTypeConstructors,
-} from '@internal/framework-components/authoring';
-import type { Codec, CodecLookup } from '@internal/framework-components/codec';
+import type { AuthoringTypeNamespace } from '@internal/framework-components/authoring';
 import { createDataTypeLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
 import type {
@@ -34,9 +30,16 @@ import {
   UNSPECIFIED_PSL_NAMESPACE_ID,
 } from '@internal/framework-components/psl-ast';
 import { buildSymbolTable } from '@internal/psl-parser';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
 import { parse } from '@internal/psl-parser/syntax';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import { printPsl } from '@internal/psl-printer';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import { SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import { assert, describe, expect, it } from 'vitest';
@@ -44,12 +47,17 @@ import {
   postgresAuthoringEntityTypes,
   postgresAuthoringPslBlockDescriptors,
 } from '../../../src/core/authoring';
+import { createPostgresBuiltinCodecLookup } from '../../../src/core/codec-registry';
 import { parsePostgresDefault } from '../../../src/core/default-normalizer';
 import { isPostgresSchema, postgresCreateNamespace } from '../../../src/core/postgres-schema';
 import { createPostgresTypeMap } from '../../../src/core/psl-build/postgres-type-map';
-import { buildPslDocumentAst } from '../../../src/core/psl-infer/infer-psl-contract';
+import { inferredColumnDefaults } from '../../../src/core/psl-infer/infer-default-codec';
+import {
+  buildPslDocumentAst,
+  type PostgresPslInferOptions,
+} from '../../../src/core/psl-infer/infer-psl-contract';
 import { createPostgresDefaultMapping } from '../../../src/core/psl-infer/postgres-default-mapping';
-import { inferPslAstFromFlat } from '../fixtures';
+import { inferBuildContext, inferPslAstFromFlat } from '../fixtures';
 
 const postgresDataTypeLookup = createDataTypeLookup(postgresDataTypes);
 
@@ -79,23 +87,7 @@ const target = {
   authoring: { type: authoringTypes },
 };
 
-const textCodec: Codec = {
-  id: 'pg/text@1',
-  encode: async (v: unknown) => v,
-  decode: async (w: unknown) => w,
-  encodeJson: (value) => value as never,
-  decodeJson(json) {
-    if (typeof json !== 'string') throw new Error(`expected string, got ${typeof json}`);
-    return json;
-  },
-};
-
-const codecLookup: CodecLookup = {
-  get: (id) => (id === 'pg/text@1' ? textCodec : undefined),
-  targetTypesFor: (id) => (id === 'pg/text@1' ? ['text'] : undefined),
-  renderOutputTypeFor: () => undefined,
-  descriptorFor: () => undefined,
-};
+const codecLookup = createPostgresBuiltinCodecLookup();
 
 function print(ast: PslDocumentAst): string {
   return printPsl(ast, { pslBlockDescriptors: assembled.pslBlockDescriptors });
@@ -114,23 +106,40 @@ function parseAndInterpret(source: string) {
     sources,
     diagnostics: parseDiagnostics,
   } = parse(source, 'print-psl.top-level-blocks.test.psl');
-  const { symbolTable, diagnostics: symbolTableDiagnostics } = buildSymbolTable({
+  const { diagnostics: symbolTableDiagnostics } = buildSymbolTable({
     documents: [document],
     sources,
   });
-  const interpreted = interpretPslDocumentToSqlContract({
-    documents: [document],
-    dataTypeLookup: postgresDataTypeLookup,
-    symbolTable,
-    sources,
-    capabilities: {},
-    target,
-    scalarColumnDescriptors: collectScalarTypeConstructors(authoringTypes),
-    authoringContributions: assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
-    codecLookup,
+  const bound = bindPslSchema(source, {
+    sourceId: 'print-psl.top-level-blocks.test.psl',
+    context: {
+      composedExtensions: [],
+      composedExtensionContracts: new Map(),
+      authoringContributions: {
+        ...assembled,
+        type: { ...authoringTypes, ...assembled.type },
+        attributeSpecs: sqlAttributeSpecs,
+      },
+      pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+      codecLookup,
+      controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+      dataTypeLookup: postgresDataTypeLookup,
+      resolvedInputs: [],
+      capabilities: {},
+    },
   });
+  const interpreted = withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
   return { interpreted, sourceDiagnostics: [...parseDiagnostics, ...symbolTableDiagnostics] };
 }
 
@@ -294,7 +303,8 @@ describe('buildPslDocumentAst and the top-level bucket', () => {
     },
   });
 
-  const printerOptions: PslPrinterOptions = {
+  const printerOptions: PostgresPslInferOptions = {
+    columnDefaults: inferredColumnDefaults(inferBuildContext),
     typeMap: createPostgresTypeMap(new Set()),
     defaultMapping: createPostgresDefaultMapping(),
     parseRawDefault: parsePostgresDefault,

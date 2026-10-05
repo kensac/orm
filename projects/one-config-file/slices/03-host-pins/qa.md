@@ -231,3 +231,99 @@ Override removed, `pnpm install` again (the lockfile no longer mentions `rc.118`
 ### 6. Credentials
 
 `PRISMA_SERVICE_TOKEN` was not set in the environment. `prisma deploy` checks credentials before it evaluates the config, so the deploy path was not exercised against Prisma Cloud; the `effect` case is proven through `dev` only.
+
+
+## Against the published 0.26.0 (2026-10-05)
+
+### Setup
+
+- Host under test: prisma/prisma-cli `one-config-file/composer-0-26` at `3e711a9` (rebased onto `origin/main`), pinning `@prisma/composer-cli` and `@prisma/composer` at `0.26.0` from the registry, built with `pnpm build`.
+- Project under test: a fresh copy of `examples/orm-demo` at `<qa>` (the session scratchpad, outside every workspace; the earlier `qa-orm-demo` copy was in use by another task, so this is a new one). `@prisma/composer` and `@prisma/composer-prisma-cloud` at `0.26.0` from the registry, `prisma` as `link:` to the branch's `packages/prisma`, other dependencies as before. Its `pnpm-workspace.yaml` only allows the esbuild build script; no URL-dependency setting is needed any more. `prisma.config.ts` is identical to the example's.
+- `PRISMA_DISABLE_TELEMETRY=1`; no service token in the environment.
+
+### Summary
+
+| Step | Observed |
+| --- | --- |
+| 1. help | `--version` 8.0.0-rc.19, exit 0. `deploy --help` and `dev --help` exit 0 and list no `destroy` or `log` command. Root help lists `deploy <entry>` and `dev <entry>`. |
+| dev to ready | Without `alchemy` as a direct dependency: `DEPLOY.ALCHEMY_BIN_MISSING`, exit 2, as before (Composer's fix is not in 0.26.0). With `alchemy@2.0.0-beta.78` added: `status: ready`, endpoint `widgets` at `http://localhost:3019`, SIGINT gives exit 130 with an ok result. The emulators on 4303/4304 were already running from other sessions and were reused. |
+| 3. retired file | `CLI.CONFIG_SECTION_INVALID` with `CONFIG.FILE_RETIRED` naming `<qa>/prisma-composer.config.ts`, exit 2. The file came from Composer `edaf7b27` (it is gone from `main`). |
+| 4. retired field | `CLI.CONFIG_SECTION_INVALID` with `CONFIG.FIELD_RETIRED`, exit 2. |
+| 5. broken `effect` | `CLI.CONFIG_UNREADABLE` naming the missing `effect/dist/unstable/http/FetchHttpClient.js`, exit 2; `--version` exit 0. Override removed and reinstalled afterwards (the lockfile no longer mentions `rc.118`). |
+
+### Transcript
+
+```
+$ prisma --version
+{"kind":"result","envelope":{"ok":true,"commandId":"version","result":{"version":"8.0.0-rc.19"},"exitCode":0,"diagnostics":[],"nextActions":[]},"commandId":"version","timestamp":"2026-10-05T13:44:53.441Z"}
+exit=0
+$ prisma deploy --help
+exit=0
+lines naming destroy or log as commands: 0
+$ prisma dev --help
+exit=0
+lines naming destroy or log as commands: 0
+$ prisma --help | grep deploy/dev
+│  deploy <entry>      Deploy the application whose root node is <entry>'s default export.
+│  dev <entry>         Bring up the application whose root node is <entry>'s default export, entirely on this machine.
+exit=0
+```
+
+`prisma dev module.ts` without `alchemy` as a direct dependency:
+
+```
+[+1.3s] stdout: [dev] compute emulator ready at http://127.0.0.1:4303
+[+1.3s] stdout: [dev] postgres emulator ready at http://127.0.0.1:4304
+[+1.3s] stdout: {"kind":"result","envelope":{"ok":false,"commandId":"dev","error":{"code":"DEPLOY.ALCHEMY_BIN_MISSING","severity":"error","summary":"Could not find an installed `alchemy` bin above \"<qa>\".","nextActions":[{"kind":"user-choice","label":"Add \"alchemy\" as a dependency of your app."}…
+[+1.3s] QA: exit code=2 signal=null
+```
+
+With `alchemy@2.0.0-beta.78` in `devDependencies`:
+
+```
+[+5.0s] stdout: {"kind":"status","subject":"dev","status":"ready","commandId":"dev","timestamp":"2026-10-05T13:45:24.048Z"}
+[+5.0s] stdout: {"kind":"endpoint","name":"widgets","url":"http://localhost:3019","commandId":"dev","timestamp":"2026-10-05T13:45:24.048Z"}
+[+5.0s] QA: ready seen, sending SIGINT
+[+8.0s] stdout: {"kind":"result","envelope":{"ok":true,"commandId":"dev","result":null,"exitCode":130,"diagnostics":[],"nextActions":[]},"commandId":"dev","timestamp":"2026-10-05T13:45:27.123Z"}
+[+8.1s] QA: exit code=130 signal=null
+```
+
+```
+$ prisma dev module.ts --format human   (prisma-composer.config.ts from Composer edaf7b27 beside the config)
+✘ [CLI.CONFIG_SECTION_INVALID] The 'composer' section of <qa>/prisma.config.ts is invalid.
+→ Fix the reported problems in that section, then run the command again.
+  docs: https://www.prisma.io/docs/cli/error-reference/CLI.CONFIG_SECTION_INVALID
+
+✘ [CONFIG.FILE_RETIRED] <qa>/prisma-composer.config.ts is no longer read.
+  why: Composer reads its configuration only from the `composer` section of prisma.config.ts.
+→ Write `composer: composer({ extensions: [...], state: ... })` in prisma.config.ts, with `import { defineConfig as composer } from '@prisma/composer/config'`. If the project has a prisma-composer.config.ts, move its extensions and state into that section and delete the file.
+  docs: https://www.prisma.io/docs/cli/error-reference/CONFIG.FILE_RETIRED
+Prisma agent skills are out of date (installed @prisma/orm-postgres 8.0.0-rc.13, synced none). Run: prisma skills sync
+exit=2
+```
+
+```
+$ prisma dev module.ts --format human   (composer: { configPath: './x.ts' })
+✘ [CLI.CONFIG_SECTION_INVALID] The 'composer' section of <qa>/prisma.config.ts is invalid.
+→ Fix the reported problems in that section, then run the command again.
+  docs: https://www.prisma.io/docs/cli/error-reference/CLI.CONFIG_SECTION_INVALID
+
+✘ [CONFIG.FIELD_RETIRED] `composer.configPath` is no longer supported: prisma-composer.config.ts is no longer read.
+  why: Composer reads its configuration only from the `composer` section of prisma.config.ts.
+→ Replace `configPath` with the section itself. Write `composer: composer({ extensions: [...], state: ... })` in prisma.config.ts, with `import { defineConfig as composer } from '@prisma/composer/config'`. If the project has a prisma-composer.config.ts, move its extensions and state into that section and delete the file.
+  docs: https://www.prisma.io/docs/cli/error-reference/CONFIG.FIELD_RETIRED
+Prisma agent skills are out of date (installed @prisma/orm-postgres 8.0.0-rc.13, synced none). Run: prisma skills sync
+exit=2
+```
+
+```
+$ prisma dev module.ts --format human   (effect 4.0.0-rc.118 forced by override)
+✘ [CLI.CONFIG_UNREADABLE] <qa>/prisma.config.ts could not be evaluated: Cannot find module '<qa>/node_modules/.pnpm/alchemy@2.0.0-beta.78_@effect+platform-bun@4.0.0-rc.115_effect@4.0.0-rc.118__@effect+pl_f8625b128387684846574b9244c214b6/node_modules/effect/dist/unstable/http/FetchHttpClient.js'
+→ Fix the error in the file, then run the command again.
+  docs: https://www.prisma.io/docs/cli/error-reference/CLI.CONFIG_UNREADABLE
+Prisma agent skills are out of date (installed @prisma/orm-postgres 8.0.0-rc.13, synced none). Run: prisma skills sync
+exit=2
+$ prisma --version
+{"kind":"result","envelope":{"ok":true,"commandId":"version","result":{"version":"8.0.0-rc.19"},"exitCode":0,"diagnostics":[],"nextActions":[]},"commandId":"version","timestamp":"2026-10-05T13:45:45.188Z"}
+exit=0
+```

@@ -5,7 +5,9 @@ import type { JsonValue } from '@internal/contract/types';
 import { enumType, member } from '@internal/contract-authoring';
 import type { ParsedPslExtensionBlock } from '@internal/framework-components/authoring';
 import {
+  type AnyCodecDescriptor,
   type Codec,
+  type CodecLookupWithDescriptors,
   createDataTypeLookup,
   emptyCodecLookup,
 } from '@internal/framework-components/codec';
@@ -13,6 +15,10 @@ import { jsonValue, mapBlock } from '@internal/psl-parser';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mongoContract } from '../src/exports/provider';
+import {
+  describeUnsupportedMongoAttribute,
+  mongoAttributeSpecs,
+} from '../src/mongo-attribute-specs';
 
 const originalCwd = process.cwd();
 const tempDirs: string[] = [];
@@ -32,6 +38,17 @@ const stringCodec: Codec = {
   encodeJson: (value) => value as JsonValue,
   decodeJson: (json) => json,
 };
+
+function codecLookupOf(codec: Codec): CodecLookupWithDescriptors {
+  return {
+    ...emptyCodecLookup,
+    get: (id) => (id === codec.id ? codec : undefined),
+    descriptorFor: (id) =>
+      id === codec.id
+        ? ({ codecId: id, factory: () => () => codec } as unknown as AnyCodecDescriptor)
+        : undefined,
+  };
+}
 
 const enumEntityType = {
   kind: 'entity',
@@ -70,9 +87,10 @@ function createMongoTestContext(overrides?: Partial<ContractSourceContext>): Con
       entityTypes: {},
       pslBlockDescriptors: {},
       modelAttributes: {},
-      attributeSpecs: { model: {}, field: {} },
+      attributeSpecs: mongoAttributeSpecs,
     },
-    codecLookup: emptyCodecLookup,
+    pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedMongoAttribute },
+    codecLookup: { ...emptyCodecLookup, descriptorFor: () => undefined },
     controlMutationDefaults: {
       defaultFunctionRegistry: new Map(),
       generatorDescriptors: [],
@@ -210,10 +228,7 @@ model User {
     const result = await contract.source.load(
       createMongoTestContext({
         resolvedInputs: [schemaPath],
-        codecLookup: {
-          ...emptyCodecLookup,
-          get: (id) => (id === stringCodec.id ? stringCodec : undefined),
-        },
+        codecLookup: codecLookupOf(stringCodec),
         authoringContributions: {
           ...baseContributions,
           entityTypes: { enum: enumEntityType },
@@ -235,6 +250,56 @@ model User {
           span: {
             start: { offset: 36, line: 3, column: 9 },
             end: { offset: 48, line: 3, column: 21 },
+          },
+        },
+      ],
+    });
+  });
+
+  it('reports each attributed field line of a view as an invalid entry, then the view as an unsupported block', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'mongo-psl-provider-'));
+    tempDirs.push(tempDir);
+    const schemaPath = join(tempDir, 'schema.prisma');
+    await writeFile(
+      schemaPath,
+      `// use prisma-8
+view ActiveUsers {
+  id    ObjectId @id @map("_id")
+  email String
+}
+
+model User {
+  id ObjectId @id @map("_id")
+}
+`,
+      'utf-8',
+    );
+
+    const result = await mongoContract('./schema.prisma').source.load(
+      createMongoTestContext({ resolvedInputs: [schemaPath] }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toEqual({
+      summary: 'Schema has 2 errors',
+      diagnostics: [
+        {
+          code: 'PSL_INVALID_EXTENSION_BLOCK_MEMBER',
+          message: 'Invalid block entry',
+          sourceId: schemaPath,
+          span: {
+            start: { offset: 52, line: 3, column: 18 },
+            end: { offset: 53, line: 3, column: 19 },
+          },
+        },
+        {
+          code: 'PSL_UNSUPPORTED_TOP_LEVEL_BLOCK',
+          message: 'Unsupported top-level block "view"',
+          sourceId: schemaPath,
+          span: {
+            start: { offset: 16, line: 2, column: 1 },
+            end: { offset: 20, line: 2, column: 5 },
           },
         },
       ],

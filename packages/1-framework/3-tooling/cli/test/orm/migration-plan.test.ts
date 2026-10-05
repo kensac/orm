@@ -4,9 +4,10 @@ import { contractSnapshotDir } from '@internal/migration-tools/contract-snapshot
 import { computeMigrationHash } from '@internal/migration-tools/hash';
 import { writeRef } from '@internal/migration-tools/refs';
 import { notOk } from '@internal/utils/result';
+import { structuredError } from '@internal/utils/structured-error';
 import { createTestCli } from '@prisma/cli-engine/testing';
 import { basename, dirname, join } from 'pathe';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BIN_GROUPS } from '../../src/orm/cli';
 import { errorUnfilledPlaceholder } from '../../src/utils/cli-errors';
 import { createOrmTestCli } from '../helpers/orm-test-cli';
@@ -234,7 +235,7 @@ describe('migration plan', () => {
 
     expect(run.presented?.presentation.next).toEqual([
       { kind: 'edit-file', label: `Review ${dir}` },
-      { kind: 'run-command', label: 'Apply the migration', command: '{bin} db migrate' },
+      { kind: 'run-command', label: 'Apply the migration', command: 'prisma-test db migrate' },
     ]);
   });
 
@@ -272,6 +273,34 @@ describe('migration plan', () => {
       baselineDir: join('migrations', 'app', dirs[0] ?? ''),
       dir: join('migrations', 'app', dirs[1] ?? ''),
     });
+  });
+
+  it('dates the auto-baseline before now and the delta at now', async () => {
+    const now = new Date('2026-10-05T11:00:30.000Z');
+    vi.useFakeTimers({ now, toFake: ['Date'] });
+    try {
+      const project = await createOfflineProject({ storageHash: HASH_TO });
+      await seedContractSnapshot({ migrationsDir: project.migrationsDir, storageHash: HASH_FROM });
+      await seedDbRef({ appMigrationsDir: project.appMigrationsDir, storageHash: HASH_FROM });
+
+      await harness(project).run(['migration', 'plan', '--name', 'delta'], { cwd: project.dir });
+      const createdAt = await Promise.all(
+        (await plannedDirs(project)).map(async (dir) => {
+          const manifest = await readFile(
+            join(project.appMigrationsDir, dir, 'migration.json'),
+            'utf-8',
+          );
+          return [dir.replace(/^\d+T\d+_/, ''), JSON.parse(manifest).createdAt];
+        }),
+      );
+
+      expect(createdAt).toEqual([
+        ['baseline', '2026-10-05T10:59:30.000Z'],
+        ['delta', '2026-10-05T11:00:30.000Z'],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('warns when the default origin ref already has outgoing edges', async () => {
@@ -703,6 +732,33 @@ describe('migration plan', () => {
     expect(run.json.at(-1)).toMatchObject({
       kind: 'result',
       envelope: { ok: false, error: { code: 'MIGRATION.PLANNING_FAILED' } },
+    });
+  });
+
+  it('reports a contract default the planner refuses as CONTRACT.DEFAULT_INVALID', async () => {
+    const project = await plannableProject();
+    const refusal =
+      'Column "at": The contract holds this default in a form its data type does not store: pg/timestamptz needs a UTC offset, but "2024-01-01 00:00:00" has none. Add Z for UTC or an offset such as +02:00, as in "2024-01-01T12:34:56Z". Re-emit the contract, then try again.';
+
+    const run = await harness(project, {
+      script: {
+        throwOnPlan: structuredError('CONTRACT.DEFAULT_INVALID', refusal, {
+          meta: { reason: 'default-not-canonical', column: 'at' },
+        }),
+      },
+    }).run(['migration', 'plan', '--json'], { cwd: project.dir });
+
+    expect(run.exitCode).toBe(2);
+    expect(run.json.at(-1)).toMatchObject({
+      kind: 'result',
+      envelope: {
+        ok: false,
+        error: {
+          code: 'CONTRACT.DEFAULT_INVALID',
+          summary: refusal,
+          meta: { reason: 'default-not-canonical', column: 'at' },
+        },
+      },
     });
   });
 

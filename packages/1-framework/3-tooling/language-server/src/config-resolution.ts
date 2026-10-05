@@ -1,9 +1,10 @@
-import type { ContractSourceContext } from '@internal/config/config-types';
+import type { ContractSourceContext, PslParserOptions } from '@internal/config/config-types';
 import { loadConfig, type PrismaNextConfig, requireConfigSections } from '@internal/config-loader';
 import type { ControlStack } from '@internal/framework-components/control';
 import { createControlStack } from '@internal/framework-components/control';
 import type { FormatOptions } from '@internal/psl-parser/format';
 import { hasPslInterpreter, type PslInterpretCapable } from '@internal/psl-parser/interpret';
+import { ifDefined } from '@internal/utils/defined';
 import type { LspControlStack } from './lsp-control-stack';
 import {
   hasPslInputs,
@@ -23,6 +24,7 @@ export interface ConfigResolution {
   readonly inputs: SchemaInputSet;
   readonly schemaInputConfig: SchemaInputConfig;
   readonly formatter?: FormatOptions;
+  readonly parserOptions?: PslParserOptions;
   readonly controlStack: LspControlStack;
   readonly interpretation?: ProjectInterpretation;
 }
@@ -72,11 +74,14 @@ export async function resolveConfigInputs(
   }
   const stack = createControlStack(config);
   const interpretation = resolveInterpretation(config, stack, inputs);
+  const parserOptions =
+    config.contract?.source.format === 'psl' ? config.contract.source.parserOptions : undefined;
   return {
     inputs,
     schemaInputConfig,
     controlStack: lspControlStackFromStack(stack),
     ...(config.formatter === undefined ? {} : { formatter: config.formatter }),
+    ...(parserOptions === undefined ? {} : { parserOptions }),
     ...(interpretation === undefined ? {} : { interpretation }),
   };
 }
@@ -89,6 +94,7 @@ function lspControlStackFromStack(stack: ControlStack): LspControlStack {
     ...(stack.controlMutationDefaults === undefined
       ? {}
       : { controlMutationDefaults: stack.controlMutationDefaults }),
+    ...ifDefined('pslDiagnostics', stack.family?.pslDiagnostics),
   };
 }
 
@@ -107,6 +113,7 @@ function resolveInterpretation(
       composedExtensions: stack.extensions.map((p) => p.id),
       composedExtensionContracts: stack.extensionContracts,
       authoringContributions: stack.authoringContributions,
+      ...ifDefined('pslDiagnostics', stack.family?.pslDiagnostics),
       codecLookup: stack.codecLookup,
       dataTypeLookup: stack.dataTypeLookup,
       controlMutationDefaults: stack.controlMutationDefaults,

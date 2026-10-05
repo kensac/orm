@@ -460,8 +460,43 @@ describe('buildSymbolTable() — resolved field shape', () => {
 
     expect(fields['nickname']?.optional).toBe(true);
     expect(fields['nickname']?.list).toBe(false);
+    expect(fields['nickname']?.elementOptional).toBe(false);
     expect(fields['tags']?.optional).toBe(false);
     expect(fields['tags']?.list).toBe(true);
+    expect(fields['tags']?.elementOptional).toBe(false);
+  });
+
+  it('splits the list and element nullability axes across all four spellings', () => {
+    const result = build(
+      [
+        'model User {',
+        '  plain String',
+        '  fieldOptional String?',
+        '  list String[]',
+        '  elementOptional String?[]',
+        '  listOptional String[]?',
+        '  bothOptional String?[]?',
+        '}',
+      ].join('\n'),
+    );
+    const fields = result.symbolTable.topLevel.models['User']?.fields ?? {};
+
+    expect(result.diagnostics).toHaveLength(0);
+    const axes = (name: string) => ({
+      optional: fields[name]?.optional,
+      list: fields[name]?.list,
+      elementOptional: fields[name]?.elementOptional,
+    });
+    expect(axes('plain')).toEqual({ optional: false, list: false, elementOptional: false });
+    expect(axes('fieldOptional')).toEqual({ optional: true, list: false, elementOptional: false });
+    expect(axes('list')).toEqual({ optional: false, list: true, elementOptional: false });
+    expect(axes('elementOptional')).toEqual({
+      optional: false,
+      list: true,
+      elementOptional: true,
+    });
+    expect(axes('listOptional')).toEqual({ optional: true, list: true, elementOptional: false });
+    expect(axes('bothOptional')).toEqual({ optional: true, list: true, elementOptional: true });
   });
 
   it('resolves a constructor field type onto typeConstructor', () => {
@@ -491,6 +526,28 @@ describe('buildSymbolTable() — resolved field shape', () => {
     ]);
     const mapAttr = name?.attributes.find((a) => a.name === 'map');
     expect(mapAttr?.args[0]?.value).toBe('"full_name"');
+  });
+
+  it('carries the declaration node each resolved attribute was read from', () => {
+    const result = build(
+      ['model User {', '  id Int @id @map("pk")', '  @@index([id])', '}'].join('\n'),
+    );
+    const model = result.symbolTable.topLevel.models['User'];
+    const field = model?.fields['id'];
+    if (!model || !field) throw new Error('missing model or field');
+
+    expect(field.attributes.map((attribute) => attribute.node)).toEqual([
+      ...field.node.attributes(),
+    ]);
+    expect(model.attributes.map((attribute) => attribute.node)).toEqual([
+      ...model.node.attributes(),
+    ]);
+
+    const mapAttribute = field.attributes.find((attribute) => attribute.name === 'map');
+    const mapNode = [...field.node.attributes()].find(
+      (attribute) => attribute.name()?.isSimpleName('map') === true,
+    );
+    expect(mapAttribute?.node.syntax).toBe(mapNode?.syntax);
   });
 
   it('renders function-call, array-literal, and object-literal arg values verbatim', () => {

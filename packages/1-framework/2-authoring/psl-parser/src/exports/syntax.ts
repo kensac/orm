@@ -31,10 +31,12 @@ export {
   AttributeArgAst,
   BooleanLiteralExprAst,
   castExpression,
+  dottedPathsIn,
   FunctionCallAst,
   NumberLiteralExprAst,
   ObjectFieldAst,
   ObjectLiteralExprAst,
+  PathExprAst,
   StringLiteralExprAst,
   TaggedLiteralExprAst,
 } from '../syntax/ast/expressions';
@@ -42,7 +44,7 @@ export {
 export { IdentifierAst } from '../syntax/ast/identifier';
 export { QualifiedNameAst } from '../syntax/ast/qualified-name';
 export { TypeAnnotationAst } from '../syntax/ast/type-annotation';
-export type { AstNode, BracedBlock } from '../syntax/ast-helpers';
+export type { AstNode, BracedBlock, HasDocComment } from '../syntax/ast-helpers';
 export {
   any,
   filterChildren,

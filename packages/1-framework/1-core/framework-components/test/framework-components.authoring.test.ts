@@ -9,7 +9,6 @@ import {
   assertNoCrossRegistryCollisions,
   classifyEnumMemberType,
   collectScalarTypeConstructors,
-  hasRegisteredFieldNamespace,
   instantiateAuthoringFieldPreset,
   instantiateAuthoringTypeConstructor,
   isAuthoringArgRef,
@@ -39,35 +38,6 @@ describe('authoring template resolution', () => {
     const fieldNamespace = { nested: fieldPreset } satisfies AuthoringFieldNamespace;
     expect(isAuthoringTypeConstructorDescriptor(typeNamespace)).toBe(false);
     expect(isAuthoringFieldPresetDescriptor(fieldNamespace)).toBe(false);
-  });
-
-  describe('hasRegisteredFieldNamespace', () => {
-    const presetLeaf = {
-      kind: 'fieldPreset',
-      output: { codecId: 'test/text@1', nativeType: 'text' },
-    } as const;
-
-    it('returns true for a non-leaf namespace key', () => {
-      expect(
-        hasRegisteredFieldNamespace({ field: { temporal: { createdAt: presetLeaf } } }, 'temporal'),
-      ).toBe(true);
-    });
-
-    it('returns true for an empty sub-namespace', () => {
-      expect(hasRegisteredFieldNamespace({ field: { temporal: {} } }, 'temporal')).toBe(true);
-    });
-
-    it('returns false for a leaf preset registered at the root', () => {
-      expect(hasRegisteredFieldNamespace({ field: { temporal: presetLeaf } }, 'temporal')).toBe(
-        false,
-      );
-    });
-
-    it('returns false for missing contributions or unknown key', () => {
-      expect(hasRegisteredFieldNamespace(undefined, 'temporal')).toBe(false);
-      expect(hasRegisteredFieldNamespace({}, 'temporal')).toBe(false);
-      expect(hasRegisteredFieldNamespace({ field: {} }, 'temporal')).toBe(false);
-    });
   });
 
   it('rejects arg refs with invalid index or path', () => {
@@ -138,7 +108,7 @@ describe('authoring template resolution', () => {
         [{ kind: 'object', properties: { label: { kind: 'string' } } }],
         [{}],
       ),
-    ).toThrow(/Missing required authoring helper argument at field\.test\[0\]\.label/);
+    ).toThrow('Authoring helper argument at field.test[0].label is missing');
   });
 
   it('rejects malformed helper argument values', () => {
@@ -489,13 +459,31 @@ describe('authoring template resolution', () => {
         [{ kind: 'option', values: ['now'] }],
         ['later'],
       ),
-    ).toThrow(/Authoring helper argument at field\.test\[0\] must be one of: now/);
+    ).toThrow('Authoring helper argument at field.test[0] must be "now"; received "later"');
   });
 
   it('rejects a non-string value for an option-kind argument', () => {
     expect(() =>
       validateAuthoringHelperArguments('field.test', [{ kind: 'option', values: ['now'] }], [42]),
-    ).toThrow(/Authoring helper argument at field\.test\[0\] must be one of: now/);
+    ).toThrow('Authoring helper argument at field.test[0] must be "now"; received 42');
+  });
+
+  it('says an option that lists no values takes none', () => {
+    expect(() =>
+      validateAuthoringHelperArguments('field.test', [{ kind: 'option', values: [] }], ['now']),
+    ).toThrow('Authoring helper argument at field.test[0] takes no value; received "now"');
+  });
+
+  it('names a named argument and lists every value an option takes', () => {
+    expect(() =>
+      validateAuthoringHelperArguments(
+        'temporal.timestamp',
+        [{ name: 'onCreate', kind: 'option', values: ['now', 'never'], optional: true }],
+        ['later'],
+      ),
+    ).toThrow(
+      'Argument "onCreate" of temporal.timestamp must be one of "now", "never"; received "later"',
+    );
   });
 
   it('rejects a missing required option-kind argument', () => {
@@ -505,7 +493,7 @@ describe('authoring template resolution', () => {
         [{ kind: 'option', values: ['now'] }],
         [undefined],
       ),
-    ).toThrow(/Missing required authoring helper argument at field\.test\[0\]/);
+    ).toThrow('Authoring helper argument at field.test[0] is missing');
   });
 
   it('allows an omitted optional option-kind argument', () => {

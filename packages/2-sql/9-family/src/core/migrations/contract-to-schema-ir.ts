@@ -31,6 +31,7 @@ import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
 import { sqlFamilyError } from '../errors';
+import type { DataTypeResolver } from './data-type-resolver';
 
 /**
  * Target-specific callback that expands a column's base `nativeType` and optional
@@ -92,6 +93,7 @@ function convertColumn(
   expandNativeType: NativeTypeExpander | undefined,
   renderDefault: DefaultRenderer | undefined,
   resolveDefault: DefaultResolver | undefined,
+  dataTypeOf: DataTypeResolver | undefined,
 ): SqlColumnIRInput {
   // Resolve `typeRef` so columns that delegate their `nativeType`/`codecId`/
   // `typeParams` to a named `storage.types` entry expand the same way as
@@ -121,7 +123,8 @@ function convertColumn(
   // form: it is the side both this and the introspected column already
   // agree on as the comparable "expanded" type.
   const nativeType = baseNativeType;
-  const resolvedNativeType = column.many ? `${baseNativeType}[]` : baseNativeType;
+  const many = column.many !== undefined && column.many !== false;
+  const resolvedNativeType = many ? `${baseNativeType}[]` : baseNativeType;
   const rawColumnDefault = column.default ?? undefined;
   const resolvedColumnDefault =
     rawColumnDefault !== undefined && resolveDefault
@@ -131,7 +134,7 @@ function convertColumn(
     name,
     nativeType,
     nullable: column.nullable,
-    ...ifDefined('many', column.many),
+    ...ifDefined('many', many ? true : undefined),
     ...ifDefined(
       'default',
       column.default != null && renderDefault ? renderDefault(column.default, column) : undefined,
@@ -150,9 +153,10 @@ function convertColumn(
     // carries `CodecRef` (TML-2456) — the migration planner's op-builders
     // resolve DDL rendering from this at plan time (Decision 5), instead of
     // reading a derivation-precomputed render payload.
-    codecRef: buildColumnCodecRef(resolved, column.many),
+    codecRef: buildColumnCodecRef(resolved, many ? true : undefined),
     codecBaseNativeType: resolved.nativeType,
     ...(column.typeRef !== undefined ? { codecNamedType: true } : {}),
+    ...ifDefined('dataType', dataTypeOf?.(resolved.codecId)),
   };
 }
 
@@ -332,6 +336,7 @@ function convertTable(
   expandNativeType: NativeTypeExpander | undefined,
   renderDefault: DefaultRenderer | undefined,
   resolveDefault: DefaultResolver | undefined,
+  dataTypeOf: DataTypeResolver | undefined,
   storage: SqlStorage,
 ): SqlTableIR {
   const columns: Record<string, SqlColumnIRInput> = {};
@@ -343,6 +348,7 @@ function convertTable(
       expandNativeType,
       renderDefault,
       resolveDefault,
+      dataTypeOf,
     );
   }
 
@@ -440,6 +446,11 @@ export interface ContractToSchemaIROptions {
   readonly renderDefault?: DefaultRenderer;
   readonly resolveDefault?: DefaultResolver;
   /**
+   * Gives each column the data type its codec represents, so a literal default compares through
+   * the type's canonical form. Build it with `buildDataTypeResolver(frameworkComponents)`.
+   */
+  readonly dataTypeOf?: DataTypeResolver;
+  /**
    * Target-supplied resolver mapping a namespace to the live database schema
    * its enums are stored under. When provided (Postgres), namespace-scoped
    * enums are nested by that schema in `enumTypes` so the projection matches
@@ -508,6 +519,7 @@ export function contractNamespaceToSchemaIR(
       options.expandNativeType,
       options.renderDefault,
       options.resolveDefault,
+      options.dataTypeOf,
       storage,
     );
   }
@@ -559,6 +571,7 @@ export function contractToSchemaIR(
         options.expandNativeType,
         options.renderDefault,
         options.resolveDefault,
+        options.dataTypeOf,
         storage,
       );
     }

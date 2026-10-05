@@ -37,6 +37,7 @@ const stubLowerer: ExecuteRequestLowerer = {
   lower(_ast, _ctx) {
     return { sql: 'CREATE TABLE stub', params: [] };
   },
+  renderColumnDefault: async () => '',
   async lowerToExecuteRequest(_ast, _ctx) {
     return { sql: 'CREATE TABLE stub', params: [] };
   },
@@ -255,6 +256,7 @@ describe('RLS planner diff-wiring', () => {
     const received: unknown[] = [];
     const recordingLowerer: ExecuteRequestLowerer = {
       lower: stubLowerer.lower,
+      renderColumnDefault: async () => '',
       lowerToExecuteRequest: async (ast) => {
         received.push(ast);
         return { sql: 'stub', params: [] };
@@ -281,7 +283,7 @@ describe('RLS planner diff-wiring', () => {
       | undefined;
     expect(createPolicyNode).toBeDefined();
     expect(createPolicyNode?.name).toContain('read_own_profiles_a1b2c3d4');
-    expect(createPolicyNode?.using).toContain('auth.uid()');
+    expect(createPolicyNode?.using?.text).toContain('auth.uid()');
   });
 
   it('does not emit RLS ops when the policy already exists in the introspected schema', async () => {
