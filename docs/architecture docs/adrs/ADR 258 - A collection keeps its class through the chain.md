@@ -54,11 +54,11 @@ type Step<In, Out>               = (collection: In) => Out;
 | `orderBy` | `Ordered<Self>` | yes | an order has been applied |
 | `limit`, `offset`, `distinct`, `cursor` | `Self` | yes | nothing |
 | `include` | `Including<Self, Rel>` | yes | each row has the included relation |
-| `pipe(step)` | whatever `step(this)` returns | as the step | as the step |
+| `apply(step)` | whatever `step(this)` returns | as the step | as the step |
 | `select` | `Collection<Contract, Model, NarrowedRow, State>` | no | a different row |
 | `variant` | `Collection<Contract, Model, VariantRow, State>` | no | a different row |
 
-`pipe` is the principle made explicit: it calls a step with the receiver. A class method `published() { return this.where(...) }` has the type `Filtered<this>`; the same query as a step is `(posts: PostCollection) => Filtered<PostCollection>`, and `db.Post.pipe(published)` has the same type as `db.Post.published()`.
+`apply` is the principle made explicit: it calls a step with the receiver. A class method `published() { return this.where(...) }` has the type `Filtered<this>`; the same query as a step is `(posts: PostCollection) => Filtered<PostCollection>`, and `db.Post.apply(published)` has the same type as `db.Post.published()`.
 
 The facts live in two declared properties on the class, the **type state** and the **row**:
 
@@ -114,7 +114,7 @@ export class CollectionImpl<TContract, ModelName, Row, State> {
   orderBy<Self>(this: Self, ...): Ordered<Self>;
   limit<Self>(this: Self, n: number): Self;
   include<Self, Rel>(this: Self, relation: Rel): Including<Self, Rel>;
-  pipe<Self, Out>(this: Self, step: Step<Self, Out>): Out { return step(this); }
+  apply<Self, Out>(this: Self, step: Step<Self, Out>): Out { return step(this); }
 
   all(): Promise<CollectionRowOf<this>[]>;
   update(data: CollectionStateOf<this>['hasWhere'] extends true ? UpdateInput : never): Promise<CollectionRowOf<this> | null>;
@@ -145,7 +145,7 @@ A conditional makes TypeScript compare the two branch types. It caches the compa
 ## Consequences
 
 - **Class methods chain**, before and after the built-in methods, and after `include`.
-- **A built-in method, a class method and a step are one typed thing.** A query shared between places is written once as a step and applied with `pipe`, or wrapped in a class method; both give the same type. A package can supply steps without any knowledge of the application's classes.
+- **A built-in method, a class method and a step are one typed thing.** A query shared between places is written once as a step and run with `apply`, or wrapped in a class method; both give the same type. A package can supply steps without any knowledge of the application's classes.
 - **Conditional queries are sound.** A ternary, an `if`, a loop or a reassigned `let` never unlocks `update`, `delete` or `cursor` on a collection that may lack the filter or order.
 - **After `select` or `variant`, class methods are gone**, because the rows are no longer the model's.
 - **A conditional between two differently flagged collections keeps a union.** `flag ? db.Post.published() : db.Post.newestFirst()` is `(PostCollection & HasWhere) | (PostCollection & HasOrderBy)`. Reads, `select`, `include` and class methods work on it; writes and `cursor` are refused. Annotating the result as `PostCollection` reduces it.
