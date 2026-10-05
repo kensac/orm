@@ -1,0 +1,1289 @@
+diff --git a/docs/reference/error-reference.md b/docs/reference/error-reference.md
+index 8cb2bf2b5c..3fda00d79b 100644
+--- a/docs/reference/error-reference.md
++++ b/docs/reference/error-reference.md
+@@ -1602,7 +1602,7 @@ A ref name resolves to nothing: no pointer file with that name exists, and the f
+ 
+ ### MIGRATION.REF_WRONG_GRAMMAR
+ 
+-A reference parsed, but as the wrong kind for the argument position, e.g. a migration-only reference where a contract reference is required (raised by the shared ref-resolution mapper). The message and fix come from the resolver's own diagnosis. Payload: `input`, `expectedGrammar`.
++A reference parsed, but as the wrong kind for the argument position, e.g. a migration-only reference where a contract reference is required (raised by the shared ref-resolution mapper). The message and fix come from the resolver's own diagnosis. Also raised by `db update --to` for the reserved references `@contract`, `@db`, and `@empty`, which name working, live, or empty state rather than a contract on disk; `db update --to` takes a hash, a prefix, a ref name, a migration directory name, or `<dir>^`. Payload: `input`, `expectedGrammar`.
+ 
+ ### MIGRATION.RUNNER_FAILED
+ 
+diff --git a/packages/1-framework/3-tooling/cli/src/control-api/operations/contract-snapshot-resolution.ts b/packages/1-framework/3-tooling/cli/src/control-api/operations/contract-snapshot-resolution.ts
+index 997d482308..49682dd1b0 100644
+--- a/packages/1-framework/3-tooling/cli/src/control-api/operations/contract-snapshot-resolution.ts
++++ b/packages/1-framework/3-tooling/cli/src/control-api/operations/contract-snapshot-resolution.ts
+@@ -34,7 +34,7 @@ function isEnoent(error: unknown): boolean {
+ interface ResolveContractRefToSnapshotBaseOptions {
+   readonly config: PrismaNextConfig;
+   readonly migrationsDir: string;
+-  /** User-supplied contract reference (hash, prefix, ref name, migration dir name, <dir>^, or ./path). */
++  /** User-supplied contract reference (hash, prefix, ref name, migration dir name, or <dir>^). */
+   readonly refInput: string;
+   /** Absolute path of the emitted contract.json (fallback source + snapshot-path derivation). */
+   readonly contractPathAbsolute: string;
+diff --git a/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate-show.ts b/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate-show.ts
+index ff6574ecb4..21f8b82665 100644
+--- a/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate-show.ts
++++ b/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate-show.ts
+@@ -28,6 +28,11 @@ import type { CreateControlClient } from '../types';
+ import { errorFromCaught } from './caught-errors';
+ import { buildReadAggregate } from './contract-space-aggregate-loader';
+ import { planSpacePath } from './migrate';
++import {
++  isLiveMarkerRef,
++  liveMarkerRefHash,
++  requireLiveDatabaseForLiveMarkerRef,
++} from './ref-resolution';
+ 
+ /**
+  * One migration that will run in a `migrate --show` preview, in execution order.
+@@ -95,16 +100,30 @@ export async function executeMigrateShowPlan(
+   const dbConnection = options.db ?? config.db?.connection;
+   const hasDriver = !!config.driver;
+   const hasExplicitFrom = options.from !== undefined;
++  const fromLiveMarker = isLiveMarkerRef(options.from);
++  const toLiveMarker = isLiveMarkerRef(options.to);
++  const liveOrigin = !hasExplicitFrom || fromLiveMarker;
++  const needsLiveMarker = liveOrigin || toLiveMarker;
+ 
+-  // When --from is omitted we read the live DB marker (same as migrate's default).
+-  // When --from is given, we're in offline hypothetical mode — no connection needed.
+-  if (!hasExplicitFrom) {
+-    const missingDb = requireLiveDatabase({
+-      dbConnection,
+-      hasDriver,
+-      why: 'migrate --show needs a database connection to read the live marker (or pass --from <contract> for an offline preview)',
+-      retryCommand: '{bin} db migrate --show --from <contract>',
+-    });
++  // The live DB marker is the from-state when --from is omitted or @db (same as
++  // migrate's default) and the target when --to is @db. Any other --from is an
++  // offline hypothetical — no connection needed.
++  if (needsLiveMarker) {
++    const missingDb =
++      fromLiveMarker || toLiveMarker
++        ? requireLiveDatabaseForLiveMarkerRef({
++            dbConnection,
++            hasDriver,
++            command: '{bin} db migrate --show',
++            from: options.from,
++            to: options.to,
++          })
++        : requireLiveDatabase({
++            dbConnection,
++            hasDriver,
++            why: 'db migrate --show needs a database connection to read the live marker (or pass --from <contract> for an offline preview)',
++            retryCommand: '{bin} db migrate --show --from <contract>',
++          });
+     if (missingDb) {
+       return notOk(missingDb);
+     }
+@@ -132,7 +151,7 @@ export async function executeMigrateShowPlan(
+   // same target invariants that real migrate would use (refInvariants ?? headRef.invariants).
+   let targetHash: string = contractHash;
+   let refInvariants: readonly string[] | undefined;
+-  if (options.to) {
++  if (options.to && !toLiveMarker) {
+     const toResult = parseContractRef(options.to, {
+       graph: appGraph,
+       refs: allRefs,
+@@ -141,14 +160,6 @@ export async function executeMigrateShowPlan(
+     if (!toResult.ok) {
+       return notOk(mapRefResolutionError(toResult.failure));
+     }
+-    if (toResult.value.provenance.kind === 'reserved-db') {
+-      return notOk(
+-        errorDatabaseConnectionRequired({
+-          why: '@db is not valid as a --to target; it names the live database state, not a target contract.',
+-          commandName: 'migrate --show',
+-        }),
+-      );
+-    }
+     targetHash = toResult.value.hash;
+     if (toResult.value.provenance.kind === 'ref') {
+       const refEntry = allRefs[toResult.value.provenance.refName];
+@@ -164,8 +175,8 @@ export async function executeMigrateShowPlan(
+   });
+ 
+   // Resolve the from-state.
+-  // - Explicit --from: parse it offline (no connection).
+-  // - Omitted: read the live DB marker via readAllMarkers() — the same source migrate uses.
++  // - Explicit --from other than @db: parse it offline (no connection).
++  // - Omitted or @db: read the live DB marker via readAllMarkers() — the same source migrate uses.
+   //
+   // Full marker records (storageHash + invariants) are preserved so planSpacePath
+   // can feed resolveRecordedPath the complete currentMarker — exactly as executeMigrate
+@@ -175,59 +186,31 @@ export async function executeMigrateShowPlan(
+   const markerBySpace = new Map<string, LiveMarker | null>();
+   const allSpaces: ReadonlyArray<AggregateContractSpace> = [aggregate.app, ...aggregate.extensions];
+ 
+-  if (hasExplicitFrom) {
+-    // @db with explicit --from requires a connection
+-    if (options.from === '@db') {
+-      const missingDb = requireLiveDatabase({
+-        dbConnection,
+-        hasDriver,
+-        why: '@db resolves to the live database marker and requires a --db connection',
+-        retryCommand: '{bin} db migrate --show --from @db --db $DATABASE_URL',
+-      });
+-      if (missingDb) {
+-        return notOk(missingDb);
+-      }
+-      // Fall through to the connection path below
+-    } else {
+-      const fromResult = parseContractRef(options.from, {
+-        graph: appGraph,
+-        refs: allRefs,
+-        contractHash,
+-      });
+-      if (!fromResult.ok) {
+-        return notOk(mapRefResolutionError(fromResult.failure));
+-      }
+-      if (fromResult.value.provenance.kind === 'reserved-db') {
+-        // Unreachable given the @db branch above, but guard for safety
+-        const missingDb = requireLiveDatabase({
+-          dbConnection,
+-          hasDriver,
+-          why: '@db resolves to the live database marker and requires a --db connection',
+-        });
+-        if (missingDb) {
+-          return notOk(missingDb);
+-        }
+-      } else {
+-        // Offline hypothetical: the --from ref only carries a hash (no live invariants).
+-        // Apply the from-hash marker to the APP space only. Extension spaces are left
+-        // absent from markerBySpace (treated as null / greenfield by planSpacePath),
+-        // so they plan from their own marker → own head — exactly as executeMigrate does.
+-        const fromHash = fromResult.value.hash;
+-        const offlineMarker: LiveMarker | null =
+-          fromHash === EMPTY_CONTRACT_HASH ? null : { storageHash: fromHash, invariants: [] };
+-        markerBySpace.set(aggregate.app.spaceId, offlineMarker);
+-      }
++  if (options.from !== undefined && !fromLiveMarker) {
++    const fromResult = parseContractRef(options.from, {
++      graph: appGraph,
++      refs: allRefs,
++      contractHash,
++    });
++    if (!fromResult.ok) {
++      return notOk(mapRefResolutionError(fromResult.failure));
+     }
++    // Offline hypothetical: the --from ref only carries a hash (no live invariants).
++    // Apply the from-hash marker to the APP space only. Extension spaces are left
++    // absent from markerBySpace (treated as null / greenfield by planSpacePath),
++    // so they plan from their own marker → own head — exactly as executeMigrate does.
++    const fromHash = fromResult.value.hash;
++    const offlineMarker: LiveMarker | null =
++      fromHash === EMPTY_CONTRACT_HASH ? null : { storageHash: fromHash, invariants: [] };
++    markerBySpace.set(aggregate.app.spaceId, offlineMarker);
+   }
+ 
+-  // If we need the live DB marker (no --from, or --from @db), connect and read.
+-  const needsLiveMarker = !hasExplicitFrom || options.from === '@db';
+   if (needsLiveMarker) {
+     if (!dbConnection || !hasDriver) {
+       return notOk(
+         errorDatabaseConnectionRequired({
+-          why: 'A database connection is required to read the live marker for migrate --show',
+-          commandName: 'migrate --show',
++          why: 'A database connection is required to read the live marker for db migrate --show',
++          commandName: 'db migrate --show',
+         }),
+       );
+     }
+@@ -243,9 +226,14 @@ export async function executeMigrateShowPlan(
+       const allMarkers = await client.readAllMarkers();
+       // Store the full marker record (storageHash + invariants) per space.
+       // This is the same data executeMigrate uses via familyInstance.readAllMarkers().
+-      for (const space of allSpaces) {
+-        const marker = allMarkers.get(space.spaceId);
+-        markerBySpace.set(space.spaceId, marker ?? null);
++      if (liveOrigin) {
++        for (const space of allSpaces) {
++          const marker = allMarkers.get(space.spaceId);
++          markerBySpace.set(space.spaceId, marker ?? null);
++        }
++      }
++      if (toLiveMarker) {
++        targetHash = liveMarkerRefHash(allMarkers.get(aggregate.app.spaceId));
+       }
+     } catch (error) {
+       return notOk(
+@@ -354,6 +342,6 @@ export async function executeMigrateShowPlan(
+     migrations: orderedMigrations,
+     summary,
+     renderMarkerHashBySpace,
+-    usedLiveMarker: needsLiveMarker,
++    usedLiveMarker: liveOrigin,
+   });
+ }
+diff --git a/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate.ts b/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate.ts
+index cc5eb02082..35e310e99d 100644
+--- a/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate.ts
++++ b/packages/1-framework/3-tooling/cli/src/control-api/operations/migrate.ts
+@@ -523,11 +523,14 @@ function buildAtHeadResolution(args: {
+ /**
+  * A plan needs the runner when it executes operations or advances the
+  * space's marker (a declared-state resolution has zero operations but a
+- * destination hash the live marker doesn't carry yet).
++ * destination hash the live marker doesn't carry yet). A database with no
++ * marker sits at the empty contract, so a zero-op plan whose destination is
++ * the empty contract leaves it untouched.
+  */
+-function planRequiresExecution(entry: PerSpacePlan): boolean {
++export function planRequiresExecution(entry: PerSpacePlan): boolean {
+   if (entry.plan.operations.length > 0) return true;
+-  return entry.plan.origin?.storageHash !== entry.plan.destination.storageHash;
++  const originHash = entry.plan.origin?.storageHash ?? EMPTY_CONTRACT_HASH;
++  return originHash !== entry.plan.destination.storageHash;
+ }
+ 
+ interface BuildSuccessArgs {
+diff --git a/packages/1-framework/3-tooling/cli/src/control-api/operations/ref-resolution.ts b/packages/1-framework/3-tooling/cli/src/control-api/operations/ref-resolution.ts
+index f00ad0bac4..9bdd8a9876 100644
+--- a/packages/1-framework/3-tooling/cli/src/control-api/operations/ref-resolution.ts
++++ b/packages/1-framework/3-tooling/cli/src/control-api/operations/ref-resolution.ts
+@@ -2,12 +2,17 @@
+  * Client-free contract/migration reference resolution for commands, wrapping migration-tools' parsers with the CLI error mapping.
+  */
+ 
++import { EMPTY_CONTRACT_HASH } from '@internal/migration-tools/constants';
+ import type { MigrationGraph } from '@internal/migration-tools/graph';
+ import type { ContractRef, MigrationRef } from '@internal/migration-tools/ref-resolution';
+ import { parseContractRef, parseMigrationRef } from '@internal/migration-tools/ref-resolution';
+ import type { Refs } from '@internal/migration-tools/refs';
+ import { notOk, ok, type Result } from '@internal/utils/result';
+-import { type CliStructuredError, mapRefResolutionError } from '../../utils/cli-errors';
++import {
++  type CliStructuredError,
++  mapRefResolutionError,
++  requireLiveDatabase,
++} from '../../utils/cli-errors';
+ 
+ export interface RefResolutionContext {
+   readonly graph: MigrationGraph;
+@@ -30,3 +35,47 @@ export function resolveMigrationRef(
+   const result = parseMigrationRef(input, context);
+   return result.ok ? ok(result.value) : notOk(mapRefResolutionError(result.failure));
+ }
++
++const LIVE_MARKER_REF = '@db';
++
++const RESERVED_CONTRACT_REFS: ReadonlySet<string> = new Set([
++  '@contract',
++  LIVE_MARKER_REF,
++  '@empty',
++]);
++
++export function isReservedContractRef(input: string): boolean {
++  return RESERVED_CONTRACT_REFS.has(input);
++}
++
++export function isLiveMarkerRef(input: string | undefined): boolean {
++  return input === LIVE_MARKER_REF;
++}
++
++/** The hash `@db` names once the marker is read; an unsigned database sits at the empty contract. */
++export function liveMarkerRefHash(
++  marker: { readonly storageHash: string } | null | undefined,
++): string {
++  return marker?.storageHash ?? EMPTY_CONTRACT_HASH;
++}
++
++export function requireLiveDatabaseForLiveMarkerRef(args: {
++  readonly dbConnection: unknown;
++  readonly hasDriver: boolean;
++  readonly command: string;
++  readonly from: string | undefined;
++  readonly to: string | undefined;
++}): CliStructuredError | null {
++  const retryCommand = [
++    args.command,
++    ...(args.from === undefined ? [] : [`--from ${args.from}`]),
++    ...(args.to === undefined ? [] : [`--to ${args.to}`]),
++    '--db $DATABASE_URL',
++  ].join(' ');
++  return requireLiveDatabase({
++    dbConnection: args.dbConnection,
++    hasDriver: args.hasDriver,
++    why: `${LIVE_MARKER_REF} resolves to the live database marker and requires a --db connection`,
++    retryCommand,
++  });
++}
+diff --git a/packages/1-framework/3-tooling/cli/src/orm/db/sign.ts b/packages/1-framework/3-tooling/cli/src/orm/db/sign.ts
+index 296ec29ac1..09132af98a 100644
+--- a/packages/1-framework/3-tooling/cli/src/orm/db/sign.ts
++++ b/packages/1-framework/3-tooling/cli/src/orm/db/sign.ts
+@@ -59,6 +59,9 @@ type SchemaVerifyDocument = VerifyDatabaseSchemaResult;
+  */
+ const DEFAULT_ADVANCE_REF = 'db';
+ 
++const CONTRACT_REF_BRIEF =
++  'Contract reference (hash, prefix, ref name, migration dir name, or <dir>^)';
++
+ interface AdvancedRef {
+   readonly name: string;
+   readonly hash: string;
+@@ -214,17 +217,13 @@ export function createDbSignCommand(
+     args: {
+       positionals: {
+         contract: positional.optionalString({
+-          brief: 'Contract reference (hash, prefix, ref name, or migration dir name)',
++          brief: CONTRACT_REF_BRIEF,
+           placeholder: 'contract',
+         }),
+       },
+       flags: {
+         db: dbFlag,
+-        contract: flag.string({
+-          brief:
+-            'Contract reference (hash, prefix, ref name, migration dir name, <dir>^, or ./path)',
+-          placeholder: 'contract',
+-        }),
++        contract: flag.string({ brief: CONTRACT_REF_BRIEF, placeholder: 'contract' }),
+         advanceRef: flag.string({
+           brief: 'Advance the named ref to the post-command contract hash',
+           placeholder: 'name',
+diff --git a/packages/1-framework/3-tooling/cli/src/orm/db/update.ts b/packages/1-framework/3-tooling/cli/src/orm/db/update.ts
+index b42ee85986..77fbc9a041 100644
+--- a/packages/1-framework/3-tooling/cli/src/orm/db/update.ts
++++ b/packages/1-framework/3-tooling/cli/src/orm/db/update.ts
+@@ -18,8 +18,13 @@ import {
+   NO_REF_ADVANCEMENT,
+   preflightRefAdvancement,
+ } from '../../control-api/operations/ref-advancement';
++import { isReservedContractRef } from '../../control-api/operations/ref-resolution';
+ import type { CreateControlClient, DbUpdateResult, DbUpdateSuccess } from '../../control-api/types';
+-import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
++import {
++  CliStructuredError,
++  errorContractValidationFailed,
++  errorUpdateTargetReservedRef,
++} from '../../utils/cli-errors';
+ import { closeQuietly } from '../../utils/command-helpers';
+ import { mapDbUpdateFailure } from '../../utils/db-update-failure';
+ import type { MigrationCommandResult } from '../../utils/formatters/migrations';
+@@ -136,7 +141,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
+         db: dbFlag,
+         dryRun: flag.boolean({ brief: 'Preview the planned operations without applying them' }),
+         to: flag.string({
+-          brief: 'Contract to update to (hash, prefix, ref name, migration dir name, or ./path)',
++          brief: 'Contract to update to (hash, prefix, ref name, migration dir name, or <dir>^)',
+           placeholder: 'contract',
+         }),
+         advanceRef: flag.string({
+@@ -147,6 +152,9 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
+     },
+     needs: { config: ormConfigSection },
+     handler: async (args, ctx) => {
++      if (args.flags.to !== undefined && isReservedContractRef(args.flags.to)) {
++        return notOk(normalizeError(errorUpdateTargetReservedRef(args.flags.to)));
++      }
+       const startedAt = Date.now();
+       const prepared = await prepareMigrationRun({
+         config: ctx.config,
+diff --git a/packages/1-framework/3-tooling/cli/src/orm/migrate.ts b/packages/1-framework/3-tooling/cli/src/orm/migrate.ts
+index c90868e057..981f760e35 100644
+--- a/packages/1-framework/3-tooling/cli/src/orm/migrate.ts
++++ b/packages/1-framework/3-tooling/cli/src/orm/migrate.ts
+@@ -2,8 +2,7 @@ import { ormConfigSection } from '@internal/config-loader';
+ import type { Contract } from '@internal/contract/types';
+ import { createControlStack } from '@internal/framework-components/control';
+ import { contractSnapshotDir } from '@internal/migration-tools/contract-snapshot-store';
+-import type { MigrationGraph } from '@internal/migration-tools/graph';
+-import type { RefEntry, Refs } from '@internal/migration-tools/refs';
++import type { RefEntry } from '@internal/migration-tools/refs';
+ import { blindCast, castAs } from '@internal/utils/casts';
+ import { ifDefined } from '@internal/utils/defined';
+ import type { Block, Presentations } from '@prisma/cli-engine';
+@@ -29,7 +28,12 @@ import {
+   type ContractIR,
+   preflightRefAdvancement,
+ } from '../control-api/operations/ref-advancement';
+-import { resolveContractRef } from '../control-api/operations/ref-resolution';
++import {
++  isLiveMarkerRef,
++  liveMarkerRefHash,
++  type RefResolutionContext,
++  resolveContractRef,
++} from '../control-api/operations/ref-resolution';
+ import type {
+   CreateControlClient,
+   MigratePathDecision,
+@@ -181,18 +185,19 @@ interface RequestedTarget {
+ 
+ /**
+  * `--to` as a contract the app graph knows. A ref target keeps the invariants
+- * the ref declares; a bare hash carries none. Omitting `--to` targets the
+- * emitted contract, which needs no resolution at all.
++ * the ref declares; a bare hash, `@contract`, or `@empty` carries none.
++ * Omitting `--to` targets the emitted contract, which needs no resolution at
++ * all. `@db` is not resolved here: it needs the live marker, which is read
++ * only once the connection is open.
+  */
+ function resolveRequestedTarget(
+   to: string | undefined,
+-  refs: Refs,
+-  graph: MigrationGraph,
++  context: RefResolutionContext,
+ ): Result<RequestedTarget, CliStructuredError> {
+   if (to === undefined) {
+     return ok({ entry: undefined, refName: undefined });
+   }
+-  const resolved = resolveContractRef(to, { graph, refs });
++  const resolved = resolveContractRef(to, context);
+   if (!resolved.ok) {
+     return notOk(normalizeError(resolved.failure));
+   }
+@@ -200,7 +205,11 @@ function resolveRequestedTarget(
+     return ok({ entry: { hash: resolved.value.hash, invariants: [] }, refName: undefined });
+   }
+   const refName = resolved.value.provenance.refName;
+-  return ok({ entry: refs[refName], refName });
++  return ok({ entry: context.refs[refName], refName });
++}
++
++function liveMarkerTarget(appMarker: { readonly storageHash: string } | null): RequestedTarget {
++  return { entry: { hash: liveMarkerRefHash(appMarker), invariants: [] }, refName: undefined };
+ }
+ 
+ export function createMigrateCommand(createClient: CreateControlClient) {
+@@ -226,7 +235,7 @@ export function createMigrateCommand(createClient: CreateControlClient) {
+         db: dbFlag,
+         to: flag.string({
+           brief:
+-            'Target contract reference (hash, prefix, ref name, migration dir name, <dir>^, or ./path)',
++            'Target contract reference (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)',
+           placeholder: 'contract',
+         }),
+         advanceRef: flag.string({
+@@ -235,7 +244,8 @@ export function createMigrateCommand(createClient: CreateControlClient) {
+         }),
+         show: flag.boolean({ brief: 'Preview the migration route without applying (read-only)' }),
+         from: flag.string({
+-          brief: 'From-state for the --show preview (@contract, @db, hash, ref name, or dir)',
++          brief:
++            'From-state for the --show preview (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)',
+           placeholder: 'contract',
+         }),
+       },
+@@ -346,13 +356,15 @@ export function createMigrateCommand(createClient: CreateControlClient) {
+         return notOk(normalizeError(integrityFailure));
+       }
+ 
+-      const target = resolveRequestedTarget(
+-        args.flags.to,
+-        aggregate.app.refs,
+-        aggregate.app.graph(),
+-      );
+-      if (!target.ok) {
+-        return notOk(target.failure);
++      const offlineTarget = isLiveMarkerRef(args.flags.to)
++        ? undefined
++        : resolveRequestedTarget(args.flags.to, {
++            graph: aggregate.app.graph(),
++            refs: aggregate.app.refs,
++            contractHash: aggregate.app.contract().storage.storageHash,
++          });
++      if (offlineTarget !== undefined && !offlineTarget.ok) {
++        return notOk(offlineTarget.failure);
+       }
+ 
+       let document: MigrateDocument;
+@@ -371,7 +383,9 @@ export function createMigrateCommand(createClient: CreateControlClient) {
+           }
+         }
+ 
+-        const refEntry = target.value.entry;
++        const target: RequestedTarget =
++          offlineTarget === undefined ? liveMarkerTarget(appMarker) : offlineTarget.value;
++        const refEntry = target.entry;
+         if (refEntry !== undefined && refEntry.invariants.length > 0) {
+           const invariantRefusal = refuseUnknownInvariants({
+             graph: appGraph,
+@@ -395,7 +409,7 @@ export function createMigrateCommand(createClient: CreateControlClient) {
+             try {
+               const at = await aggregate.app.contractAt(
+                 refEntry.hash,
+-                target.value.refName === undefined ? undefined : { refName: target.value.refName },
++                target.refName === undefined ? undefined : { refName: target.refName },
+               );
+               applyContract = at.contract;
+               snapshotContractJson = blindCast<
+diff --git a/packages/1-framework/3-tooling/cli/src/orm/migration/plan.ts b/packages/1-framework/3-tooling/cli/src/orm/migration/plan.ts
+index 3eb007be78..36fe5111d8 100644
+--- a/packages/1-framework/3-tooling/cli/src/orm/migration/plan.ts
++++ b/packages/1-framework/3-tooling/cli/src/orm/migration/plan.ts
+@@ -281,7 +281,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
+         name: flag.string({ brief: 'Name slug for the migration directory', placeholder: 'slug' }),
+         from: flag.string({
+           brief:
+-            'Starting contract reference (hash, prefix, ref name, migration dir name, <dir>^, @empty, or ./path)',
++            'Starting contract reference (hash, prefix, ref name, migration dir name, <dir>^, or @empty)',
+           placeholder: 'contract',
+         }),
+         to: flag.string({
+diff --git a/packages/1-framework/3-tooling/cli/src/orm/migration/status.ts b/packages/1-framework/3-tooling/cli/src/orm/migration/status.ts
+index 465901e8dd..7c229b2fd2 100644
+--- a/packages/1-framework/3-tooling/cli/src/orm/migration/status.ts
++++ b/packages/1-framework/3-tooling/cli/src/orm/migration/status.ts
+@@ -4,6 +4,8 @@ import type {
+   AggregateContractSpace,
+   ContractMarkerRecordLike,
+ } from '@internal/migration-tools/aggregate';
++import { isGraphNode } from '@internal/migration-tools/migration-graph';
++import type { ContractRef } from '@internal/migration-tools/ref-resolution';
+ import type { RefEntry, Refs } from '@internal/migration-tools/refs';
+ import { ifDefined } from '@internal/utils/defined';
+ import type { Block, Presentations, Text } from '@prisma/cli-engine';
+@@ -38,7 +40,12 @@ import {
+   originHashForStatus,
+   statusForMigrationHash,
+ } from '../../control-api/operations/migration-status-overlay';
+-import { resolveContractRef } from '../../control-api/operations/ref-resolution';
++import {
++  isLiveMarkerRef,
++  liveMarkerRefHash,
++  requireLiveDatabaseForLiveMarkerRef,
++  resolveContractRef,
++} from '../../control-api/operations/ref-resolution';
+ import { readMigrationRefs } from '../../control-api/operations/refs';
+ import { requireLiveDatabase } from '../../utils/cli-errors';
+ import { closeQuietly, maskConnectionUrl, readContractEnvelope } from '../../utils/command-helpers';
+@@ -229,12 +236,12 @@ export const migrationStatusCommand = defineOrmCommand({
+       space: flag.string({ brief: 'Narrow output to a single contract space', placeholder: 'id' }),
+       to: flag.string({
+         brief:
+-          'Target contract reference (hash, prefix, ref name, migration dir name, <dir>^, or ./path)',
++          'Target contract reference (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)',
+         placeholder: 'contract',
+       }),
+       from: flag.string({
+         brief:
+-          'Origin contract reference; same grammar as --to. Supplying it switches to offline path computation',
++          'Origin contract reference; same grammar as --to. With --from the path is computed offline, unless --from or --to is @db',
+         placeholder: 'contract',
+       }),
+       legend: flag.boolean({ brief: 'Print a key for the tree glyphs and lane colors' }),
+@@ -246,15 +253,27 @@ export const migrationStatusCommand = defineOrmCommand({
+     const migrationsDir = migrationsDirFor(ctx.config);
+     const dbConnection = args.flags.db ?? ctx.config.db?.connection;
+     const hasDriver = ctx.config.driver !== undefined;
+-    const usingFromOverride = args.flags.from !== undefined;
+-
+-    if (!usingFromOverride) {
+-      const missingDb = requireLiveDatabase({
+-        dbConnection,
+-        hasDriver,
+-        why: 'migration status needs a database connection to read the marker and ledger (or pass --from for an offline path preview)',
+-        retryCommand: '{bin} migration status --from <contract>',
+-      });
++    const fromLiveMarker = isLiveMarkerRef(args.flags.from);
++    const toLiveMarker = isLiveMarkerRef(args.flags.to);
++    const liveOrigin = args.flags.from === undefined || fromLiveMarker;
++    const needsDatabase = liveOrigin || toLiveMarker;
++
++    if (needsDatabase) {
++      const missingDb =
++        fromLiveMarker || toLiveMarker
++          ? requireLiveDatabaseForLiveMarkerRef({
++              dbConnection,
++              hasDriver,
++              command: '{bin} migration status',
++              from: args.flags.from,
++              to: args.flags.to,
++            })
++          : requireLiveDatabase({
++              dbConnection,
++              hasDriver,
++              why: 'migration status needs a database connection to read the marker and ledger (or pass --from for an offline path preview)',
++              retryCommand: '{bin} migration status --from <contract>',
++            });
+       if (missingDb !== null) {
+         return notOk(normalizeError(missingDb));
+       }
+@@ -293,25 +312,20 @@ export const migrationStatusCommand = defineOrmCommand({
+     }
+ 
+     const appGraph = aggregate.app.graph();
++    const refContext = { graph: appGraph, refs, contractHash };
+ 
+-    let activeRefHash: string | undefined;
+-    let activeRefName: string | undefined;
+-    let activeRefEntry: RefEntry | undefined;
+-    if (args.flags.to !== undefined) {
+-      const resolved = resolveContractRef(args.flags.to, { graph: appGraph, refs });
++    let toRef: ContractRef | undefined;
++    if (args.flags.to !== undefined && !toLiveMarker) {
++      const resolved = resolveContractRef(args.flags.to, refContext);
+       if (!resolved.ok) {
+         return notOk(normalizeError(resolved.failure));
+       }
+-      activeRefHash = resolved.value.hash;
+-      if (resolved.value.provenance.kind === 'ref') {
+-        activeRefName = resolved.value.provenance.refName;
+-        activeRefEntry = refs[activeRefName];
+-      }
++      toRef = resolved.value;
+     }
+ 
+     let fromOverrideHash: string | undefined;
+-    if (args.flags.from !== undefined) {
+-      const resolved = resolveContractRef(args.flags.from, { graph: appGraph, refs });
++    if (args.flags.from !== undefined && !fromLiveMarker) {
++      const resolved = resolveContractRef(args.flags.from, refContext);
+       if (!resolved.ok) {
+         return notOk(normalizeError(resolved.failure));
+       }
+@@ -328,7 +342,7 @@ export const migrationStatusCommand = defineOrmCommand({
+     }
+     const scopedSpaces = listed.value.spaces;
+ 
+-    const connects = dbConnection !== undefined && hasDriver && !usingFromOverride;
++    const connects = needsDatabase && dbConnection !== undefined && hasDriver;
+     let database: DatabaseState = NO_DATABASE_STATE;
+     if (connects) {
+       const read = await readDatabaseState({
+@@ -349,7 +363,11 @@ export const migrationStatusCommand = defineOrmCommand({
+     }
+ 
+     const appMarker = database.markersBySpace.get(aggregate.app.spaceId);
+-    if (activeRefEntry !== undefined && activeRefEntry.invariants.length > 0 && connects) {
++    const activeRefHash = toLiveMarker ? liveMarkerRefHash(appMarker) : toRef?.hash;
++    const activeRefName = toRef?.provenance.kind === 'ref' ? toRef.provenance.refName : undefined;
++    const activeRefEntry: RefEntry | undefined =
++      activeRefName === undefined ? undefined : refs[activeRefName];
++    if (activeRefEntry !== undefined && activeRefEntry.invariants.length > 0 && liveOrigin) {
+       const unknown = refuseUnknownInvariants({
+         graph: appGraph,
+         markerInvariants: appMarker?.invariants ?? [],
+@@ -388,15 +406,14 @@ export const migrationStatusCommand = defineOrmCommand({
+         headlineTargetHash = targetHash;
+       }
+ 
+-      const markerHash = usingFromOverride
+-        ? fromOverrideHash
+-        : database.markersBySpace.get(entry.space)?.storageHash;
++      const markerHash = liveOrigin
++        ? database.markersBySpace.get(entry.space)?.storageHash
++        : fromOverrideHash;
+       const originHash = originHashForStatus(markerHash);
+-      const markerInGraph =
+-        markerHash === undefined || graph.nodes.has(markerHash) || markerHash === spaceContractHash;
++      const markerInGraph = markerHash === undefined || isGraphNode(markerHash, graph);
+ 
+       if (
+-        connects &&
++        liveOrigin &&
+         markerInGraph &&
+         originHash !== targetHash &&
+         noPath === undefined &&
+@@ -404,7 +421,7 @@ export const migrationStatusCommand = defineOrmCommand({
+       ) {
+         noPath = { markerHash, targetHash };
+       }
+-      if (connects && markerHash !== undefined && !markerInGraph) {
++      if (liveOrigin && markerHash !== undefined && !markerInGraph) {
+         divergedMarker ??= { space: entry.space, markerHash };
+         findings.push(markerNotInHistoryFinding(entry.space));
+       }
+@@ -414,8 +431,8 @@ export const migrationStatusCommand = defineOrmCommand({
+         graph,
+         targetHash,
+         originHash,
+-        appliedMigrationHashes: connects ? appliedHashesFromLedger(ledger) : new Set<string>(),
+-        showAppliedOverlay: connects,
++        appliedMigrationHashes: liveOrigin ? appliedHashesFromLedger(ledger) : new Set<string>(),
++        showAppliedOverlay: liveOrigin,
+       });
+       const migrations = entry.migrations.map((migration: MigrationListEntry) => ({
+         ...migration,
+@@ -446,12 +463,12 @@ export const migrationStatusCommand = defineOrmCommand({
+         styler,
+         palette: TONE_MIGRATION_GRAPH_PALETTE,
+         isAppSpace: entry.space === aggregate.app.spaceId,
+-        ...(connects && markerHash !== undefined ? { dbHash: markerHash } : {}),
++        ...(liveOrigin && markerHash !== undefined ? { dbHash: markerHash } : {}),
+       });
+     }
+ 
+     const requiredInvariants = [...(activeRefEntry?.invariants ?? [])].sort();
+-    if (connects && requiredInvariants.length > 0) {
++    if (liveOrigin && requiredInvariants.length > 0) {
+       const held = new Set(appMarker?.invariants ?? []);
+       const missing = requiredInvariants.filter((id) => !held.has(id));
+       if (missing.length > 0) {
+diff --git a/packages/1-framework/3-tooling/cli/src/utils/cli-errors.ts b/packages/1-framework/3-tooling/cli/src/utils/cli-errors.ts
+index aca5c8a5d4..45bc311469 100644
+--- a/packages/1-framework/3-tooling/cli/src/utils/cli-errors.ts
++++ b/packages/1-framework/3-tooling/cli/src/utils/cli-errors.ts
+@@ -124,6 +124,23 @@ export function errorContractArgConflict(options: {
+   );
+ }
+ 
++const UPDATE_TARGET_FORMS = 'a hash, a prefix, a ref name, a migration directory name, or `<dir>^`';
++
++/** `db update --to` was given `@contract`, `@db`, or `@empty`, which name state rather than a contract on disk. */
++export function errorUpdateTargetReservedRef(input: string): ActionableCliError {
++  const fix = `Pass ${UPDATE_TARGET_FORMS}, or omit --to to update to the emitted contract.`;
++  return new ActionableCliError(
++    'MIGRATION.REF_WRONG_GRAMMAR',
++    `Not a contract \`db update --to\` accepts: "${input}"`,
++    {
++      why: `\`db update --to\` takes ${UPDATE_TARGET_FORMS}; without \`--to\` it updates to the emitted contract. "${input}" is a reserved reference for working, live, or empty state, not a contract on disk.`,
++      fix,
++      nextActions: [chooseAction(fix)],
++      meta: { input, expectedGrammar: 'contract' },
++    },
++  );
++}
++
+ /**
+  * A command was told both which ref to advance and not to advance any ref.
+  * Same envelope as the positional/flag contract conflict, so a script sees
+diff --git a/packages/1-framework/3-tooling/cli/test/control-api/migrate-plan-requires-execution.test.ts b/packages/1-framework/3-tooling/cli/test/control-api/migrate-plan-requires-execution.test.ts
+new file mode 100644
+index 0000000000..6bc0d9fba7
+--- /dev/null
++++ b/packages/1-framework/3-tooling/cli/test/control-api/migrate-plan-requires-execution.test.ts
+@@ -0,0 +1,57 @@
++import type { PerSpacePlan } from '@internal/migration-tools/aggregate';
++import { EMPTY_CONTRACT_HASH } from '@internal/migration-tools/constants';
++import { describe, expect, it } from 'vitest';
++import { planRequiresExecution } from '../../src/control-api/operations/migrate';
++
++const HEAD_HASH = 'a'.repeat(64);
++
++function zeroOpPlan(args: {
++  readonly origin: string | null;
++  readonly destination: string;
++}): PerSpacePlan {
++  return {
++    plan: {
++      targetId: 'postgres',
++      spaceId: 'app',
++      origin: args.origin === null ? null : { storageHash: args.origin },
++      destination: { storageHash: args.destination },
++      operations: [],
++      providedInvariants: [],
++    },
++    displayOps: [],
++    strategy: 'resolve-recorded-path',
++    migrationEdges: [],
++  } as unknown as PerSpacePlan;
++}
++
++describe('planRequiresExecution', () => {
++  it('skips the runner when a database with no marker targets the empty contract', () => {
++    expect(
++      planRequiresExecution(zeroOpPlan({ origin: null, destination: EMPTY_CONTRACT_HASH })),
++    ).toBe(false);
++  });
++
++  it('skips the runner when the marker already carries the destination', () => {
++    expect(planRequiresExecution(zeroOpPlan({ origin: HEAD_HASH, destination: HEAD_HASH }))).toBe(
++      false,
++    );
++  });
++
++  it('still runs a declared-state plan that advances a database with no marker to its head', () => {
++    expect(planRequiresExecution(zeroOpPlan({ origin: null, destination: HEAD_HASH }))).toBe(true);
++  });
++
++  it('runs any plan that carries operations', () => {
++    const plan = zeroOpPlan({ origin: HEAD_HASH, destination: HEAD_HASH });
++    const withOps = {
++      ...plan,
++      plan: {
++        ...plan.plan,
++        operations: [
++          { id: 'relation.users', label: 'Create relation users', operationClass: 'additive' },
++        ],
++      },
++    } as unknown as PerSpacePlan;
++    expect(planRequiresExecution(withOps)).toBe(true);
++  });
++});
+diff --git a/packages/1-framework/3-tooling/cli/test/orm/db-update-to-resolution.test.ts b/packages/1-framework/3-tooling/cli/test/orm/db-update-to-resolution.test.ts
+index 430783c1c6..d5344c524a 100644
+--- a/packages/1-framework/3-tooling/cli/test/orm/db-update-to-resolution.test.ts
++++ b/packages/1-framework/3-tooling/cli/test/orm/db-update-to-resolution.test.ts
+@@ -139,6 +139,33 @@ function harness(cwd: string) {
+ }
+ 
+ describe('db update --to bundle resolution', () => {
++  it.each(['@empty', '@contract', '@db'])(
++    'refuses the reserved reference %s with a structured envelope',
++    async (input) => {
++      const { cwd } = await setupFixture();
++
++      const run = await harness(cwd).run(['db', 'update', '--to', input, '--dry-run', '--json'], {
++        cwd,
++      });
++
++      expect(run.exitCode).toBe(2);
++      expect(run.json.at(-1)).toMatchObject({
++        kind: 'result',
++        envelope: {
++          ok: false,
++          error: {
++            code: 'MIGRATION.REF_WRONG_GRAMMAR',
++            why: expect.stringContaining(
++              '`db update --to` takes a hash, a prefix, a ref name, a migration directory name, or `<dir>^`; without `--to` it updates to the emitted contract',
++            ),
++            meta: { input, expectedGrammar: 'contract' },
++          },
++        },
++      });
++      expect(mocks.dbUpdate).not.toHaveBeenCalled();
++    },
++  );
++
+   it('errors on an invalid --advance-ref name with the structured ref envelope', async () => {
+     const { cwd, dirNext } = await setupFixture();
+     mocks.dbUpdate.mockResolvedValue(
+diff --git a/packages/1-framework/3-tooling/cli/test/orm/migrate-show.test.ts b/packages/1-framework/3-tooling/cli/test/orm/migrate-show.test.ts
+index 548176375c..858af70f84 100644
+--- a/packages/1-framework/3-tooling/cli/test/orm/migrate-show.test.ts
++++ b/packages/1-framework/3-tooling/cli/test/orm/migrate-show.test.ts
+@@ -229,7 +229,13 @@ describe('migrate --show', () => {
+     expect(run.exitCode).not.toBe(0);
+     expect(run.json.at(-1)).toMatchObject({
+       kind: 'result',
+-      envelope: { ok: false, error: { code: 'CONFIG.DB_CONNECTION_REQUIRED' } },
++      envelope: {
++        ok: false,
++        error: {
++          code: 'CONFIG.DB_CONNECTION_REQUIRED',
++          why: expect.stringContaining('db migrate --show'),
++        },
++      },
+     });
+   });
+ 
+@@ -312,6 +318,57 @@ describe('migrate --show', () => {
+     });
+   });
+ 
++  describe('the @db marker', () => {
++    it('resolves --to @db to the live marker', async () => {
++      const cwd = await buildProject();
++      mocks.readAllMarkers.mockResolvedValue(
++        new Map([['app', { storageHash: C1, invariants: [] }]]),
++      );
++
++      const run = await harness(ormConfig(cwd)).run(
++        ['db', 'migrate', '--show', '--from', EMPTY, '--to', '@db', '--json'],
++        { cwd },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(run.presented?.data).toEqual({
++        ok: true,
++        migrations: [expect.objectContaining({ from: EMPTY, to: C1 })],
++        summary: '1 migration will run',
++      });
++    });
++
++    it('shows nothing to run for --to @db when the from-state is the live marker too', async () => {
++      const cwd = await buildProject();
++      mocks.readAllMarkers.mockResolvedValue(
++        new Map([['app', { storageHash: C1, invariants: [] }]]),
++      );
++
++      const run = await harness(ormConfig(cwd)).run(
++        ['db', 'migrate', '--show', '--to', '@db', '--json'],
++        { cwd },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(run.presented?.data).toMatchObject({ ok: true, migrations: [] });
++    });
++
++    it('errors structurally for --to @db without a connection', async () => {
++      const cwd = await buildProject();
++
++      const run = await harness(ormConfig(cwd, { db: undefined })).run(
++        ['db', 'migrate', '--show', '--from', EMPTY, '--to', '@db', '--json'],
++        { cwd },
++      );
++
++      expect(run.exitCode).not.toBe(0);
++      expect(run.json.at(-1)).toMatchObject({
++        kind: 'result',
++        envelope: { ok: false, error: { code: 'CONFIG.DB_CONNECTION_REQUIRED' } },
++      });
++    });
++  });
++
+   describe('extension spaces', () => {
+     it('plans extensions from their own state, never from the app --from hash', async () => {
+       const cwd = await buildProject();
+diff --git a/packages/1-framework/3-tooling/cli/test/orm/migrate.test.ts b/packages/1-framework/3-tooling/cli/test/orm/migrate.test.ts
+index 16431f6c4e..377dc09df1 100644
+--- a/packages/1-framework/3-tooling/cli/test/orm/migrate.test.ts
++++ b/packages/1-framework/3-tooling/cli/test/orm/migrate.test.ts
+@@ -1,7 +1,10 @@
+ import { existsSync } from 'node:fs';
+ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+ import type { MigrationPlanOperation } from '@internal/framework-components/control';
+-import { contractSnapshotDir } from '@internal/migration-tools/contract-snapshot-store';
++import {
++  contractSnapshotDir,
++  writeContractSnapshot,
++} from '@internal/migration-tools/contract-snapshot-store';
+ import { computeMigrationHash } from '@internal/migration-tools/hash';
+ import { writeMigrationPackage } from '@internal/migration-tools/io';
+ import type { MigrationMetadata } from '@internal/migration-tools/metadata';
+@@ -96,6 +99,23 @@ async function buildProject(): Promise<string> {
+   return cwd;
+ }
+ 
++/** The snapshot store entry a `--to` target's bundle is materialized from. */
++async function writeSnapshot(cwd: string, storageHash: string): Promise<void> {
++  await writeContractSnapshot(join(cwd, 'migrations'), storageHash, {
++    contractJson: {
++      storage: { storageHash, namespaces: {} },
++      schemaVersion: '1.0.0',
++      target: TARGET,
++      targetFamily: FAMILY,
++    },
++    contractDts: 'export type Contract = unknown;\n',
++  });
++}
++
++function markerAt(storageHash: string): Map<string, { storageHash: string; invariants: string[] }> {
++  return new Map([['app', { storageHash, invariants: [] }]]);
++}
++
+ function ormConfig(cwd: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+   return {
+     family: {
+@@ -417,6 +437,106 @@ describe('migrate', () => {
+     });
+   });
+ 
++  describe('--to', () => {
++    it('resolves @contract to the emitted contract and applies the pending migration', async () => {
++      const cwd = await buildProject();
++      await writeSnapshot(cwd, C2);
++      mocks.readAllMarkers.mockResolvedValue(markerAt(C1));
++      mocks.migrate.mockResolvedValue(
++        ok({
++          ...appliedSuccess(),
++          migrationsApplied: 1,
++          applied: [
++            {
++              spaceId: 'app',
++              dirName: '20260101_100001_222222',
++              migrationHash: 'h2',
++              from: C1,
++              to: C2,
++              operationsExecuted: 1,
++            },
++          ],
++          summary: 'Applied 1 migration(s)',
++        }),
++      );
++
++      const run = await harness(ormConfig(cwd)).run(
++        ['db', 'migrate', '--to', '@contract', '--json'],
++        { cwd },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(mocks.migrate).toHaveBeenCalledWith(
++        expect.objectContaining({
++          refHash: C2,
++          contract: expect.objectContaining({
++            storage: expect.objectContaining({ storageHash: C2 }),
++          }),
++        }),
++      );
++      expect(run.presented?.data).toMatchObject({
++        ok: true,
++        migrationsApplied: 1,
++        markerHash: C2,
++        summary: 'Applied 1 migration(s)',
++      });
++    });
++
++    it('resolves @db to the live marker so there is nothing to run', async () => {
++      const cwd = await buildProject();
++      await writeSnapshot(cwd, C1);
++      mocks.readAllMarkers.mockResolvedValue(markerAt(C1));
++      mocks.migrate.mockResolvedValue(
++        ok({
++          ...appliedSuccess(),
++          migrationsApplied: 0,
++          markerHash: C1,
++          applied: [],
++          summary: 'Already up to date',
++          perSpace: [],
++        }),
++      );
++
++      const run = await harness(ormConfig(cwd)).run(['db', 'migrate', '--to', '@db', '--json'], {
++        cwd,
++      });
++
++      expect(run.exitCode).toBe(0);
++      expect(mocks.migrate).toHaveBeenCalledWith(
++        expect.objectContaining({
++          refHash: C1,
++          refInvariants: [],
++          contract: expect.objectContaining({
++            storage: expect.objectContaining({ storageHash: C1 }),
++          }),
++        }),
++      );
++      expect(run.presented?.data).toMatchObject({
++        ok: true,
++        migrationsApplied: 0,
++        markerHash: C1,
++        summary: 'Already up to date',
++      });
++    });
++
++    it('errors with the connection-required envelope for @db without a connection', async () => {
++      const cwd = await buildProject();
++
++      const run = await harness(ormConfig(cwd, { db: undefined })).run(
++        ['db', 'migrate', '--to', '@db', '--json'],
++        { cwd },
++      );
++
++      expect(run.exitCode).toBe(2);
++      expect(envelopeOf(run.json)).toMatchObject({
++        ok: false,
++        error: { code: 'CONFIG.DB_CONNECTION_REQUIRED' },
++      });
++      expect(mocks.connect).not.toHaveBeenCalled();
++      expect(mocks.migrate).not.toHaveBeenCalled();
++    });
++  });
++
+   describe('a close that fails on the way out', () => {
+     it('reports the connection failure rather than the failure to hang up', async () => {
+       const cwd = await buildProject();
+diff --git a/packages/1-framework/3-tooling/cli/test/orm/migration-status.test.ts b/packages/1-framework/3-tooling/cli/test/orm/migration-status.test.ts
+index 610a3f76e7..6f1c1e0287 100644
+--- a/packages/1-framework/3-tooling/cli/test/orm/migration-status.test.ts
++++ b/packages/1-framework/3-tooling/cli/test/orm/migration-status.test.ts
+@@ -105,6 +105,29 @@ async function projectWithOneMigration(): Promise<
+   return { ...project, migrationHash: seeded.migrationHash };
+ }
+ 
++const DIR_BASE = '20260101T0000_base';
++const DIR_HEAD = '20260102T0000_head';
++
++/** A project whose app space carries ∅ → HASH_BASE → HASH_HEAD, with the contract at HASH_HEAD. */
++async function projectWithTwoMigrations(): Promise<
++  OfflineProject & { readonly baseMigrationHash: string }
++> {
++  const project = await createOfflineProject({ storageHash: HASH_HEAD });
++  const base = await seedMigrationPackage({
++    appMigrationsDir: project.appMigrationsDir,
++    dirName: DIR_BASE,
++    from: null,
++    to: HASH_BASE,
++  });
++  await seedMigrationPackage({
++    appMigrationsDir: project.appMigrationsDir,
++    dirName: DIR_HEAD,
++    from: HASH_BASE,
++    to: HASH_HEAD,
++  });
++  return { ...project, baseMigrationHash: base.migrationHash };
++}
++
+ function markersAt(storageHash: string) {
+   return new Map([['app', { storageHash, invariants: [] as readonly string[] }]]);
+ }
+@@ -181,6 +204,30 @@ describe('migration status', () => {
+     });
+   });
+ 
++  it('warns when the marker equals the emitted contract but no migration ends there', async () => {
++    const project = await createOfflineProject({ storageHash: HASH_HEAD });
++    await seedMigrationPackage({
++      appMigrationsDir: project.appMigrationsDir,
++      dirName: DIR_BASE,
++      from: null,
++      to: HASH_BASE,
++    });
++    const db = fakeDatabase({ markers: markersAt(HASH_HEAD) });
++
++    const run = await harness(driverConfig(project, db)).run(['migration', 'status', '--json'], {
++      cwd: project.dir,
++    });
++
++    expect(run.exitCode).toBe(0);
++    expect(codesAndSeverities(run.presented?.diagnostics ?? [])).toEqual([
++      { code: 'MIGRATION.MARKER_NOT_IN_HISTORY', severity: 'warn' },
++    ]);
++    expect(run.presented?.data).toMatchObject({
++      summary: `Database marker ${HASH_HEAD.slice(0, 12)} is not in the on-disk migration graph`,
++      spaces: [{ currentContract: HASH_HEAD, targetContract: HASH_HEAD }],
++    });
++  });
++
+   it('records invariants the marker is missing as a warn diagnostic and still exits 0', async () => {
+     const project = await createOfflineProject({ storageHash: HASH_HEAD });
+     await seedMigrationPackage({
+@@ -404,6 +451,140 @@ describe('migration status', () => {
+     expect(migrationLine).not.toContain('→');
+   });
+ 
++  describe('reserved contract references', () => {
++    it('resolves --to @contract to the emitted contract, the same as no --to', async () => {
++      const project = await projectWithOneMigration();
++      const db = fakeDatabase({
++        markers: markersAt(HASH_HEAD),
++        ledger: [{ migrationHash: project.migrationHash }],
++      });
++      const config = driverConfig(project, db);
++
++      const implicit = await harness(config).run(['migration', 'status', '--json'], {
++        cwd: project.dir,
++      });
++      const explicit = await harness(config).run(
++        ['migration', 'status', '--to', '@contract', '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(explicit.exitCode).toBe(0);
++      expect(explicit.presented?.data).toEqual(implicit.presented?.data);
++      expect(explicit.presented?.data).toMatchObject({
++        summary: 'Up to date',
++        spaces: [{ targetContract: HASH_HEAD }],
++      });
++    });
++
++    it('resolves --from @contract offline', async () => {
++      const project = await projectWithOneMigration();
++      const db = fakeDatabase();
++
++      const run = await harness(driverConfig(project, db)).run(
++        ['migration', 'status', '--from', '@contract', '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(db.counters.connections).toBe(0);
++      expect(run.presented?.data).toMatchObject({
++        summary: 'Up to date',
++        spaces: [{ currentContract: HASH_HEAD, targetContract: HASH_HEAD }],
++      });
++    });
++
++    it('resolves --to @db to the live marker and reports up to date', async () => {
++      const project = await projectWithTwoMigrations();
++      const db = fakeDatabase({
++        markers: markersAt(HASH_BASE),
++        ledger: [{ migrationHash: project.baseMigrationHash }],
++      });
++
++      const run = await harness(driverConfig(project, db)).run(
++        ['migration', 'status', '--to', '@db', '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(run.presented?.data).toMatchObject({
++        summary: 'Up to date',
++        diagnostics: [],
++        spaces: [{ currentContract: HASH_BASE, targetContract: HASH_BASE }],
++      });
++    });
++
++    it('reports the migration pending between the live marker and --to when --from is @db', async () => {
++      const project = await projectWithTwoMigrations();
++      const db = fakeDatabase({
++        markers: markersAt(HASH_BASE),
++        ledger: [{ migrationHash: project.baseMigrationHash }],
++      });
++
++      const run = await harness(driverConfig(project, db)).run(
++        ['migration', 'status', '--from', '@db', '--to', DIR_HEAD, '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(run.exitCode).toBe(0);
++      expect(db.counters.connections).toBe(1);
++      expect(run.presented?.data).toMatchObject({
++        summary: `1 pending — run \`{bin} db migrate --to ${HASH_HEAD.slice(0, 12)}\``,
++        spaces: [
++          {
++            currentContract: HASH_BASE,
++            targetContract: HASH_HEAD,
++            migrations: expect.arrayContaining([
++              expect.objectContaining({ name: DIR_BASE, status: 'applied' }),
++              expect.objectContaining({ name: DIR_HEAD, status: 'pending' }),
++            ]),
++          },
++        ],
++      });
++    });
++
++    it('errors with the connection-required envelope for --to @db without a connection', async () => {
++      const project = await projectWithOneMigration();
++      const config = driverConfig(project);
++
++      const run = await harness({ ...config, db: undefined }).run(
++        ['migration', 'status', '--from', HASH_HEAD, '--to', '@db', '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(run.exitCode).toBe(2);
++      expect(run.json.at(-1)).toMatchObject({
++        kind: 'result',
++        envelope: {
++          ok: false,
++          error: {
++            code: 'CONFIG.DB_CONNECTION_REQUIRED',
++            why: expect.stringContaining('@db'),
++            meta: { missingFlags: ['--db'] },
++          },
++        },
++      });
++    });
++
++    it('errors with the connection-required envelope for --from @db without a connection', async () => {
++      const project = await projectWithOneMigration();
++      const config = driverConfig(project);
++
++      const run = await harness({ ...config, db: undefined }).run(
++        ['migration', 'status', '--from', '@db', '--json'],
++        { cwd: project.dir },
++      );
++
++      expect(run.exitCode).toBe(2);
++      expect(run.json.at(-1)).toMatchObject({
++        kind: 'result',
++        envelope: {
++          ok: false,
++          error: { code: 'CONFIG.DB_CONNECTION_REQUIRED', meta: { missingFlags: ['--db'] } },
++        },
++      });
++    });
++  });
++
+   it('closes the connection and keeps the structured error when the marker read fails', async () => {
+     const project = await projectWithOneMigration();
+     const db = fakeDatabase({
+diff --git a/skills/prisma-8/references/migration-model.md b/skills/prisma-8/references/migration-model.md
+index ad75b7a231..2db6eb05fe 100644
+--- a/skills/prisma-8/references/migration-model.md
++++ b/skills/prisma-8/references/migration-model.md
+@@ -65,7 +65,7 @@ pnpm prisma migration ref delete <name>
+ 
+ `migration plan` resolves its origin in exactly this order:
+ 
+-1. Explicit `--from <ref-name | hash | hash-prefix | migration-dir | migration-dir^ | ./path | @empty>` — `@empty` names the empty database deliberately. The reserved forms `@db` and `@contract` exist in the shared ref grammar but do not resolve here: `migration plan` is offline, so `@db` (the live marker) has nothing to read, and `@contract` needs a contract hash the plan resolver does not pass. Use them with `db migrate --show` / `migration status`, not with `plan`.
++1. Explicit `--from <ref-name | hash | hash-prefix | migration-dir | migration-dir^ | @empty>` — `@empty` names the empty database deliberately. The reserved forms `@db` and `@contract` exist in the shared ref grammar but do not resolve here: `migration plan` is offline, so `@db` (the live marker) has nothing to read, and `@contract` needs a contract hash the plan resolver does not pass. Use them with `db migrate --show` / `migration status`, not with `plan`.
+ 2. No `--from` → the `db` ref (`migrations/app/refs/db.json`).
+ 3. No `db` ref → **greenfield: the plan starts from the empty database.** On an empty graph the human output adds a muted notice beneath the summary — `No db ref set — planning from an empty database. Run db init, db update, or db sign if a database already exists.` — and the JSON document carries `fromDefaulted: true`, so this case is distinguishable from an explicit `--from @empty`.
+ 

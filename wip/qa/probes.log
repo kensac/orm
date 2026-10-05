@@ -1,0 +1,139 @@
+== 1. db migrate --to @db on a database with no marker
+$ prisma db migrate --to @db --db postgresql://postgres@localhost:54332/t1
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t1
+│  to:          @db
+
+✔ Already up to date
+
+App space
+├─ (no operations)
+└─ marker empty
+
+→ Check every space against the database: prisma migration status
+[exit 0]
+
+== 2. db migrate --to @empty on an empty database
+$ prisma db migrate --to @empty --db postgresql://postgres@localhost:54332/t2
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t2
+│  to:          @empty
+
+✔ Already up to date
+
+App space
+├─ (no operations)
+└─ marker empty
+
+→ Check every space against the database: prisma migration status
+[exit 0]
+
+== 3. db migrate --to @empty on a database at H1
+$ prisma db migrate --to @empty --db postgresql://postgres@localhost:54332/t3
+✘ [MIGRATION.PATH_UNREACHABLE] Current contract has no planned migration path
+  why: No migration edge connects the current state "91e7f9f035806fa2789a4d726ef7724cad434fd6b00014d47ebf12d6e6bb784e" to the target "empty" in contract space "app". The on-disk migration graph does not join the two, and migrate replays existing edges — it never invents one.
+→ Plan the missing edge: prisma migration plan --from 91e7f9f035806fa2789a4d726ef7724cad434fd6b00014d47ebf12d6e6bb784e --to empty --name <slug>
+→ Apply it: prisma db migrate --to empty
+→ A rollback (reverse) plan is expected to contain destructive (DROP) operations — review them before applying
+→ Narrower cases (rename inference, re-adding a required field without a safe default, or a type change that needs data) may additionally need a hint in the planned migration
+→ Inspect the on-disk graph: prisma migration list
+→ Inspect a bundle in the path you expected: prisma migration show <bundle>
+[exit 2]
+
+== 4. db migrate --to @db on a database at H1
+$ prisma db migrate --to @db --db postgresql://postgres@localhost:54332/t4
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t4
+│  to:          @db
+
+✔ Already up to date
+
+App space
+├─ (no operations)
+└─ marker 91e7f9f035806fa2789a4d726ef7724cad434fd6b00014d47ebf12d6e6bb784e
+
+→ Check every space against the database: prisma migration status
+[exit 0]
+
+== 5. db migrate --to @contract on a database at H1
+$ prisma db migrate --to @contract --db postgresql://postgres@localhost:54332/t5
+▸ Running migration plan across spaces
+✔ Running migration plan across spaces
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t5
+│  to:          @contract
+
+✔ Applied 1 migration(s) (1 operation(s)) across 1 contract space(s)
+
+App space
+├─ Add column "phone" to "User"
+└─ marker a4c3fa7fc3b224675893305ff2fdd24588acbe11ab44cfd67d7d0e14e61d0a2d
+
+→ Check every space against the database: prisma migration status
+[exit 0]
+
+== 6. db migrate (no --to) on an empty database
+$ prisma db migrate --db postgresql://postgres@localhost:54332/t6
+▸ Running migration plan across spaces
+✔ Running migration plan across spaces
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t6
+
+✔ Applied 2 migration(s) (7 operation(s)) across 1 contract space(s)
+
+App space
+├─ Create schema "public"
+├─ Create table "Post"
+├─ Create table "User"
+├─ Add unique constraint on "User" (email)
+├─ Create index "Post_authorId_idx_e47547ed" on "Post"
+├─ Add foreign key "Post_authorId_fkey" on "Post"
+├─ Add column "phone" to "User"
+└─ marker a4c3fa7fc3b224675893305ff2fdd24588acbe11ab44cfd67d7d0e14e61d0a2d
+
+→ Check every space against the database: prisma migration status
+[exit 0]
+
+== 6b. db migrate --show --to @db on an empty database
+$ prisma db migrate --show --to @db --db postgresql://postgres@localhost:54332/t6b
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t6b
+│  to:          @db
+
+○   a4c3fa7  @contract
+│↑  20260930T0540_add_user_phone  91e7f9f → a4c3fa7
+○   91e7f9f  (prod)
+│↑  20260930T0540_baseline              ∅ → 91e7f9f
+○   ∅  @db
+
+ℹ Already up to date — nothing to run
+[exit 0]
+
+== 7. db migrate --show without a connection
+$ prisma db migrate --show --config prisma.nodb.config.ts
+✘ [CONFIG.DB_CONNECTION_REQUIRED] Database connection is required
+  why: db migrate --show needs a database connection to read the live marker (or pass --from <contract> for an offline preview)
+→ Run `prisma db migrate --show --from <contract>`, or set `db: { connection: "postgres://…" }` in prisma.config.ts
+[exit 2]
+
+== 8. migration status --to @db on a database with no marker
+$ prisma migration status --to @db --db postgresql://postgres@localhost:54332/t8
+│  migrations:  migrations
+│  database:    postgresql://****@localhost:54332/t8
+
+○   a4c3fa7  @contract
+│↑  20260930T0540_add_user_phone  91e7f9f → a4c3fa7  1 ops
+○   91e7f9f  (prod)
+│↑  20260930T0540_baseline              ∅ → 91e7f9f  6 ops
+○   ∅
+
+✔ Up to date
+[exit 0]
+
+== 9. help text
+│      --to <contract>       Target contract reference (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)
+│      --from <contract>     From-state for the --show preview (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)
+│    $ prisma db migrate --show --from @contract --to production
+│  target contract. Requires a database connection. Pass --from for an
+│      --from <contract>  Origin contract reference; same grammar as --to. With --from the path is computed offline, unless --from or --to is @db
+│    $ prisma migration status --from abc123 --to production
