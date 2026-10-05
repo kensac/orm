@@ -1216,8 +1216,9 @@ export function buildSqlContractFromDefinition(
         : defaultNamespaceId;
     modelNameToNamespaceId.set(semanticModel.modelName, namespaceId);
     // STI variants share the base table; the base model already owns this
-    // table name and its root, so the variant contributes neither.
-    if (!semanticModel.sharesBaseTable) {
+    // table name and its root, so the variant contributes neither. An
+    // unexposed model has a table but no root.
+    if (!semanticModel.sharesBaseTable && semanticModel.unexposed !== true) {
       rootEntries.push({
         tableName,
         namespaceId,
@@ -1244,6 +1245,22 @@ export function buildSqlContractFromDefinition(
         field.executionDefaults?.onCreate || field.executionDefaults?.onUpdate
           ? field.executionDefaults
           : undefined;
+      const unexposedField =
+        semanticModel.unexposed === true ||
+        (!isValueObjectMember(field) && field.unexposed === true);
+      if (executionDefaultPhases && unexposedField) {
+        throw contractError(
+          'CONTRACT.DEFAULT_INVALID',
+          `Field "${semanticModel.modelName}.${field.fieldName}" is not exposed to the ORM, which therefore never writes it, so it cannot have a generated default; give its column a database default instead.`,
+          {
+            meta: {
+              modelName: semanticModel.modelName,
+              fieldName: field.fieldName,
+              reason: 'executionDefaults-on-unexposed-field',
+            },
+          },
+        );
+      }
       if (executionDefaultPhases) {
         if (field.default !== undefined) {
           throw contractError(
@@ -1331,7 +1348,7 @@ export function buildSqlContractFromDefinition(
       );
       const columnMany = column.many ?? false;
       columns[field.columnName] = column;
-      fieldToColumn[field.fieldName] = field.columnName;
+      if (!unexposedField) fieldToColumn[field.fieldName] = field.columnName;
 
       // Member values reach the renderer only on the `enumType()` handle
       // path: that column is a plain scalar (`text`, `int4`, …) with no
@@ -1357,11 +1374,13 @@ export function buildSqlContractFromDefinition(
         );
       }
 
-      domainFields[field.fieldName] = buildDomainField(
-        resolvedField,
-        defaultNamespaceId,
-        definition.storageTypes ?? {},
-      );
+      if (!unexposedField) {
+        domainFields[field.fieldName] = buildDomainField(
+          resolvedField,
+          defaultNamespaceId,
+          definition.storageTypes ?? {},
+        );
+      }
 
       if (executionDefaultPhases) {
         executionDefaults.push({
@@ -1551,6 +1570,8 @@ export function buildSqlContractFromDefinition(
     }
 
     // --- Build contract model ---
+
+    if (semanticModel.unexposed === true) continue;
 
     const storageFields: Record<string, { readonly column: string }> = {};
     for (const [fieldName, columnName] of Object.entries(fieldToColumn)) {

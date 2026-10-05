@@ -83,6 +83,10 @@ export interface FieldNode extends ScalarMemberNode {
    * derivable kinds at contract build time.
    */
   readonly noCheck?: readonly CheckKind[];
+  /**
+   * Internal, not a public authoring option: the column is in storage, managed by migrations, but no domain field exposes it, so the ORM never reads, writes or types it. Sources that keep a column the application must not see (a Prisma 7 `@ignore` field) set it.
+   */
+  readonly unexposed?: boolean;
 }
 
 export interface PrimaryKeyNode {
@@ -284,6 +288,10 @@ export interface ModelNode {
    * table and a root for this model — the base owns both.
    */
   readonly sharesBaseTable?: boolean;
+  /**
+   * Internal, not a public authoring option: the table is in storage, managed by migrations, but no domain model exposes it, so the contract has no model and no root for it. Every field of an unexposed model is unexposed with it, and a relation cannot point at it. Sources that keep a table the application must not see (a Prisma 7 `@@ignore` model, `_prisma_migrations`) set it.
+   */
+  readonly unexposed?: boolean;
 }
 
 export interface ContractDefinition {
