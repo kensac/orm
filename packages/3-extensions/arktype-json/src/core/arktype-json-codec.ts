@@ -110,14 +110,7 @@ function parseJsonText(wire: string): unknown {
   try {
     return JSON.parse(wire);
   } catch (error) {
-    throw Object.assign(
-      runtimeError(
-        'RUNTIME.DECODE_FAILED',
-        `arktype-json wire value is not JSON text (codecId: ${ARKTYPE_JSON_CODEC_ID})`,
-        { codecId: ARKTYPE_JSON_CODEC_ID },
-      ),
-      { cause: error },
-    );
+    throw new Error('arktype-json wire value is not JSON text', { cause: error });
   }
 }
 
