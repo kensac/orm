@@ -18,7 +18,7 @@ const posts = await db.Post
   .all();
 ```
 
-- `apply` applies a step, a function from a collection to a collection, and returns whatever the step returns (ADR 258).
+- `apply` runs a step, a function from a collection to a collection, and returns whatever the step returns (ADR 258).
 - The step may contain any code: here a conditional, elsewhere an early return or a loop.
 - The result is a collection that may or may not be filtered. Its type says the filter is not known, so `deleteAll` would be refused on it.
 
