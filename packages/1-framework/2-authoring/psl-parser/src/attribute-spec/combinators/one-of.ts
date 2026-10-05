@@ -11,10 +11,9 @@ import type {
   RequiredContextFor,
 } from '../types';
 import { leafDiagnostic } from './diagnostic';
-import { plainCallee } from './func-call';
 
 /**
- * The first alternative that accepts the argument; for a call to a function exactly one `funcCall` alternative names, that alternative's result, so its diagnostics about the arguments are kept.
+ * The first alternative that accepts the argument. When exactly one alternative claims the argument's shape, its result, success or failure, so its diagnostics about the argument are kept.
  */
 export function oneOf<Alts extends readonly [AnyArgType, ...AnyArgType[]]>(
   ...alts: Alts
@@ -32,12 +31,9 @@ export function oneOf<Alts extends readonly [AnyArgType, ...AnyArgType[]]>(
         readonly [Alternative, ...Alternative[]],
         'ParseContext is the strongest context every alternative requires and each alternative output is a member of the union, but iterating a heterogeneous tuple erases both relationships.'
       >(alts);
-      const callee = plainCallee(arg)?.name;
-      const named = [head, ...tail].filter((alt) => alt.kind === 'funcCall' && alt.name === callee);
-      const [only] = named;
-      if (callee !== undefined && only !== undefined && named.length === 1) {
-        return only.parse(arg, ctx);
-      }
+      const claiming = [head, ...tail].filter((alt) => alt.claims?.(arg) === true);
+      const [only] = claiming;
+      if (only !== undefined && claiming.length === 1) return only.parse(arg, ctx);
       let rejection = head.parse(arg, ctx);
       if (rejection.ok) return rejection;
       for (const alt of tail) {

@@ -44,9 +44,9 @@ changes:
         - '\b(parseJsonBody|printJsonBody)\b'
         - '\b(canonicalizeTaggedLiteralBody|TaggedLiteralCanonicalization|TaggedLiteralExprAst)\b'
         - '\b(checkSqlDefaultBody|reservedSqlDefaultBody)\b'
-  - id: one-of-routes-a-named-function-call
+  - id: one-of-returns-the-claiming-alternative
     summary: |
-      `oneOf` gives a call to a function that exactly one `funcCall` alternative names to that alternative, and returns its result, success or failure. Other alternatives are not tried for that call.
+      An argument type may claim an argument whose shape is its own (`ArgType.claims`); `funcCall` claims a call to its name. When exactly one `oneOf` alternative claims the argument, `oneOf` returns its result, success or failure, and tries no other alternative.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -147,11 +147,11 @@ A test that passed a lookup without entries passes `{ entries: {}, lookup }`. Co
 
 A hand-built `SqlPslBuildContext` or `DefaultMappingOptions` passes `dataTypes: { entries, lookup }`. Code that read `options.dataTypes.get(...)` reads `options.dataTypes.lookup.get(...)`.
 
-## `oneOf` gives a call to the function one alternative names
+## `oneOf` returns the result of the alternative that claims the argument
 
-`oneOf` used to try its alternatives in order and, when all failed, report `Expected one of: …` at the whole argument. Now, when the argument is a call to a plain function name and exactly one alternative is a `funcCall` of that name, `oneOf` returns that alternative's result, success or failure. A wrong argument is then reported inside the call, for example `Expected one of: 4 | 7` at the `5` of `uuid(5)`. A call to a dotted or colon-qualified name, a call no alternative names, and a call two alternatives name still try every alternative in order.
+`oneOf` used to try its alternatives in order and, when all failed, report `Expected one of: …` at the whole argument. Now an argument type may claim an argument whose shape is its own, through the optional `claims(arg)` on `ArgType`, and when exactly one alternative claims the argument, `oneOf` returns that alternative's result, success or failure. `funcCall` claims a call to its name whose callee is a plain identifier. A wrong argument is then reported inside the call, for example `Expected one of: 4 | 7` at the `5` of `uuid(5)`. A call to a dotted or colon-qualified name, a call no alternative names, and a call two alternatives name still try every alternative in order.
 
-An alternative of your own that accepts call expressions, placed beside a `funcCall` of the same name, is no longer tried for that call. Give the function one alternative, or rename one of them. Update an assertion on an `Expected one of` message for such a call to the diagnostic of the function.
+An alternative of your own that accepts call expressions, placed beside a `funcCall` of the same name, is no longer tried for that call. Give the function one alternative, or rename one of them. An argument type of your own may implement `claims` when a malformed argument of its shape should be reported with its own diagnostics. Update an assertion on an `Expected one of` message for such a call to the diagnostic of the function.
 
 ## The cast rule for one written value is in the framework
 

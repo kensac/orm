@@ -63,6 +63,8 @@ export type ArgTypeContext = 'attribute' | 'field' | 'model';
 export interface ArgTypeOutput<T, Ctx extends AttributeCtx> {
   readonly label: string;
   readonly _out?: T;
+  /** True when the argument has this type's shape, so that its diagnostics are about the argument. `oneOf` returns the result of the one alternative that claims the argument. */
+  readonly claims?: (arg: ExpressionAst) => boolean;
   readonly parse: (arg: ExpressionAst, ctx: Ctx) => Result<T, readonly PslDiagnostic[]>;
 }
 
@@ -109,6 +111,7 @@ export interface FuncCallArgType<
   readonly kind: 'funcCall';
   readonly name: Name;
   readonly signature: Signature;
+  readonly claims: (arg: ExpressionAst) => boolean;
 }
 
 export interface FixedIdentifierArgType<

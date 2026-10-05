@@ -262,7 +262,7 @@ export interface DataTypeValueArgType<Ctx extends AttributeCtx = AttributeCtx>
 export function dataTypeValue(dataType: DataTypeId, support: DataTypeSupport): DataTypeValueArgType<AttributeCtx>;
 ```
 
-`dataTypeValue` is used as a parameter of a `funcCall`, not as a bare arm of `oneOf`, which would replace its diagnostics with `Expected one of: …`. When the argument is a call whose callee is a plain identifier and exactly one alternative is a `funcCall` of that name, `oneOf` returns that alternative's result, success or failure, so the diagnostics about the call's arguments are kept. So `oneOf(funcCall('nanoid', { positional: [dataTypeValue('pg/int4', support)] }), str())` given `nanoid("8")` reports `pg/int4 has no cast from pg/text; write a number` at `"8"`; given `other(1)` it still reports `Expected one of: nanoid() | string`.
+`dataTypeValue` is used as a parameter of a `funcCall`, not as a bare arm of `oneOf`, which would replace its diagnostics with `Expected one of: …`. An alternative may claim an argument whose shape is its own (`ArgType.claims`); `funcCall` claims a call to its name whose callee is a plain identifier. When exactly one alternative claims the argument, `oneOf` returns that alternative's result, success or failure, so the diagnostics about the call's arguments are kept. So `oneOf(funcCall('nanoid', { positional: [dataTypeValue('pg/int4', support)] }), str())` given `nanoid("8")` reports `pg/int4 has no cast from pg/text; write a number` at `"8"`; given `other(1)` it still reports `Expected one of: nanoid() | string`.
 
 Construction never throws. The language server builds every spec only to list attribute names, including on stacks that lack the type.
 
