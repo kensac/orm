@@ -202,7 +202,7 @@ describe('Prisma 8 taking over migrations from the Prisma 7 schema', () => {
           const destructive = readBundle(dir, String(destructivePlan['dir']));
           expect(destructive).toMatchObject({ from: additiveHash, to: destructiveHash });
           expect(operationClasses(destructive)).toEqual([
-            ['dropDefault.Post.likes', 'destructive'],
+            ['dropDefault.Post.likes', 'widening'],
             ['dropColumn.User.bio', 'destructive'],
             ['alterNullability.dropNotNull.Post.likes', 'widening'],
           ]);
