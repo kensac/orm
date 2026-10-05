@@ -9,7 +9,7 @@ import {
   PG_TSQUERY_CODEC_ID,
 } from './codec-ids';
 import { postgresError } from './errors';
-import { renderFullTextDocument, weightGroupsOf } from './full-text-index-expression';
+import { describeFullTextIndexProblem, fullTextIndexProblems } from './full-text-index-definition';
 import {
   type FullTextHeadlineOptions,
   type FullTextMatchesOptions,
@@ -24,7 +24,8 @@ import {
   toTsquery,
   websearchToTsquery,
 } from './full-text-parsers';
-import { FULL_TEXT_WEIGHTS } from './index-types';
+import { renderFullTextDocument } from './full-text-search-document';
+import { FULL_TEXT_WEIGHTS, weightGroupsOf } from './full-text-weight-groups';
 import { DEFAULT_FULL_TEXT_SEARCH_LANGUAGE } from './text-search-languages';
 
 type CodecTypesBase = Record<string, { readonly input: unknown; readonly output: unknown }>;
@@ -39,29 +40,32 @@ const languageOf = (options: FullTextMatchesOptions) =>
  * The search document an operation searches: one column, or weight groups of columns. The first
  * column is the operation's `self`; the others follow the `fixedArgs` the operation passes first,
  * so the query, the language and any further option keep their positions.
+ *
+ * The groups are checked by the rules of a full-text index, by position: a column named twice is
+ * not refused, because column expressions have no name to compare, and such a document is valid
+ * SQL that simply matches no index.
  */
 function searchDocument(method: string, document: unknown, fixedArgs: number) {
   const groups = Array.isArray(document)
     ? weightGroupsOf(document, (item): item is unknown => !Array.isArray(item))
     : [[document]];
-  if (
-    groups.length === 0 ||
-    groups.length > FULL_TEXT_WEIGHTS.length ||
-    groups.some((group) => group.length === 0)
-  ) {
+  let position = 0;
+  const positions = groups.map((group) => group.map(() => position++));
+  const [problem] = fullTextIndexProblems({
+    weightGroups: positions.map((group) => group.map(String)),
+  });
+  if (problem !== undefined) {
     throw postgresError(
       'RUNTIME.ARGUMENT_INVALID',
-      `${method}: the document takes 1 to ${FULL_TEXT_WEIGHTS.length} weight groups, none of them empty.`,
+      describeFullTextIndexProblem(`${method}: the document`, problem),
       {
-        why: 'Each weight group takes one of the weights Postgres has, A to D.',
+        why: `Each weight group takes one of the weights Postgres has, ${FULL_TEXT_WEIGHTS.join(', ')}.`,
         fix: 'Pass the same weight groups as the full-text index the query should use.',
         meta: { helper: method, argument: 'document', received: groups.length },
       },
     );
   }
   const columns = groups.flat();
-  let position = 0;
-  const positions = groups.map((group) => group.map(() => position++));
   const template = renderFullTextDocument(positions, {
     column: (index) => (index === 0 ? '{{self}}' : `{{arg${fixedArgs + index - 1}}}`),
     language: '{{arg1}}',
@@ -85,20 +89,20 @@ export function postgresQueryOperations<CT extends CodecTypesBase>(): QueryOpera
     },
     fullTextMatches: {
       self: { traits: ['textual'] },
-      impl: (self, query, options: FullTextMatchesOptions = {}) => {
+      impl: (document, query, options: FullTextMatchesOptions = {}) => {
         const language = languageLiteral('fullTextMatches', languageOf(options));
-        const document = searchDocument('fullTextMatches', self, 2);
+        const searched = searchDocument('fullTextMatches', document, 2);
         return buildOperation({
           method: 'fullTextMatches',
-          args: [document.self, toExpr(query, TSQUERY_REF), language, ...document.rest],
+          args: [searched.self, toExpr(query, TSQUERY_REF), language, ...searched.rest],
           returns: { codecId: PG_BOOL_CODEC_ID, nullable: false },
-          lowering: { targetFamily: 'sql', template: `${document.template} @@ {{arg0}}` },
+          lowering: { targetFamily: 'sql', template: `${searched.template} @@ {{arg0}}` },
         });
       },
     },
     fullTextRank: {
       self: { traits: ['textual'] },
-      impl: (self, query, options: FullTextRankOptions = {}) => {
+      impl: (document, query, options: FullTextRankOptions = {}) => {
         const fn = options.coverDensity === true ? 'ts_rank_cd' : 'ts_rank';
         const language = languageLiteral('fullTextRank', languageOf(options));
         const normalization =
@@ -106,14 +110,14 @@ export function postgresQueryOperations<CT extends CodecTypesBase>(): QueryOpera
             ? undefined
             : normalizationLiteral('fullTextRank', options.normalization);
         const fixed = normalization === undefined ? [language] : [language, normalization];
-        const document = searchDocument('fullTextRank', self, fixed.length + 1);
+        const searched = searchDocument('fullTextRank', document, fixed.length + 1);
         return buildOperation({
           method: 'fullTextRank',
-          args: [document.self, toExpr(query, TSQUERY_REF), ...fixed, ...document.rest],
+          args: [searched.self, toExpr(query, TSQUERY_REF), ...fixed, ...searched.rest],
           returns: { codecId: PG_FLOAT4_CODEC_ID, nullable: false },
           lowering: {
             targetFamily: 'sql',
-            template: `${fn}(${document.template}, {{arg0}}${normalization === undefined ? '' : ', {{arg2}}'})`,
+            template: `${fn}(${searched.template}, {{arg0}}${normalization === undefined ? '' : ', {{arg2}}'})`,
           },
         });
       },

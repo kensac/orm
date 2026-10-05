@@ -5,7 +5,7 @@ import type {
 import { escapePslString } from '@internal/sql-relational-core/ast';
 import { computeIndexContentHash, parseWireName } from '@internal/sql-schema-ir/naming';
 import { assertDefined } from '@internal/utils/assertions';
-import type { FullTextIndexDefinition } from '../full-text-index-expression';
+import type { FullTextIndexDefinition } from '../full-text-index-definition';
 import { DEFAULT_FULL_TEXT_SEARCH_LANGUAGE } from '../text-search-languages';
 import { buildAttribute, namedArg, positionalArg } from './psl-literals';
 
@@ -116,7 +116,7 @@ export function buildFullTextIndexAttribute(
   fieldNameOf: (column: string) => string,
   naming: AttributeNaming,
 ): PslModelAttribute {
-  const groups = definition.fields.map((group) => {
+  const groups = definition.weightGroups.map((group) => {
     const names = group.map(fieldNameOf);
     return names.length === 1 ? (names[0] ?? '') : `[${names.join(', ')}]`;
   });

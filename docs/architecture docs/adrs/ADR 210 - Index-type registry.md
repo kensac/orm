@@ -1,6 +1,6 @@
 # ADR 210 — Index-type registry
 
-> **Decision (in one sentence):** Index types live in a per-contract registry assembled from the contract's target and extension packs; each entry names a `type` literal, an `arktype` validator for its `options`, and whether an index of the type can back a foreign key; the type and validator are what the authoring DSL narrows against, what the lowering validates against, and what the framework-owned Postgres renderer reads from when emitting `CREATE INDEX … USING <method> WITH (…)` (for a type that is not an access method, such as Postgres's `fullText`, through the target's contract-to-schema conversion), and the foreign-key flag is what decides whether a foreign key needs a derived backing index.
+> **Decision (in one sentence):** Index types live in a per-contract registry assembled from the contract's target and extension packs; each entry names a `type` literal, an `arktype` validator for its `options`, the access method an index of the type is created with (by default the literal itself), and whether an index of the type can back a foreign key; the type and validator are what the authoring DSL narrows against, what the lowering validates against, and what the framework-owned Postgres renderer reads from when emitting `CREATE INDEX … USING <method> WITH (…)` (for a type whose access method is not its literal, such as Postgres's `fullText`, through the target's contract-to-schema conversion), and the foreign-key flag is what decides whether a foreign key needs a derived backing index.
 
 ## A grounding example
 
@@ -79,18 +79,27 @@ The registry resolves all three by giving the system one place that knows which 
 
 ## The registry primitive
 
-An entry names a `type` literal, carries a validator describing the entry's `options`, and says whether an index of the type can back a foreign key. It may also name traits that the codec of every column an index of the type covers must carry.
+An entry names a `type` literal, carries a validator describing the entry's `options`, and says whether an index of the type can back a foreign key. It may also name the access method an index of the type is created with, and traits that the codec of every column an index of the type covers must carry.
 
 ```ts
 type IndexTypeEntry<TOptions> = {
   readonly type: string;
   readonly options: arktype.Type<TOptions>;
   readonly backsForeignKey: boolean;
+  readonly accessMethod?: string;
   readonly columnTraits?: readonly string[];
 };
 ```
 
-The contract build checks `columnTraits` through the contract's codec lookup, beside the options, and refuses an index over a column whose codec lacks one with `CONTRACT.INDEX_INVALID`. The check runs when the contract is built, not when a `contract.json` is loaded. A codec the lookup does not know is skipped, and a build without a codec lookup checks nothing. Postgres's `fullText` type requires `textual`, so a full-text index written through the general index API cannot cover a number column.
+The contract build checks `columnTraits` through the contract's codec lookup, beside the options, and refuses an index over a column whose codec lacks one with `CONTRACT.INDEX_INVALID`. A codec the lookup does not know is refused too, because nothing shows it carries the traits; a build without a codec lookup checks nothing. Postgres's `fullText` type requires `textual`, so a full-text index written through the general index API cannot cover a number column.
+
+### Access methods and the types a target converts
+
+Most entries are access methods: the `type` literal is what follows `USING`, and introspection reads the same value back from `pg_am.amname`. Such an entry leaves `accessMethod` out, and it defaults to the literal. An entry whose `accessMethod` differs from its literal is a kind of index the target turns into an index of that access method, with a body rendered from the options. Postgres's `fullText` is one: its `accessMethod` is `gin`, and the target's contract-to-schema conversion reads it from the entry and renders the search document from the options. Only the target can provide that conversion today, so an extension pack's index type must be an access method until the framework has a hook for the conversion.
+
+Because such a type's body is rendered rather than written by the author, an exact-named (`map:`) index of the type raises the same `PN_EXACT_NAME_BODY_COMPARISON` warning as an expression index, from either authoring surface: `db verify` compares the rendered text with what Postgres prints back.
+
+The rules of `fullText` itself (one to four weight groups, none empty, each column once, text columns only, not unique) are stated once, in `fullTextIndexProblems` beside the entry's declaration, and every check calls it: the options validator, `@@fullTextIndex`, `fullTextIndex`, the query operations' weight groups, and the target's check of a loaded contract, which also requires `columns` to equal the weight groups read flat.
 
 Entries are produced by a small fluent builder. The builder is the only way an entry comes into existence; there is no other constructor:
 
@@ -148,6 +157,8 @@ This split is load-bearing:
 - A contract that reaches a driver has, by construction, already been validated against its pack-derived registry at the lowering seam.
 - A contract authored by a tool that bypasses the lowering will not be checked against any registry — that is the explicit trade-off the layering makes. The expected fix for such a tool is to *use* the lowering, not to teach `validateContract` about packs.
 
+A target may still check its own index types when it loads a contract, because it knows them without a registry. The Postgres target does so for `fullText`: loading a `contract.json` refuses a full-text index that breaks its rules, including one over a column whose codec the target does not know to be `textual`.
+
 The validator that runs at the lowering seam lives in `packages/2-sql/1-core/contract/src/index-type-validation.ts`, separate from the JSON-internal-consistency validators in `validators.ts`. The file boundary signals the layering.
 
 ## Strictness is a registrant choice
@@ -168,7 +179,7 @@ CREATE INDEX <name> ON <table> USING <type> (<columns>) WITH (<key> = <literal>,
 
 There is **no per-entry rendering hook**. A single universal renderer formats `options` as `key = literal, …`, using the adapter's existing scalar quoting and escaping helpers for strings, numbers, and booleans. `null` and `NaN` are rejected at the renderer.
 
-The renderer receives `type` and `options` from the target's schema node for the index, not from the contract entry directly. For every access method the two are the same. A target may also register an index type that is not an access method, whose `options` are the index's definition rather than storage parameters. The Postgres target's `fullText` type is one: its options are `{ fields, language }`, the weight groups of a full-text search document as column names and its text-search configuration, validated with `'+': 'reject'`. The target's contract-to-schema conversion turns such an index into the node the renderer reads: for `fullText`, a `gin` index whose element list is the search document rendered from the definition, with no storage options. The renderer itself is unchanged, and the conversion is not a per-entry rendering hook: the entry carries no rendering function, the definition is turned into SQL by target code with the target's own quoting, and the conversion runs once for the schema node that migrations, verification and DDL all read.
+The renderer receives `type` and `options` from the target's schema node for the index, not from the contract entry directly. For every access method the two are the same. A target may also register an index type that is not an access method, whose `options` are the index's definition rather than storage parameters. The Postgres target's `fullText` type is one: its options are `{ weightGroups, language }`, the weight groups of a full-text search document as column names and its text-search configuration, validated with `'+': 'reject'`. The target's contract-to-schema conversion turns such an index into the node the renderer reads: for `fullText`, an index of its entry's access method, `gin`, whose element list is the search document rendered from the definition, with no storage options. The renderer itself is unchanged, and the conversion is not a per-entry rendering hook: the entry carries no rendering function, the definition is turned into SQL by target code with the target's own quoting, and the conversion runs once for the schema node that migrations, verification and DDL all read.
 
 Two consequences are worth naming:
 
@@ -177,7 +188,7 @@ Two consequences are worth naming:
 
 ## Index identity and migration semantics
 
-The schema differ pairs indexes by their full physical name (name-identified — see the index extension noted in [ADR 234](ADR%20234%20-%20Content-addressed%20wire%20names%20for%20Postgres-normalized%20objects.md); at this ADR's writing the pairing key was the column tuple). A paired index's `unique`, `columns`, `type`, and `options` are then compared as attributes: a contract index whose `type` differs from the live database's index — or whose `options` differ — is a real mismatch and is reported as one. Option comparison is *loose* (string-coerced both sides) to absorb the fact that `pg_class.reloptions` stores values as text regardless of the original literal type, so a contract `fillfactor: 70` matches a Postgres `'70'`.
+The schema differ pairs indexes by their full physical name (name-identified — see the index extension noted in [ADR 234](ADR%20234%20-%20Content-addressed%20wire%20names%20for%20Postgres-normalized%20objects.md); at this ADR's writing the pairing key was the column tuple). What is compared is the schema node the target builds from the contract index, not the contract index itself. For an access method the two carry the same `type` and `options`; a `fullText` index's node is a `gin` index over its rendered search document, with no options, and it compares with the live index as that. A paired index's `unique`, `columns` (or expression), `type`, and `options` are then compared as attributes: a node whose `type` differs from the live database's index — or whose `options` differ — is a real mismatch and is reported as one. Option comparison is *loose* (string-coerced both sides) to absorb the fact that `pg_class.reloptions` stores values as text regardless of the original literal type, so a contract `fillfactor: 70` matches a Postgres `'70'`.
 
 Any change to `columns`, `type`, or `options` is rendered by the migration planner as `DROP INDEX` followed by `CREATE INDEX`. Postgres has no `ALTER INDEX … SET METHOD` for changing the index method, and option changes are inconsistent across `WITH` keys, so `ALTER` is the wrong primitive for these fields uniformly. The DROP+CREATE shape is a property of how Postgres handles index method and storage-parameter changes, not a choice this design imposes.
 
@@ -190,13 +201,15 @@ Both surfaces reach the same lowering and therefore the same registry. They diff
 - **TS authoring** is unconstrained by the validator's expressiveness. `arktype` validators can describe any leaf type, so TS callers can write `options: { fastupdate: false }` against a hypothetical `gin` registration that accepts boolean leaves.
 - **PSL grammar** carries `options` as an object literal whose values are string leaves. PSL authors can write `options: { key_field: "id" }`, but `options: { fastupdate: false }` does not parse — the diagnostic explicitly says so and points at the TS surface for non-string options. This is a property of the PSL grammar, not the registry.
 
+Postgres's `fullText` is written with `@@fullTextIndex` in PSL and `fullTextIndex` in TypeScript, which take model fields and resolve them to storage columns. The general TypeScript index API also accepts `type: 'fullText'`, but its options name storage columns, so it needs `options` written as a function of the resolved columns; `@@index(type: "fullText")` in PSL cannot write its nested options at all.
+
 A contract authored half-and-half (some models in PSL, some in TS, against the same pack list) is consistent because both surfaces flow through the same `assertStorageSemantics` call.
 
 ## Consequences
 
 ### Positive
 
-- **Adding an index type is a single declaration.** A pack writes one `defineIndexTypes()….add(…)` call and stores the value on its descriptor. Authoring narrowing, runtime validation, and DDL rendering all light up without touching framework code.
+- **Adding an access method is a single declaration.** A pack writes one `defineIndexTypes()….add(…)` call and stores the value on its descriptor. Authoring narrowing, runtime validation, and DDL rendering all light up without touching framework code. A type whose access method is not its literal also needs the target's conversion (see [Access methods and the types a target converts](#access-methods-and-the-types-a-target-converts)).
 - **Errors fire at the call site.** Unknown types and bad option shapes are compile errors at the line that wrote them, or runtime errors at the lowering with the model name attached. Neither manifests as surprise DDL.
 - **The IR vocabulary is dialect-neutral.** `type` and `options` are free of Postgres-specific keywords (`USING`, `WITH`). A contract is portable across SQL adapters even though only the Postgres renderer exists.
 - **Composition is per-contract.** Two contracts that attach different packs see different valid `type` sets. The vocabulary follows the pack list; nothing leaks across contracts.

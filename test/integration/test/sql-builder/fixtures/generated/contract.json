@@ -489,14 +489,14 @@
                   "columns": [
                     "body"
                   ],
-                  "name": "comments_body_live_b354147d",
+                  "name": "comments_body_live_6eed9d3f",
                   "options": {
-                    "fields": [
+                    "language": "english",
+                    "weightGroups": [
                       [
                         "body"
                       ]
-                    ],
-                    "language": "english"
+                    ]
                   },
                   "prefix": "comments_body_live",
                   "type": "fullText",
@@ -507,14 +507,14 @@
                   "columns": [
                     "body"
                   ],
-                  "name": "comments_body_search_36cd47c3",
+                  "name": "comments_body_search_5831ec58",
                   "options": {
-                    "fields": [
+                    "language": "english",
+                    "weightGroups": [
                       [
                         "body"
                       ]
-                    ],
-                    "language": "english"
+                    ]
                   },
                   "prefix": "comments_body_search",
                   "type": "fullText",
@@ -524,14 +524,14 @@
                   "columns": [
                     "subject"
                   ],
-                  "name": "comments_subject_search_694ff7b0",
+                  "name": "comments_subject_search_803a5db2",
                   "options": {
-                    "fields": [
+                    "language": "english",
+                    "weightGroups": [
                       [
                         "subject"
                       ]
-                    ],
-                    "language": "english"
+                    ]
                   },
                   "prefix": "comments_subject_search",
                   "type": "fullText",
@@ -576,9 +576,10 @@
                     "subtitle",
                     "body"
                   ],
-                  "name": "documents_search_033e8055",
+                  "name": "documents_search_2f1bb221",
                   "options": {
-                    "fields": [
+                    "language": "english",
+                    "weightGroups": [
                       [
                         "title",
                         "subtitle"
@@ -586,8 +587,7 @@
                       [
                         "body"
                       ]
-                    ],
-                    "language": "english"
+                    ]
                   },
                   "prefix": "documents_search",
                   "type": "fullText",
@@ -706,7 +706,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "da8a51f3d282fc4fe8370572fbd9912de1a1dee4b28ccab3b1f7be6b6ee43202"
+    "storageHash": "8a4368810a4dde8eeee3fad228ea6946949821b950f312daa35bd0bf454ad029"
   },
   "execution": {
     "executionHash": "551678164cf11e55dbfa5b34642fb312efdfc63dfd0d165887eaa0d73bb2db84",

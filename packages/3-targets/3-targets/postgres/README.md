@@ -183,10 +183,10 @@ Postgres computes `to_tsvector` per row unless an index covers the predicate's e
 @@fullTextIndex([[title, subtitle], body], name: "post_search")
 ```
 
-The fields are one field, or a list whose items are fields or lists of fields. Each top-level item is a weight group, strongest first: `title` and `subtitle` weigh `A`, `body` weighs `B`. There are at most four groups, `A` to `D`. A single field has no weight. The contract stores the index as data: an index of type `fullText` over the covered columns, whose `options` hold the weight groups (as storage column names) and the language. `fullText` is registered in this package's index type registry beside the access methods; in the database it is a `gin` index over the search document. Its `columns` are always the fields of its groups, in order, and a contract where they differ is refused:
+The fields are one field, or a list whose items are fields or lists of fields. Each top-level item is a weight group, strongest first: `title` and `subtitle` weigh `A`, `body` weighs `B`. There are at most four groups, `A` to `D`. A single field has no weight. The contract stores the index as data: an index of type `fullText` over the covered columns, whose `options` hold the weight groups (as storage column names) and the language. `fullText` is registered in this package's index type registry beside the access methods, with `gin` as its access method; in the database it is a `gin` index over the search document. Its `columns` are always the fields of its groups, in order, and a contract where they differ is refused:
 
 ```json
-{ "columns": ["title", "subtitle", "body"], "type": "fullText", "options": { "fields": [["title", "subtitle"], ["body"]], "language": "english" } }
+{ "columns": ["title", "subtitle", "body"], "type": "fullText", "options": { "weightGroups": [["title", "subtitle"], ["body"]], "language": "english" } }
 ```
 
 One renderer turns those options into the search document, for the index DDL, for the schema that migrations and verification compare, and for the queries. With more than one group each field is weighted with `setweight`; with more than one field every column is wrapped in `coalesce(column, '')`, so the document does not depend on whether a column is nullable; one field alone is `to_tsvector('english', "text")`, the expression the column operations use.
@@ -199,7 +199,7 @@ model('Post', { fields: { id, title, subtitle, body } }).sql(({ cols }) => ({
 }));
 ```
 
-Both take an optional `language` (default `english`, from the same allowlist the operations accept), an optional `where:` for a partial index, and `name:` xor `map:`; both are repeatable. The column names come from the resolved storage columns, so `@map` is honoured. With `map:` the index keeps the exact database name you give it, and `db verify` compares the rendered search document with the text Postgres prints back for the index exactly, character for character. Postgres prints it in its own form (`to_tsvector('english'::regconfig, title)`), so a `map:` full-text index reports drift; `@@fullTextIndex` warns about this with `PN_EXACT_NAME_BODY_COMPARISON`. Use `name:` unless the database already has the index under that name.
+Both take an optional `language` (default `english`, from the same allowlist the operations accept), an optional `where:` for a partial index, and `name:` xor `map:`; both are repeatable. The column names come from the resolved storage columns, so `@map` is honoured. With `map:` the index keeps the exact database name you give it, and `db verify` compares the rendered search document with the text Postgres prints back for the index exactly, character for character. Postgres prints it in its own form (`to_tsvector('english'::regconfig, title)`), so a `map:` full-text index reports drift; `@@fullTextIndex` and `fullTextIndex` warn about this with `PN_EXACT_NAME_BODY_COMPARISON`. Use `name:` unless the database already has the index under that name.
 
 To search a document of several columns, pass the same weight groups to `fns.fullTextMatches` and `fns.fullTextRank` in the SQL builder:
 

@@ -1440,6 +1440,7 @@ export function buildSqlContractFromDefinition(
             options: i.options,
           }),
           authoringWarnings,
+          indexTypeRegistry,
         ),
       );
       // Authored checks are lowered and merged into `checksForTable`

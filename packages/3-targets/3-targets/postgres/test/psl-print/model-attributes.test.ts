@@ -75,12 +75,18 @@ describe('keys and indexes', () => {
               id: { column: 'id' },
               title: { column: 'title' },
               body: { column: 'body_text' },
+              summary: { column: 'summary' },
             },
           },
         },
         tables: {
           Post: table({
-            columns: { id: INT_COLUMN, title: TEXT_COLUMN, body_text: TEXT_COLUMN },
+            columns: {
+              id: INT_COLUMN,
+              title: TEXT_COLUMN,
+              body_text: TEXT_COLUMN,
+              summary: TEXT_COLUMN,
+            },
             primaryKey: { columns: ['id'] },
             indexes: [index],
           }),
@@ -89,16 +95,16 @@ describe('keys and indexes', () => {
 
     it('prints as @@fullTextIndex, a group of one as the bare field and a larger group as a list', () => {
       const index = {
-        columns: ['title', 'body_text', 'id'],
+        columns: ['title', 'body_text', 'summary'],
         unique: false,
         type: 'fullText',
-        options: { fields: [['title'], ['body_text', 'id']], language: 'english' },
+        options: { weightGroups: [['title'], ['body_text', 'summary']], language: 'english' },
       };
       const name = formatWireName('post_search', computeIndexContentHash(index));
 
       expect(
         fullTextModel({ ...index, name, prefix: 'post_search' })?.attributes.map(attributeText),
-      ).toEqual(['@@fullTextIndex([title, [body, id]], name: "post_search")']);
+      ).toEqual(['@@fullTextIndex([title, [body, summary]], name: "post_search")']);
     });
 
     it('prints a language other than the default, a predicate, and an exact name', () => {
@@ -109,7 +115,7 @@ describe('keys and indexes', () => {
           where: 'id > 1',
           unique: false,
           type: 'fullText',
-          options: { fields: [['title']], language: 'german' },
+          options: { weightGroups: [['title']], language: 'german' },
         })?.attributes.map(attributeText),
       ).toEqual([
         '@@fullTextIndex([title], map: "legacy_search", language: "german", where: "id > 1")',

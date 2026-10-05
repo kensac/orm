@@ -131,6 +131,13 @@ describe('normalizeIndexOptionValue', () => {
       '{"x":1}',
     ]);
   });
+
+  it('writes object keys in sorted order at every depth, so key order does not change the value', () => {
+    expect(normalizeIndexOptionValue({ b: 2, a: { d: [{ f: 1, e: 2 }], c: 3 } })).toBe(
+      normalizeIndexOptionValue({ a: { c: 3, d: [{ e: 2, f: 1 }] }, b: 2 }),
+    );
+    expect(normalizeIndexOptionValue({ b: 2, a: 1 })).toBe('{"a":1,"b":2}');
+  });
 });
 
 describe('formatWireName', () => {
@@ -319,6 +326,12 @@ describe('computeIndexContentHash', () => {
 
   it('returns 8 lowercase hex characters', () => {
     expect(computeIndexContentHash(base)).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('hashes an object option value the same whatever its key order', () => {
+    expect(computeIndexContentHash({ ...base, type: 'gin', options: { o: { b: 1, a: 2 } } })).toBe(
+      computeIndexContentHash({ ...base, type: 'gin', options: { o: { a: 2, b: 1 } } }),
+    );
   });
 
   describe('tuple encoding stability', () => {

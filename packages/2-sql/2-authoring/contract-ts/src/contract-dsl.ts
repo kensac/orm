@@ -905,7 +905,7 @@ type IndexInput<
       | {
           readonly [K in keyof IndexTypes & string]: IndexOptionsBase<Name> & {
             readonly type: K;
-            readonly options: IndexTypes[K]['options'];
+            readonly options: IndexOptionsInput<IndexTypes[K]['options']>;
           };
         }[keyof IndexTypes & string];
 
@@ -974,12 +974,18 @@ export type DeferredIndexExpression = {
 export type IndexExpressionInput = string | DeferredIndexExpression;
 
 /**
- * Index options rendered at lowering from the storage columns the index's `fields` resolve to, in
- * the same order. For options that name columns, which authoring code cannot know.
+ * Index options rendered at lowering from the storage columns the index covers, in order: its
+ * `fields`, or the `fields` of a deferred expression. For options that name columns, which authoring
+ * code cannot know.
  */
-export type DeferredIndexOptions = (
+export type DeferredIndexOptions<Options = Record<string, unknown>> = (
   columns: readonly DeferredIndexColumn[],
-) => Record<string, unknown>;
+) => Options;
+
+/** Options, either written out or rendered at lowering. */
+export type IndexOptionsInput<Options = Record<string, unknown>> =
+  | Options
+  | DeferredIndexOptions<Options>;
 
 /** An authored index constraint's element structure — field tuple xor expression. */
 export type IndexConstraintElements<FieldNames extends readonly string[] = readonly string[]> =
@@ -987,20 +993,17 @@ export type IndexConstraintElements<FieldNames extends readonly string[] = reado
       /** Field-name tuple. */
       readonly fields: FieldNames;
       readonly expression?: never;
-      /** Replaces `options` with the options rendered from the resolved columns. */
-      readonly resolveOptions?: DeferredIndexOptions;
     }
   | {
       readonly fields?: never;
       /** Opaque SQL: the entire CREATE INDEX element list — never parsed. */
       readonly expression: IndexExpressionInput;
-      readonly resolveOptions?: never;
     };
 
 /** Options only exist as options of a type, so the pair is one union. */
 export type IndexConstraintMethod =
   | { readonly type?: undefined; readonly options?: undefined }
-  | { readonly type: string; readonly options?: Record<string, unknown> };
+  | { readonly type: string; readonly options?: IndexOptionsInput };
 
 export type IndexConstraint<
   FieldNames extends readonly string[] = readonly string[],

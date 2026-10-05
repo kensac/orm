@@ -59,15 +59,14 @@ import {
 } from './codec-ids';
 import { postgresError } from './errors';
 import {
-  describeWeightGroupProblem,
+  describeFullTextIndexProblem,
   FULL_TEXT_INDEX_TYPE,
-  type FullTextFieldsInput,
-  type FullTextWeightGroupProblem,
-  weightGroupProblems,
-  weightGroupsOf,
-} from './full-text-index-expression';
-import { isFullTextIndexableCodec } from './full-text-indexable-codecs';
+  type FullTextIndexProblem,
+  fullTextIndexProblems,
+} from './full-text-index-definition';
+import { type FullTextFieldsInput, weightGroupsOf } from './full-text-weight-groups';
 import { postgresNowGeneratorIds } from './now-generators';
+import { postgresCodecTraitsOf } from './postgres-codec-traits';
 import { PostgresNativeEnum } from './postgres-native-enum';
 import { PostgresRlsEnablement, type PostgresRlsEnablementInput } from './postgres-rls-enablement';
 import { PostgresRlsPolicy, type RlsPolicyOperation } from './postgres-rls-policy';
@@ -95,6 +94,7 @@ const PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS';
 const PSL_FULL_TEXT_INDEX_EMPTY_GROUP: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_EMPTY_GROUP';
+const PSL_FULL_TEXT_INDEX_NO_FIELDS: ContributedPslDiagnosticCode = 'PSL_FULL_TEXT_INDEX_NO_FIELDS';
 const PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD';
 const PSL_FULL_TEXT_INDEX_REQUIRES_NAME: ContributedPslDiagnosticCode =
@@ -654,15 +654,19 @@ const postgresFullTextIndexSpec = modelAttribute('fullTextIndex', {
     },
   },
   refine: (value, ctx, attributeNode) => {
-    const diagnostics = weightGroupProblems(weightGroupsOf(value.fields, isFieldName)).map(
-      (problem) =>
+    const problems = fullTextIndexProblems({
+      weightGroups: weightGroupsOf(value.fields, isFieldName),
+    });
+    const diagnostics = problems
+      .filter(isPslFullTextIndexProblem)
+      .map((problem) =>
         leafDiagnostic(
           ctx,
           attributeNode,
-          describeWeightGroupProblem('`@@fullTextIndex`', problem),
-          FULL_TEXT_WEIGHT_GROUP_PROBLEM_CODES[problem.kind],
+          describeFullTextIndexProblem('`@@fullTextIndex`', problem),
+          FULL_TEXT_INDEX_PROBLEM_CODES[problem.kind],
         ),
-    );
+      );
     if (value.name === undefined && value.map === undefined) {
       diagnostics.push(
         leafDiagnostic(
@@ -691,14 +695,24 @@ function isFieldName(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-const FULL_TEXT_WEIGHT_GROUP_PROBLEM_CODES: Record<
-  FullTextWeightGroupProblem['kind'],
+/** `@@fullTextIndex` has no `unique` argument, so it never writes a unique index. */
+type PslFullTextIndexProblem = Exclude<FullTextIndexProblem, { readonly kind: 'unique' }>;
+
+function isPslFullTextIndexProblem(
+  problem: FullTextIndexProblem,
+): problem is PslFullTextIndexProblem {
+  return problem.kind !== 'unique';
+}
+
+const FULL_TEXT_INDEX_PROBLEM_CODES: Record<
+  PslFullTextIndexProblem['kind'],
   ContributedPslDiagnosticCode
 > = {
-  'no-fields': PSL_FULL_TEXT_INDEX_EMPTY_GROUP,
+  'no-fields': PSL_FULL_TEXT_INDEX_NO_FIELDS,
   'too-many-groups': PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS,
   'empty-group': PSL_FULL_TEXT_INDEX_EMPTY_GROUP,
   'duplicate-field': PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD,
+  'not-text': PSL_FULL_TEXT_INDEX_TEXT_FIELD,
 };
 
 const postgresFullTextIndexSpecFactory: ModelAttributeSpecFactory = () => postgresFullTextIndexSpec;
@@ -740,30 +754,28 @@ export const postgresAuthoringModelAttributes = {
     repeatable: true,
     lower: (parsed: PostgresFullTextIndexParsed, ctx: AuthoringModelAttributeContext) => {
       const fieldGroups = weightGroupsOf(parsed.fields, isFieldName);
-      const unindexable = fieldGroups.flat().filter((fieldName) => {
-        const codecId = ctx.fieldCodecId(fieldName);
-        // A relation field parses as a field reference but stores no value, so it
-        // reaches here with neither a column nor a codec.
-        return (
-          ctx.fieldStorageName(fieldName) === undefined ||
-          codecId === undefined ||
-          !isFullTextIndexableCodec(codecId)
-        );
-      });
-      for (const fieldName of unindexable) {
-        const codecId = ctx.fieldCodecId(fieldName);
+      const problems = fullTextIndexProblems({
+        weightGroups: fieldGroups,
+        codecs: {
+          // A relation field parses as a field reference but stores no value, so it has no column.
+          codecIdOf: (fieldName) =>
+            ctx.fieldStorageName(fieldName) === undefined ? undefined : ctx.fieldCodecId(fieldName),
+          traitsOf: postgresCodecTraitsOf,
+        },
+      }).filter(isPslFullTextIndexProblem);
+      for (const problem of problems) {
         ctx.diagnostics?.push({
-          code: PSL_FULL_TEXT_INDEX_TEXT_FIELD,
-          message: `\`@@fullTextIndex\` indexes text columns, but "${ctx.modelName}.${fieldName}" is ${codecId === undefined ? 'not a stored scalar field' : `stored as \`${codecId}\``}.`,
+          code: FULL_TEXT_INDEX_PROBLEM_CODES[problem.kind],
+          message: describeFullTextIndexProblem(
+            '`@@fullTextIndex`',
+            problem,
+            (fieldName) => `${ctx.modelName}.${fieldName}`,
+          ),
           sourceId: ctx.sourceId ?? 'unknown',
         });
       }
-      if (unindexable.length > 0) return undefined;
-      // With a where predicate the shared index lowering raises this warning itself.
-      if (parsed.map !== undefined && parsed.where === undefined) {
-        ctx.warnings?.push(exactNameBodyWarning('index', parsed.map));
-      }
-      const fields = fieldGroups.map((group) =>
+      if (problems.length > 0) return undefined;
+      const weightGroups = fieldGroups.map((group) =>
         group.map((fieldName) => {
           const columnName = ctx.fieldStorageName(fieldName);
           assertDefined(columnName, `@@fullTextIndex field "${fieldName}" has no storage column`);
@@ -772,10 +784,10 @@ export const postgresAuthoringModelAttributes = {
       );
       return {
         index: {
-          columns: fields.flat(),
+          columns: weightGroups.flat(),
           type: FULL_TEXT_INDEX_TYPE,
           options: {
-            fields,
+            weightGroups,
             language: parsed.language ?? DEFAULT_FULL_TEXT_SEARCH_LANGUAGE,
           },
           where: parsed.where,

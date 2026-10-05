@@ -2,13 +2,13 @@ import { coreHash, profileHash } from '@internal/contract/types';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { applicationDomainOf } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
-import { renderFullTextIndexExpression } from '../../src/core/full-text-index-expression';
+import { renderFullTextIndexDocument } from '../../src/core/full-text-search-document';
 import { contractToPostgresDatabaseSchemaNode } from '../../src/core/migrations/contract-to-postgres-database-schema-node';
 import { type PostgresContract, PostgresSchema } from '../../src/core/postgres-schema';
 import { postgresRenderDefault } from '../../src/exports/control';
 
 const fullTextOptions = {
-  fields: [['title', 'subtitle'], ['body']],
+  weightGroups: [['title', 'subtitle'], ['body']],
   language: 'english',
 } as const;
 
@@ -80,7 +80,7 @@ describe('a full-text index in the schema node', () => {
     const index = indexNodeOf(contract);
 
     expect(index.columns).toBeUndefined();
-    expect(index.expression).toBe(renderFullTextIndexExpression(fullTextOptions));
+    expect(index.expression).toBe(renderFullTextIndexDocument(fullTextOptions));
     expect(index.expression).toBe(
       `(setweight(to_tsvector('english', coalesce("title", '')), 'A') || setweight(to_tsvector('english', coalesce("subtitle", '')), 'A') || setweight(to_tsvector('english', coalesce("body", '')), 'B'))`,
     );
@@ -131,7 +131,7 @@ describe('a full-text index in the schema node', () => {
       contractWithIndex({
         columns: ['title'],
         where: 'views > 0',
-        options: { fields: [['title']], language: 'english' },
+        options: { weightGroups: [['title']], language: 'english' },
       }),
     );
 

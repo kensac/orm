@@ -1,9 +1,17 @@
+import { ifDefined } from '@internal/utils/defined';
 import type { Type } from 'arktype';
 import { contractError } from './contract-errors';
 
 export interface IndexTypeEntry<TOptions = unknown> {
   readonly type: string;
   readonly options: Type<TOptions>;
+  /**
+   * The access method an index of this type is created with. It is the type literal itself for an
+   * access method such as `btree`. When it differs, the type is a kind of index the target turns
+   * into an index of that access method, rendering its body from the options; only the target can
+   * provide that conversion today. Absent, it is the type literal.
+   */
+  readonly accessMethod?: string;
   /**
    * Whether an index of this type over a foreign key's columns serves the foreign key's lookups,
    * so no separate backing index is derived for it.
@@ -19,6 +27,7 @@ export interface IndexTypeEntry<TOptions = unknown> {
 type IndexTypeDeclaration<TOpts> = {
   readonly options: Type<TOpts>;
   readonly backsForeignKey: boolean;
+  readonly accessMethod?: string;
   readonly columnTraits?: readonly string[];
 };
 
@@ -63,10 +72,25 @@ class IndexTypeBuilderImpl<TMap extends IndexTypeMap> implements IndexTypeBuilde
         type: typeLiteral,
         options: entry.options as Type<unknown>,
         backsForeignKey: entry.backsForeignKey,
-        ...(entry.columnTraits === undefined ? {} : { columnTraits: entry.columnTraits }),
+        ...ifDefined('accessMethod', entry.accessMethod),
+        ...ifDefined('columnTraits', entry.columnTraits),
       },
     ]);
   }
+}
+
+/**
+ * Whether an index of this type is rendered from its options rather than written by its author: a
+ * type whose access method is not its own literal. Its SQL body is the target's rendering, so an
+ * exact-named index of the type is compared by that body.
+ */
+export function rendersIndexBody(entry: IndexTypeEntry): boolean {
+  return accessMethodOf(entry) !== entry.type;
+}
+
+/** The access method an index of this type is created with. */
+export function accessMethodOf(entry: IndexTypeEntry): string {
+  return entry.accessMethod ?? entry.type;
 }
 
 export function defineIndexTypes(): IndexTypeBuilder<Record<never, never>> {

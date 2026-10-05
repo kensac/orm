@@ -12,10 +12,9 @@ import {
 } from '@internal/sql-schema-ir/types';
 import { ifDefined } from '@internal/utils/defined';
 import { postgresError } from '../errors';
-import {
-  fullTextIndexDefinitionOf,
-  renderFullTextIndexExpression,
-} from '../full-text-index-expression';
+import { FULL_TEXT_INDEX_TYPE, fullTextIndexDefinitionOf } from '../full-text-index-definition';
+import { renderFullTextIndexDocument } from '../full-text-search-document';
+import { postgresAccessMethodOf } from '../index-types';
 import type { PostgresRlsPolicy } from '../postgres-rls-policy';
 import type { PostgresContract } from '../postgres-schema';
 import { isPostgresSchema } from '../postgres-schema';
@@ -205,11 +204,11 @@ export function contractToPostgresDatabaseSchemaNode(
             where: i.where,
             unique: i.unique,
             partial: i.partial,
-            type: 'gin',
+            type: postgresAccessMethodOf(FULL_TEXT_INDEX_TYPE),
             options: undefined,
             annotations: i.annotations,
-            expression: renderFullTextIndexExpression(fullText),
-            dependsOn: columnDependsOn(ddlSchema, tableName, fullText.fields.flat()),
+            expression: renderFullTextIndexDocument(fullText),
+            dependsOn: columnDependsOn(ddlSchema, tableName, fullText.weightGroups.flat()),
           });
         }
         const base = {

@@ -1,8 +1,5 @@
 /**
- * `fullTextIndex(...)` is the TypeScript twin of `@@fullTextIndex(...)`. Both
- * store the index as a gin index whose options hold the weight groups, as
- * storage column names, and the language, so the two surfaces produce the
- * same index for the same model.
+ * `fullTextIndex(...)` is the TypeScript twin of `@@fullTextIndex(...)`. Both store a `fullText` index whose options hold the weight groups, as storage column names, and the language, so the two surfaces produce the same index for the same model.
  */
 import { createDataTypeLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
@@ -15,7 +12,7 @@ import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import postgresPack from '@internal/target-postgres/pack';
 import { postgresCreateNamespace } from '@internal/target-postgres/types';
 import { blindCast } from '@internal/utils/casts';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   defineContract,
   field,
@@ -118,7 +115,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
       columns: ['body_text'],
       type: 'fullText',
       prefix: 'message_text_search',
-      options: { fields: [['body_text']], language: 'english' },
+      options: { weightGroups: [['body_text']], language: 'english' },
     });
     expect(index?.['expression']).toBeUndefined();
   });
@@ -130,7 +127,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
 
     expect(index).toMatchObject({
       columns: ['title', 'subtitle', 'body_text'],
-      options: { fields: [['title', 'subtitle'], ['body_text']], language: 'english' },
+      options: { weightGroups: [['title', 'subtitle'], ['body_text']], language: 'english' },
     });
   });
 
@@ -139,7 +136,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
       fullTextIndex([cols.title, cols.text], { name: 'message_search' }),
     ]);
 
-    expect(index).toMatchObject({ options: { fields: [['title'], ['body_text']] } });
+    expect(index).toMatchObject({ options: { weightGroups: [['title'], ['body_text']] } });
   });
 
   it('produces the indexes the PSL attribute produces for the same model', () => {
@@ -156,7 +153,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
       fullTextIndex(cols.title, { language: 'german', name: 'message_de' }),
     ]);
 
-    expect(index).toMatchObject({ options: { fields: [['title']], language: 'german' } });
+    expect(index).toMatchObject({ options: { weightGroups: [['title']], language: 'german' } });
   });
 
   it('passes a where predicate through to a partial index', () => {
@@ -172,6 +169,43 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
 
     expect(index).toMatchObject({ name: 'legacy_search', columns: ['title'] });
     expect(index?.['prefix']).toBeUndefined();
+  });
+
+  describe('with map:', () => {
+    const exactNameWarnings = () =>
+      vi
+        .mocked(process.emitWarning)
+        .mock.calls.filter(
+          ([, options]) =>
+            (options as { code?: string } | undefined)?.code === 'PN_EXACT_NAME_BODY_COMPARISON',
+        );
+
+    beforeEach(() => {
+      vi.spyOn(process, 'emitWarning').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('warns that db verify compares the search document text exactly, as @@fullTextIndex does', () => {
+      indexesOf((cols) => [fullTextIndex(cols.title, { map: 'legacy_search' })]);
+
+      expect(exactNameWarnings()).toEqual([
+        [expect.stringContaining('index "legacy_search"'), expect.anything()],
+      ]);
+    });
+
+    it('warns once when the index also has a where predicate', () => {
+      indexesOf((cols) => [fullTextIndex(cols.title, { where: 'id > 0', map: 'legacy_live' })]);
+
+      expect(exactNameWarnings()).toHaveLength(1);
+    });
+
+    it('does not warn for a wire-named index', () => {
+      indexesOf((cols) => [fullTextIndex(cols.title, { name: 'message_title_search' })]);
+
+      expect(exactNameWarnings()).toEqual([]);
+    });
   });
 
   it('refuses a column that is not stored through a textual codec, naming the field and its codec', () => {
@@ -214,7 +248,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
           kind: 'index',
           fields: ['title'],
           type: 'fullText',
-          options: { fields: [['body_text']], language: 'english' },
+          options: { weightGroups: [['body_text']], language: 'english' },
           name: 'message_search',
         },
       ]),
@@ -233,7 +267,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
           kind: 'index',
           fields: ['title'],
           type: 'fullText',
-          options: { fields: [['title']], language: 'english' },
+          options: { weightGroups: [['title']], language: 'english' },
           unique: true,
           name: 'message_search',
         },
@@ -248,7 +282,7 @@ describe('fullTextIndex, the TypeScript twin of @@fullTextIndex', () => {
           kind: 'index',
           fields: ['title', 'views'],
           type: 'fullText',
-          options: { fields: [['title'], ['views']], language: 'english' },
+          options: { weightGroups: [['title'], ['views']], language: 'english' },
           name: 'message_search',
         },
       ]),

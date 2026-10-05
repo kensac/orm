@@ -1,6 +1,12 @@
 import { type } from 'arktype';
 import { describe, expect, it } from 'vitest';
-import { createIndexTypeRegistry, defineIndexTypes, indexTypeRegistryOf } from '../src/index-types';
+import {
+  accessMethodOf,
+  createIndexTypeRegistry,
+  defineIndexTypes,
+  indexTypeRegistryOf,
+  rendersIndexBody,
+} from '../src/index-types';
 
 describe('defineIndexTypes builder', () => {
   it('starts empty', () => {
@@ -26,6 +32,16 @@ describe('defineIndexTypes builder', () => {
       .add('alpha', { options: a, backsForeignKey: false })
       .add('beta', { options: b, backsForeignKey: false });
     expect(builder.entries.map((e) => e.type)).toEqual(['alpha', 'beta']);
+  });
+
+  it("creates an index with its type's access method, the type literal unless declared", () => {
+    const { entries } = defineIndexTypes()
+      .add('btree', { options: type('object'), backsForeignKey: true })
+      .add('search', { options: type('object'), backsForeignKey: false, accessMethod: 'gin' });
+    expect(entries.map((entry) => [accessMethodOf(entry), rendersIndexBody(entry)])).toEqual([
+      ['btree', false],
+      ['gin', true],
+    ]);
   });
 
   it('add() does not mutate the prior builder', () => {

@@ -10,7 +10,7 @@ import {
 } from '@internal/sql-schema-ir/naming';
 import { postgresRenderCheckExpressions } from '../check-expressions';
 import { PG_ENUM_CODEC_ID } from '../codec-ids';
-import { fullTextIndexDefinitionOf } from '../full-text-index-expression';
+import { fullTextIndexDefinitionOf } from '../full-text-index-definition';
 import {
   type AttributeNaming,
   buildCheckAttribute,

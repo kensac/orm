@@ -19,8 +19,7 @@ import {
   postgresAuthoringPslBlockDescriptors,
   postgresAuthoringTypes,
 } from '../src/core/authoring';
-import { PG_ENUM_CODEC_ID } from '../src/core/codec-ids';
-import { pgEnumDescriptor } from '../src/core/codecs';
+import { codecDescriptors } from '../src/core/codecs';
 import { postgresIndexTypes } from '../src/core/index-types';
 import { type PostgresSchema, postgresCreateNamespace } from '../src/core/postgres-schema';
 
@@ -61,7 +60,7 @@ const codecLookup: CodecLookupWithDescriptors = {
   get: () => undefined,
   targetTypesFor: () => undefined,
   renderOutputTypeFor: () => undefined,
-  descriptorFor: (id) => (id === PG_ENUM_CODEC_ID ? pgEnumDescriptor : undefined),
+  descriptorFor: (id) => codecDescriptors.find((descriptor) => descriptor.codecId === id),
 };
 
 function interpret(source: string) {
@@ -123,7 +122,7 @@ describe('@@fullTextIndex', () => {
       type: 'fullText',
       unique: false,
       prefix: 'message_text_search',
-      options: { fields: [['text']], language: 'english' },
+      options: { weightGroups: [['text']], language: 'english' },
     });
     expect(indexes[0]?.expression).toBeUndefined();
   });
@@ -139,7 +138,7 @@ describe('@@fullTextIndex', () => {
 
     expect(indexes[0]).toMatchObject({
       columns: ['text', 'body'],
-      options: { fields: [['text'], ['body']], language: 'english' },
+      options: { weightGroups: [['text'], ['body']], language: 'english' },
     });
   });
 
@@ -150,7 +149,7 @@ describe('@@fullTextIndex', () => {
 
     expect(indexes[0]).toMatchObject({
       columns: ['text', 'subtitle', 'body'],
-      options: { fields: [['text', 'subtitle'], ['body']], language: 'english' },
+      options: { weightGroups: [['text', 'subtitle'], ['body']], language: 'english' },
     });
   });
 
@@ -159,7 +158,7 @@ describe('@@fullTextIndex', () => {
       model(`  @@fullTextIndex([text], language: "german", name: "message_text_search_de")`),
     );
 
-    expect(indexes[0]).toMatchObject({ options: { fields: [['text']], language: 'german' } });
+    expect(indexes[0]).toMatchObject({ options: { weightGroups: [['text']], language: 'german' } });
   });
 
   it('stores the storage column name of a renamed field, not the field name', () => {
@@ -174,7 +173,7 @@ model Message {
 
     expect(indexes[0]).toMatchObject({
       columns: ['title', 'body_text'],
-      options: { fields: [['title', 'body_text']], language: 'english' },
+      options: { weightGroups: [['title', 'body_text']], language: 'english' },
     });
   });
 
@@ -318,19 +317,19 @@ model Message {
     );
   });
 
-  it('rejects an empty weight group', () => {
-    expect(diagnosticsOf(model(`  @@fullTextIndex([text, []], name: "x")`))).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'PSL_FULL_TEXT_INDEX_EMPTY_GROUP',
-          message: expect.stringContaining('empty weight group'),
-        }),
-      ]),
-    );
+  it('rejects an empty weight group, once', () => {
+    expect(diagnosticsOf(model(`  @@fullTextIndex([text, []], name: "x")`))).toEqual([
+      expect.objectContaining({
+        code: 'PSL_FULL_TEXT_INDEX_EMPTY_GROUP',
+        message: expect.stringContaining('empty weight group'),
+      }),
+    ]);
   });
 
-  it('rejects an empty field list', () => {
-    expect(diagnosticsOf(model(`  @@fullTextIndex([], name: "x")`)).length).toBeGreaterThan(0);
+  it('rejects an empty field list as invalid syntax', () => {
+    expect(diagnosticsOf(model(`  @@fullTextIndex([], name: "x")`))).toEqual([
+      expect.objectContaining({ code: 'PSL_INVALID_ATTRIBUTE_SYNTAX' }),
+    ]);
   });
 
   it('rejects a field named twice, in one group or across groups', () => {

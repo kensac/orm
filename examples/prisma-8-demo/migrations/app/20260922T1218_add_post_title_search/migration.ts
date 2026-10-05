@@ -1,11 +1,11 @@
 #!/usr/bin/env -S node
 import { Migration, MigrationCLI } from '@prisma/orm-postgres/migration';
-import type { Contract as Start } from '../../snapshots/62d81d607d929760f7d740b45bb97acc1dba361363c4851b19ee5a1cb4fecbe3/contract';
-import startContract from '../../snapshots/62d81d607d929760f7d740b45bb97acc1dba361363c4851b19ee5a1cb4fecbe3/contract.json' with {
+import type { Contract as End } from '../../snapshots/4f6a0d8febeb53aae9b1f33c892686984abab03503ec440cb88969e95c2fd2f9/contract';
+import endContract from '../../snapshots/4f6a0d8febeb53aae9b1f33c892686984abab03503ec440cb88969e95c2fd2f9/contract.json' with {
   type: 'json',
 };
-import type { Contract as End } from '../../snapshots/444e34907b8aba319bb33de7767af222b4a31f9c5361aed1c4bdf9eb951232de/contract';
-import endContract from '../../snapshots/444e34907b8aba319bb33de7767af222b4a31f9c5361aed1c4bdf9eb951232de/contract.json' with {
+import type { Contract as Start } from '../../snapshots/62d81d607d929760f7d740b45bb97acc1dba361363c4851b19ee5a1cb4fecbe3/contract';
+import startContract from '../../snapshots/62d81d607d929760f7d740b45bb97acc1dba361363c4851b19ee5a1cb4fecbe3/contract.json' with {
   type: 'json',
 };
 
@@ -18,7 +18,7 @@ export default class M extends Migration<Start, End> {
       this.createIndex({
         schema: 'public',
         table: 'post',
-        index: 'post_title_search_1c180f5a',
+        index: 'post_title_search_e0dd1131',
         expression: 'to_tsvector(\'english\', "title")',
         extras: { type: 'gin' },
       }),

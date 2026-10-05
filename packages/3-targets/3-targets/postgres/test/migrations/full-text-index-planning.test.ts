@@ -1,10 +1,5 @@
 /**
- * A GIN index over `to_tsvector(...)` reaches the planner as a
- * `PostgresCreateIndex` carrying the access method and the expression —
- * whether it came from `@@fullTextIndex`, whose search document is rendered
- * from the weight groups in its options, or from a hand-written
- * `@@index(expression:)`. The SQL bytes are asserted beside the renderer in
- * the adapter package.
+ * A GIN index over `to_tsvector(...)` reaches the planner as a `PostgresCreateIndex` carrying the access method and the expression — whether it came from `@@fullTextIndex`, whose search document is rendered from the weight groups in its options, or from a hand-written `@@index(expression:)`. A change to the weight groups or language is a different index, which the planner drops and creates again; a change to the name prefix alone is a rename. The SQL bytes are asserted beside the renderer in the adapter package.
  */
 
 import type { Contract } from '@internal/contract/types';
@@ -233,6 +228,66 @@ describe('a weighted full-text index over a column whose nullability changes', (
     expect(expressionOf(blindCast<typeof before, 'a Postgres contract'>(after))).toBe(
       expressionOf(before),
     );
+  });
+});
+
+async function plannedLabels(beforeSchema: string, afterSchema: string): Promise<string[]> {
+  const before = blindCast<
+    Parameters<typeof contractToPostgresDatabaseSchemaNode>[0],
+    'the authored contract targets Postgres'
+  >(authoredContract(beforeSchema));
+  const result = createPostgresMigrationPlanner({
+    lower: () => ({ sql: 'stub', params: [] }),
+    renderColumnDefault: async () => '',
+    lowerToExecuteRequest: async () => ({ sql: 'stub', params: [] }),
+  }).plan({
+    contract: authoredContract(afterSchema),
+    schema: contractToPostgresDatabaseSchemaNode(before, {
+      annotationNamespace: 'pg',
+      renderDefault: postgresRenderDefault,
+    }),
+    policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
+    fromContract: before,
+    frameworkComponents: [],
+    spaceId: APP_SPACE_ID,
+    snapshotsImportPath: '../../snapshots',
+  });
+  expect(result.kind).toBe('success');
+  if (result.kind !== 'success') return [];
+  const operations = await Promise.all(result.plan.operations);
+  return operations.map((operation) => operation.label);
+}
+
+describe('a weighted full-text index whose definition changes', () => {
+  const WEIGHTED_ATTRIBUTE = '@@fullTextIndex([text, note], name: "message_search")';
+
+  it.each([
+    ['its grouping', '@@fullTextIndex([[text, note]], name: "message_search")'],
+    ['the order of its fields', '@@fullTextIndex([note, text], name: "message_search")'],
+    ['its language', '@@fullTextIndex([text, note], language: "german", name: "message_search")'],
+  ])('is dropped and created again when %s changes', async (_label, attribute) => {
+    expect(
+      await plannedLabels(WEIGHTED_SCHEMA, WEIGHTED_SCHEMA.replace(WEIGHTED_ATTRIBUTE, attribute)),
+    ).toEqual([
+      expect.stringMatching(/^Drop index "message_search_[0-9a-f]{8}"/),
+      expect.stringMatching(/^Create index "message_search_[0-9a-f]{8}"/),
+    ]);
+  });
+
+  it('is renamed, keeping its search document, when only its name prefix changes', async () => {
+    expect(
+      await plannedLabels(
+        WEIGHTED_SCHEMA,
+        WEIGHTED_SCHEMA.replace(
+          WEIGHTED_ATTRIBUTE,
+          '@@fullTextIndex([text, note], name: "msg_search")',
+        ),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /^Rename index "message_search_([0-9a-f]{8})" to "msg_search_[0-9a-f]{8}"/,
+      ),
+    ]);
   });
 });
 

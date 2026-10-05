@@ -48,9 +48,26 @@ describe('loading a contract with a full-text index', () => {
       new PostgresContractSerializer().deserializeContract(
         demoContractWithPostIndexes((index) => ({
           ...index,
-          options: { fields: [['title']], language: 'klingon' },
+          options: { weightGroups: [['title']], language: 'klingon' },
         })),
       ),
     ).toThrow(expect.objectContaining({ code: 'CONTRACT.INDEX_INVALID' }));
+  });
+
+  it('refuses a full-text index over a column that is not text', () => {
+    expect(() =>
+      new PostgresContractSerializer().deserializeContract(
+        demoContractWithPostIndexes((index) => ({
+          ...index,
+          columns: ['id'],
+          options: { weightGroups: [['id']], language: 'english' },
+        })),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.INDEX_INVALID',
+        message: expect.stringContaining('"id" is stored as `pg/uuid@1`'),
+      }),
+    );
   });
 });

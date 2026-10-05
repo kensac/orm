@@ -1,8 +1,5 @@
 /**
- * A field-tuple index may render its options at lowering, from the storage
- * columns its fields resolve to. A pack helper whose options name columns
- * needs this, because a `.column()` override and the contract's column naming
- * convention are both unknown while the model is being authored.
+ * An index's options may be a function rendered at lowering, from the storage columns its fields resolve to. A pack helper whose options name columns needs this, because a `.column()` override and the contract's column naming convention are both unknown while the model is being authored.
  */
 import type { FamilyPackRef, TargetPackRef } from '@internal/framework-components/components';
 import { describe, expect, it } from 'vitest';
@@ -54,7 +51,7 @@ function messageIndexes(options: {
           kind: 'index',
           fields: ['title', 'searchText'],
           type: 'hash',
-          resolveOptions: (columns) => {
+          options: (columns) => {
             seen.push([...columns]);
             return { fields: [columns.map((column) => column.name)] };
           },

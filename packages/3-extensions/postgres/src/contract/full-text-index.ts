@@ -1,18 +1,16 @@
-import type {
-  ColumnRef,
-  DeferredIndexColumn,
-  IndexConstraint,
-} from '@internal/sql-contract-ts/contract-builder';
-import type { FullTextSearchLanguage } from '@internal/target-postgres/operation-types';
+import type { ColumnRef, IndexConstraint } from '@internal/sql-contract-ts/contract-builder';
 import {
-  DEFAULT_FULL_TEXT_SEARCH_LANGUAGE,
-  describeWeightGroupProblem,
+  describeFullTextIndexProblem,
   FULL_TEXT_INDEX_TYPE,
   type FullTextFieldsInput,
-  isFullTextIndexableCodec,
-  weightGroupProblems,
+  type FullTextIndexCandidate,
+  fullTextIndexProblems,
+  postgresCodecTraitsOf,
   weightGroupsOf,
-} from '@internal/target-postgres/sql-utils';
+} from '@internal/target-postgres/full-text-index-authoring';
+import type { FullTextSearchLanguage } from '@internal/target-postgres/operation-types';
+import { DEFAULT_FULL_TEXT_SEARCH_LANGUAGE } from '@internal/target-postgres/sql-utils';
+import { assertDefined } from '@internal/utils/assertions';
 import { postgresError } from '../errors';
 
 type FullTextIndexOptionsBase = {
@@ -67,37 +65,31 @@ export function fullTextIndex(
   fields: FullTextFieldsInput<ColumnRef>,
   options: FullTextIndexOptions,
 ): IndexConstraint<readonly string[], string | undefined> {
-  const groups = weightGroupsOf(fields, isColumnRef).map((group) =>
+  const fieldGroups = weightGroupsOf(fields, isColumnRef).map((group) =>
     group.map((ref) => ref.fieldName),
   );
-  const [problem] = weightGroupProblems(groups);
-  if (problem !== undefined) {
-    throw postgresError(
-      'CONTRACT.INDEX_INVALID',
-      describeWeightGroupProblem('fullTextIndex', problem),
-      {
-        why: 'Each top-level item of the fields is one weight group; Postgres has four weights, A to D, and each field belongs to one group.',
-        fix: 'List each field once, in at most four non-empty groups.',
-        meta: { helper: 'fullTextIndex', fields: groups },
-      },
-    );
-  }
+  refuseInvalid({ weightGroups: fieldGroups });
   const language = options.language ?? DEFAULT_FULL_TEXT_SEARCH_LANGUAGE;
-  const fieldNames = groups.flat();
+  const fieldNames = fieldGroups.flat();
   return {
     kind: 'index',
     fields: fieldNames,
     type: FULL_TEXT_INDEX_TYPE,
-    resolveOptions: (columns) => {
-      const columnsByField = new Map(
-        fieldNames.map((fieldName, position) => [fieldName, columns[position]]),
-      );
-      return {
-        fields: groups.map((group) =>
-          group.map((fieldName) => indexableColumn(fieldName, columnsByField.get(fieldName)).name),
-        ),
-        language,
+    options: (columns) => {
+      const columnOf = new Map(fieldNames.map((fieldName, i) => [fieldName, columns[i]]));
+      refuseInvalid({
+        weightGroups: fieldGroups,
+        codecs: {
+          codecIdOf: (fieldName) => columnOf.get(fieldName)?.codecId,
+          traitsOf: postgresCodecTraitsOf,
+        },
+      });
+      const columnNameOf = (fieldName: string) => {
+        const column = columnOf.get(fieldName);
+        assertDefined(column, `fullTextIndex field "${fieldName}" was resolved to a column`);
+        return column.name;
       };
+      return { weightGroups: fieldGroups.map((group) => group.map(columnNameOf)), language };
     },
     ...(options.where !== undefined ? { where: options.where } : {}),
     ...(options.name !== undefined ? { name: options.name } : {}),
@@ -105,20 +97,16 @@ export function fullTextIndex(
   };
 }
 
-function indexableColumn(
-  fieldName: string,
-  column: DeferredIndexColumn | undefined,
-): DeferredIndexColumn {
-  if (column === undefined || !isFullTextIndexableCodec(column.codecId)) {
-    throw postgresError(
-      'CONTRACT.INDEX_INVALID',
-      `fullTextIndex indexes text columns, but "${fieldName}" is ${column === undefined ? 'not a stored field' : `stored as \`${column.codecId}\``}.`,
-      {
-        why: 'to_tsvector takes text; Postgres rejects the CREATE INDEX for any other column type.',
-        fix: 'Index text, varchar or char columns only.',
-        meta: { helper: 'fullTextIndex', fieldName, codecId: column?.codecId },
-      },
-    );
-  }
-  return column;
+function refuseInvalid(candidate: FullTextIndexCandidate): void {
+  const [problem] = fullTextIndexProblems(candidate);
+  if (problem === undefined) return;
+  throw postgresError(
+    'CONTRACT.INDEX_INVALID',
+    describeFullTextIndexProblem('fullTextIndex', problem),
+    {
+      why: 'Each top-level item of the fields is one weight group; Postgres has four weights, A to D, each field belongs to one group, and to_tsvector takes text.',
+      fix: 'List each text field once, in at most four non-empty groups.',
+      meta: { helper: 'fullTextIndex', fields: candidate.weightGroups },
+    },
+  );
 }

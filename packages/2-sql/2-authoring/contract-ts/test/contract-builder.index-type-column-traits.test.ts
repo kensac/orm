@@ -81,6 +81,7 @@ function buildWithSearchIndexOn(fields: readonly string[]) {
           id: field.column(columnDescriptor('pg/int4@1')).id(),
           body: field.column(columnDescriptor('pg/text@1')),
           views: field.column(columnDescriptor('pg/int4@1')),
+          tags: field.column(columnDescriptor('acme/tags@1')),
         },
       }).sql({ table: 'message', indexes: [index] }),
     },
@@ -98,6 +99,16 @@ describe('index type column traits', () => {
         code: 'CONTRACT.INDEX_INVALID',
         message: expect.stringMatching(/"views".*pg\/int4@1.*textual/),
         meta: expect.objectContaining({ indexType: 'search', column: 'views' }),
+      }),
+    );
+  });
+
+  it('refuses an index over a column whose codec the lookup does not know', () => {
+    expect(() => buildWithSearchIndexOn(['body', 'tags'])).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.INDEX_INVALID',
+        message: expect.stringMatching(/"tags".*acme\/tags@1/),
+        meta: expect.objectContaining({ indexType: 'search', column: 'tags' }),
       }),
     );
   });

@@ -11,7 +11,7 @@ import {
   postgresAuthoringPslBlockDescriptors,
 } from '../src/core/authoring';
 import { postgresTargetDescriptorMeta } from '../src/core/descriptor-meta';
-import { postgresIndexTypes } from '../src/core/index-types';
+import { postgresAccessMethodOf, postgresIndexTypes } from '../src/core/index-types';
 import { type PostgresSchema, postgresCreateNamespace } from '../src/core/postgres-schema';
 
 const postgresDataTypeLookup = createDataTypeLookup(postgresDataTypes);
@@ -82,6 +82,11 @@ describe('postgresIndexTypes', () => {
       'hash',
     ]);
   });
+
+  it('creates a fullText index as a gin index', () => {
+    expect(postgresAccessMethodOf('fullText')).toBe('gin');
+    expect(postgresAccessMethodOf('btree')).toBe('btree');
+  });
 });
 
 describe('fullText options', () => {
@@ -90,23 +95,25 @@ describe('fullText options', () => {
     !(fullText.options(options) instanceof type.errors);
 
   it('accepts weight groups and a language', () => {
-    expect(accepts({ fields: [['title', 'subtitle'], ['body']], language: 'english' })).toBe(true);
+    expect(accepts({ weightGroups: [['title', 'subtitle'], ['body']], language: 'english' })).toBe(
+      true,
+    );
   });
 
   it.each([
-    ['fields without a language', { fields: [['title']] }],
-    ['a language without fields', { language: 'english' }],
-    ['no weight group', { fields: [], language: 'english' }],
-    ['an empty weight group', { fields: [['title'], []], language: 'english' }],
+    ['weight groups without a language', { weightGroups: [['title']] }],
+    ['a language without weight groups', { language: 'english' }],
+    ['no weight group', { weightGroups: [], language: 'english' }],
+    ['an empty weight group', { weightGroups: [['title'], []], language: 'english' }],
     [
       'more than four weight groups',
-      { fields: [['a'], ['b'], ['c'], ['d'], ['e']], language: 'english' },
+      { weightGroups: [['a'], ['b'], ['c'], ['d'], ['e']], language: 'english' },
     ],
-    ['a field named twice', { fields: [['title'], ['title']], language: 'english' }],
-    ['an empty field name', { fields: [['']], language: 'english' }],
-    ['a field that is not a name', { fields: [[1]], language: 'english' }],
-    ['a language Postgres does not ship', { fields: [['title']], language: 'klingon' }],
-    ['any other option', { fields: [['title']], language: 'english', fastupdate: 'off' }],
+    ['a field named twice', { weightGroups: [['title'], ['title']], language: 'english' }],
+    ['an empty field name', { weightGroups: [['']], language: 'english' }],
+    ['a field that is not a name', { weightGroups: [[1]], language: 'english' }],
+    ['a language Postgres does not ship', { weightGroups: [['title']], language: 'klingon' }],
+    ['any other option', { weightGroups: [['title']], language: 'english', fastupdate: 'off' }],
   ])('rejects %s', (_label, options) => {
     expect(accepts(options)).toBe(false);
   });

@@ -54,18 +54,26 @@ export type QueryOperationTypes<CT extends CodecTypesBase> = SqlQueryOperationTy
         pattern: TextOperand<CT>,
       ) => Expression<{ codecId: 'pg/bool@1'; nullable: false }>;
     };
+    /**
+     * `self` is a textual column or, through `fns`, a search document of weight groups. The receiver
+     * spec names the column form, which is the one the column methods dispatch on.
+     */
     readonly fullTextMatches: {
       readonly self: TextualSelfSpec;
       readonly impl: (
-        self: TextualSelf<CT> | FullTextDocument<CT>,
+        document: TextualSelf<CT> | FullTextDocument<CT>,
         query: TsqueryArgument<CT>,
         options?: FullTextMatchesOptions,
       ) => Expression<{ codecId: 'pg/bool@1'; nullable: false }>;
     };
+    /**
+     * `self` is a textual column or, through `fns`, a search document of weight groups. The receiver
+     * spec names the column form, which is the one the column methods dispatch on.
+     */
     readonly fullTextRank: {
       readonly self: TextualSelfSpec;
       readonly impl: (
-        self: TextualSelf<CT> | FullTextDocument<CT>,
+        document: TextualSelf<CT> | FullTextDocument<CT>,
         query: TsqueryArgument<CT>,
         options?: FullTextRankOptions,
       ) => Expression<{ codecId: 'pg/float4@1'; nullable: false }>;

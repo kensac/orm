@@ -1,13 +1,4 @@
-export {
-  describeWeightGroupProblem,
-  FULL_TEXT_INDEX_TYPE,
-  type FullTextFieldsInput,
-  type FullTextIndexDefinition,
-  renderFullTextIndexExpression,
-  weightGroupProblems,
-  weightGroupsOf,
-} from '../core/full-text-index-expression';
-export { isFullTextIndexableCodec } from '../core/full-text-indexable-codecs';
+export { renderFullTextIndexDocument } from '../core/full-text-search-document';
 export {
   escapeLiteral,
   qualifyName,

@@ -35,6 +35,7 @@ import {
   type FieldStateOf,
   type ForeignKeyConstraint,
   type IdConstraint,
+  type IndexConstraint,
   isCrossSpaceHandle,
   type ModelAttributesSpec,
   normalizeRelationFieldNames,
@@ -840,6 +841,13 @@ function resolveDeferredColumns(
   });
 }
 
+/** The fields an index covers, in order: its own, or those of its deferred expression. */
+function coveredFieldNames(index: IndexConstraint): readonly string[] {
+  if (index.fields !== undefined) return index.fields;
+  if (index.expression === undefined || typeof index.expression === 'string') return [];
+  return index.expression.fields.map((ref) => ref.fieldName);
+}
+
 function resolveModelNode(
   spec: RuntimeModelSpec,
   allSpecs: ReadonlyMap<string, RuntimeModelSpec>,
@@ -895,8 +903,8 @@ function resolveModelNode(
     // compile error still reaches here, and dropping the orphaned options
     // would hide it from lowerAuthoredIndex's runtime backstop.
     const options =
-      index.resolveOptions !== undefined
-        ? index.resolveOptions(resolveDeferredColumns(spec, index.fields ?? [], fieldCodecIds))
+      typeof index.options === 'function'
+        ? index.options(resolveDeferredColumns(spec, coveredFieldNames(index), fieldCodecIds))
         : index.options;
     const method = blindCast<
       AuthoredIndexMethod,

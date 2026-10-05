@@ -7,7 +7,8 @@ import type { SqlStorage } from './types';
 
 /**
  * The traits of the codec registered under an id, or `undefined` when the lookup does not know the
- * codec. An index type's column traits are checked only for codecs the lookup knows.
+ * codec. A column whose codec the lookup does not know cannot be shown to carry an index type's
+ * column traits, so it is refused.
  */
 export type CodecTraitsLookup = (codecId: string) => readonly string[] | undefined;
 
@@ -55,12 +56,16 @@ function assertColumnTraits(
     const codecId = columns[column]?.codecId;
     if (codecId === undefined) continue;
     const traits = codecTraits(codecId);
-    if (traits === undefined) continue;
-    const missing = required.filter((trait) => !traits.includes(trait));
+    const missing = required.filter((trait) => traits?.includes(trait) !== true);
     if (missing.length === 0) continue;
+    const missingList = missing.map((trait) => `"${trait}"`).join(', ');
+    const lacks =
+      traits === undefined
+        ? `a codec no pack registers, so it cannot carry the trait ${missingList}`
+        : `which lacks the trait ${missingList}`;
     throw contractError(
       'CONTRACT.INDEX_INVALID',
-      `Index "${index.name}" of type "${entry.type}" covers the column "${column}", stored as \`${codecId}\`, which lacks the trait ${missing.map((trait) => `"${trait}"`).join(', ')} the type requires.`,
+      `Index "${index.name}" of type "${entry.type}" covers the column "${column}", stored as \`${codecId}\`, ${lacks} the type requires.`,
       {
         why: `An index of type "${entry.type}" can only cover columns whose codec carries ${required.map((trait) => `"${trait}"`).join(', ')}.`,
         fix: 'Index a column of a type this index type supports, or use another index type.',
