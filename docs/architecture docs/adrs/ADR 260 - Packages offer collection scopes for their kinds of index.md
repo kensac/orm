@@ -112,8 +112,8 @@ The contract records the index as data, not as a SQL string:
 ```json
 {
   "columns": ["title", "subtitle", "body"],
-  "name": "post_search_033e8055",
-  "options": { "fields": [["title", "subtitle"], ["body"]], "language": "english" },
+  "name": "post_search_2f1bb221",
+  "options": { "language": "english", "weightGroups": [["title", "subtitle"], ["body"]] },
   "prefix": "post_search",
   "type": "fullText",
   "unique": false
@@ -122,7 +122,7 @@ The contract records the index as data, not as a SQL string:
 
 - **`fullText` is an index type the Postgres package registers**, as an extension package registers its own kinds of index. In the database it is a `gin` index over the rendered search document.
 - **`prefix` is the name the author gave; `name` is the name in the database.** The suffix is a hash of the index's content.
-- **`columns` lists the covered columns in order**, and must equal the groups in `options.fields` read flat.
+- **`columns` lists the covered columns in order**, and must equal the groups in `options.weightGroups` read flat.
 
 One renderer in the Postgres package produces the search document from `options`, for the index in the database and for the query. That is what keeps them the same. In a document of more than one column, every column is wrapped in `coalesce`, so whether a column is nullable does not change the document.
 
@@ -186,7 +186,10 @@ import { defineIndexScopes, type IndexData, type IndexScopeContext } from '@pris
 
 type FullTextIndex = IndexData & {
   readonly type: 'fullText';
-  readonly options: { readonly fields: readonly (readonly string[])[]; readonly language: string };
+  readonly options: {
+    readonly weightGroups: readonly (readonly string[])[];
+    readonly language: string;
+  };
 };
 
 function isFullTextIndex(index: IndexData): index is FullTextIndex {
@@ -243,7 +246,7 @@ The scope is generic over the collection it receives. It reads the contract, the
 
 | Party | Owns |
 | --- | --- |
-| Target or extension that introduces a kind of index | The schema attribute, the index as data in the contract, the index's DDL, the query operations over it, and the scope helper |
+| Target or extension that introduces a kind of index | The schema attribute, the index as data in the contract, the index's DDL, the query operations over it, and the scope helper. An extension package's index type must be an access method until the framework has a hook for converting another kind of index into one (ADR 210) |
 | ORM client | The builder, the scope refinement, applying a refinement to a collection, and finding a model's indexes from the contract type |
 | Application | Making a model's scopes from a helper, applying them with `apply`, and naming them in its custom collection classes |
 | Adapter | Turning the finished query into SQL, as for any other query |
