@@ -585,6 +585,25 @@ Patterns to **catch** the F-family modes live in [`grep-library.md`](./grep-libr
 
 **Reference incident.** prisma/orm#30402 (2026-09-25, relation ordering in the SQL ORM client). Six dispatches and eight review rounds closed SATISFIED. The reviewer brief said the implementer's gates were green and the reviewer's `pnpm` budget was zero. A `drive-code-review` pass after PR-open, with execution allowed, found: `nulls: 'last, (SELECT 1/0)'` rendered as `NULLS LAST, (SELECT 1/0)` on both adapters, and the sql-builder's `direction` had lost its normalisation on the same path; `aggregate()` over `distinct()` rows with a relation order emitted `ORDER BY (SELECT ... WHERE ... = "posts"."user_id")` over a derived table that no longer had `user_id`, which PGlite rejected; and the `distinctOn` guard refused trailing expression orders that Postgres accepts and that worked before the PR. All three were fixed in a second round (`57e5c01b81`, `e9c626fede`, `459774dfd1`).
 
+### F36. A branch-only CI failure gets "fixed" by rescheduling CI instead of by finding the cause
+
+**Symptom.** A test fails on a branch and not on `main`, in a package the branch does not touch. The orchestrator forms a hypothesis from the failure's shape (ports, timing, a shared daemon), changes the CI workflow to run suites in series, and the same test fails again with the change in place. The real cause turns out to be a race inside the test and a test that never exercised the behaviour it was named for, exposed by a timing shift on the branch; the subsystem already supported the isolation the orchestrator was trying to schedule around.
+
+**Detection signal.**
+
+- A proposed fix edits `.github/workflows/*` and no test or source file.
+- The hypothesis has not been reproduced locally against `main` and the branch.
+- The subsystem's design doc describes an isolation mechanism (per-registry daemons, per-checkout instances) that the proposal does not mention.
+
+**Mitigation.**
+
+- Reproduce before proposing: run the failing suite locally on `main` and on the branch, several times, alone and under the same parallel load CI applies.
+- Read the subsystem's design doc for how isolation is meant to work before touching CI; the fix is almost always a test assumption or a missing isolation knob, never a schedule.
+- Never serialise or reorder CI steps as a fix for a flaky test. A CI scheduling change is a cost everyone pays forever; it needs the operator's approval and evidence that no in-code fix exists.
+- Do not ship a failing hypothesis in a PR that is otherwise ready; revert it the moment the evidence contradicts it.
+
+**Reference incident.** prisma/composer#328 and #331 (2026-10-01). Four CI runs failed on different port and timing tests in untouched packages. The orchestrator serialised the integration package in `ci.yml`; the emulator port-retry test failed again. The cause (prisma/composer#333): the test raced the daemon's "listening on" log line and, because `get-port` locks the ports it hands out, never forced the bind failure it claimed to test. The emulator daemons already took a `registryRoot` for parallel copies; the fix added the test's missing retry fixture and a `PRISMA_COMPOSER_EMULATORS_DIR` variable so a checkout or CI job can choose its registry. The CI change was reverted.
+
 ## Slice-shape scope traps
 
 Patterns that have produced scope creep in the past — catch these at triage or slice-spec time, not at execution time.
