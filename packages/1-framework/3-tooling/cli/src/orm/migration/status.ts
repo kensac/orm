@@ -241,7 +241,7 @@ export const migrationStatusCommand = defineOrmCommand({
       }),
       from: flag.string({
         brief:
-          'Origin contract reference; same grammar as --to. Supplying it switches to offline path computation',
+          'Origin contract reference; same grammar as --to. With --from the path is computed offline, unless --from or --to is @db',
         placeholder: 'contract',
       }),
       legend: flag.boolean({ brief: 'Print a key for the tree glyphs and lane colors' }),

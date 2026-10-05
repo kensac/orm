@@ -121,7 +121,7 @@ export async function executeMigrateShowPlan(
         : requireLiveDatabase({
             dbConnection,
             hasDriver,
-            why: 'migrate --show needs a database connection to read the live marker (or pass --from <contract> for an offline preview)',
+            why: 'db migrate --show needs a database connection to read the live marker (or pass --from <contract> for an offline preview)',
             retryCommand: '{bin} db migrate --show --from <contract>',
           });
     if (missingDb) {
@@ -209,8 +209,8 @@ export async function executeMigrateShowPlan(
     if (!dbConnection || !hasDriver) {
       return notOk(
         errorDatabaseConnectionRequired({
-          why: 'A database connection is required to read the live marker for migrate --show',
-          commandName: 'migrate --show',
+          why: 'A database connection is required to read the live marker for db migrate --show',
+          commandName: 'db migrate --show',
         }),
       );
     }

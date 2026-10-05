@@ -229,7 +229,13 @@ describe('migrate --show', () => {
     expect(run.exitCode).not.toBe(0);
     expect(run.json.at(-1)).toMatchObject({
       kind: 'result',
-      envelope: { ok: false, error: { code: 'CONFIG.DB_CONNECTION_REQUIRED' } },
+      envelope: {
+        ok: false,
+        error: {
+          code: 'CONFIG.DB_CONNECTION_REQUIRED',
+          why: expect.stringContaining('db migrate --show'),
+        },
+      },
     });
   });
 

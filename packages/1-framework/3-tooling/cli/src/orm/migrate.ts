@@ -244,7 +244,8 @@ export function createMigrateCommand(createClient: CreateControlClient) {
         }),
         show: flag.boolean({ brief: 'Preview the migration route without applying (read-only)' }),
         from: flag.string({
-          brief: 'From-state for the --show preview (@contract, @db, hash, ref name, or dir)',
+          brief:
+            'From-state for the --show preview (hash, prefix, ref name, migration dir name, <dir>^, @contract, @db, or @empty)',
           placeholder: 'contract',
         }),
       },

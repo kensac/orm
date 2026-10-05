@@ -523,11 +523,14 @@ function buildAtHeadResolution(args: {
 /**
  * A plan needs the runner when it executes operations or advances the
  * space's marker (a declared-state resolution has zero operations but a
- * destination hash the live marker doesn't carry yet).
+ * destination hash the live marker doesn't carry yet). A database with no
+ * marker sits at the empty contract, so a zero-op plan whose destination is
+ * the empty contract leaves it untouched.
  */
-function planRequiresExecution(entry: PerSpacePlan): boolean {
+export function planRequiresExecution(entry: PerSpacePlan): boolean {
   if (entry.plan.operations.length > 0) return true;
-  return entry.plan.origin?.storageHash !== entry.plan.destination.storageHash;
+  const originHash = entry.plan.origin?.storageHash ?? EMPTY_CONTRACT_HASH;
+  return originHash !== entry.plan.destination.storageHash;
 }
 
 interface BuildSuccessArgs {
