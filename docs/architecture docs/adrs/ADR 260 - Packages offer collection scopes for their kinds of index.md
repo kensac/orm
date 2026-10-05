@@ -128,7 +128,7 @@ One renderer in the Postgres package produces the search document from `options`
 
 ### 2. The application applies the scope
 
-`fulltextSearchScopes` takes the contract and a model as type arguments and returns an object with one scope for each full-text index on that model. Each scope takes the search query and returns a step. `apply` applies the step to any collection of the model:
+`fulltextSearchScopes` takes the contract and a model as type arguments and returns an object with one scope for each full-text index on that model. Each scope takes the search query and returns a step. `apply` runs the step on any collection of the model:
 
 ```ts
 const postScopes = fulltextSearchScopes<Contract, 'Post'>();
