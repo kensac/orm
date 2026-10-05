@@ -201,7 +201,7 @@ Building the argument never throws, because the language server builds every spe
 
 ### Alternatives
 
-`oneOf(first, ...rest)` tries its alternatives in order and returns the first success. If every alternative fails, it discards the branch diagnostics and emits one aggregate `Expected one of: …` diagnostic assembled from the alternatives' labels. One exception: when the argument is a call whose callee is a plain identifier and exactly one alternative is a `funcCall` of that name, `oneOf` returns that alternative's result, success or failure, so the diagnostics about the call's arguments are kept. The author named the function, so `@default(nanoid("8"))` reports what is wrong with `"8"`, not the list of every default form.
+`oneOf(first, ...rest)` tries its alternatives in order and returns the first success. If every alternative fails, it discards the branch diagnostics and emits one aggregate `Expected one of: …` diagnostic assembled from the alternatives' labels. An alternative may claim an argument whose shape is its own (`ArgType.claims`). When exactly one alternative claims the argument, `oneOf` returns that alternative's result, success or failure, so its diagnostics about the argument are kept. `oneOf` knows nothing about which combinators claim; each combinator decides for its own shape. `funcCall` claims a call to its name whose callee is a plain identifier: the author named the function, so `@default(nanoid("8"))` reports what is wrong with `"8"`, not the list of every default form.
 
 This trade-off keeps the leaf contract small and allows backtracking, at the cost of less specific diagnostics for malformed input that resembles one particular branch.
 
@@ -223,7 +223,7 @@ interface TypedFuncCall {
 }
 ```
 
-Every function signature requires Markdown documentation, including zero-argument functions. Function parameter declarations carry their own documentation, independent of reusable argument types. Function arguments may use any combinator, including nested `funcCall` values. Namespaced names are rejected at the function-call boundary.
+Every function signature requires Markdown documentation, including zero-argument functions. Function parameter declarations carry their own documentation, independent of reusable argument types. Function arguments may use any combinator, including nested `funcCall` values. Namespaced names are rejected at the function-call boundary. A `funcCall` claims a call to its name (see Alternatives), so inside `oneOf` its argument diagnostics are reported instead of the alternatives list.
 
 The result is typed as a normalized function-call envelope, not as a name-literal-discriminated or signature-derived object. `funcCallFrom` and an unpinned raw function-call combinator are not part of the design.
 

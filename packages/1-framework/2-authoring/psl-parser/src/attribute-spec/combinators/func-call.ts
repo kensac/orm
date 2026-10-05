@@ -16,6 +16,7 @@ export function funcCall<const Name extends string, const Signature extends Func
     label: `${name}()`,
     name,
     signature: sig,
+    claims: (arg) => plainCallee(arg)?.name === name,
     parse: (arg, ctx): Result<TypedFuncCall, readonly PslDiagnostic[]> => {
       const guard = matchCallee(arg, name, ctx);
       if (!guard.ok) return guard;
