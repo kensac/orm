@@ -22,87 +22,104 @@ function column(
   return { fieldName, columnName, descriptor, nullable: false, many: false, ...options };
 }
 
-export const contract = buildSqlContractFromDefinition(
-  {
-    warnings: undefined,
-    target: postgresPack,
-    createNamespace: postgresCreateNamespace,
-    models: [
-      {
-        modelName: 'User',
-        tableName: 'user',
-        fields: [
-          column('id', 'id', int4Column),
-          column('email', 'email', textColumn),
-          column('legacyKey', 'legacy_key', textColumn, { nullable: true, unexposed: true }),
-        ],
-        id: { columns: ['id'] },
-        relations: [
-          {
-            fieldName: 'posts',
-            toModel: 'Post',
-            toTable: 'post',
-            cardinality: '1:N',
-            on: {
-              parentTable: 'user',
-              parentColumns: ['id'],
-              childTable: 'post',
-              childColumns: ['user_id'],
+/** How the definition carries `user.legacy_key`: not at all, as a field, or as a column no field maps. */
+export type LegacyKeyShape = 'absent' | 'exposed' | 'unexposed';
+
+function legacyKeyFields(shape: LegacyKeyShape): readonly FieldNode[] {
+  if (shape === 'absent') return [];
+  return [
+    column('legacyKey', 'legacy_key', textColumn, {
+      nullable: true,
+      ...(shape === 'unexposed' ? { unexposed: true } : {}),
+    }),
+  ];
+}
+
+export function buildUnexposedStorageContract(legacyKey: LegacyKeyShape) {
+  return buildSqlContractFromDefinition(
+    {
+      warnings: undefined,
+      target: postgresPack,
+      createNamespace: postgresCreateNamespace,
+      models: [
+        {
+          modelName: 'User',
+          tableName: 'user',
+          fields: [
+            column('id', 'id', int4Column),
+            column('email', 'email', textColumn),
+            ...legacyKeyFields(legacyKey),
+          ],
+          id: { columns: ['id'] },
+          relations: [
+            {
+              fieldName: 'posts',
+              toModel: 'Post',
+              toTable: 'post',
+              cardinality: '1:N',
+              on: {
+                parentTable: 'user',
+                parentColumns: ['id'],
+                childTable: 'post',
+                childColumns: ['user_id'],
+              },
             },
-          },
-        ],
-      },
-      {
-        modelName: 'Post',
-        tableName: 'post',
-        fields: [
-          column('id', 'id', int4Column),
-          column('title', 'title', textColumn),
-          column('userId', 'user_id', int4Column),
-          column('internalNote', 'internal_note', textColumn, {
-            unexposed: true,
-            default: { kind: 'literal', value: 'not reviewed' },
-          }),
-          column('reviewerId', 'reviewer_id', int4Column, { nullable: true, unexposed: true }),
-        ],
-        id: { columns: ['id'] },
-        foreignKeys: [
-          { columns: ['user_id'], references: { model: 'User', table: 'user', columns: ['id'] } },
-          {
-            columns: ['reviewer_id'],
-            references: { model: 'User', table: 'user', columns: ['id'] },
-          },
-        ],
-        relations: [
-          {
-            fieldName: 'author',
-            toModel: 'User',
-            toTable: 'user',
-            cardinality: 'N:1',
-            nullable: false,
-            on: {
-              parentTable: 'post',
-              parentColumns: ['user_id'],
-              childTable: 'user',
-              childColumns: ['id'],
+          ],
+        },
+        {
+          modelName: 'Post',
+          tableName: 'post',
+          fields: [
+            column('id', 'id', int4Column),
+            column('title', 'title', textColumn),
+            column('userId', 'user_id', int4Column),
+            column('internalNote', 'internal_note', textColumn, {
+              unexposed: true,
+              default: { kind: 'literal', value: 'not reviewed' },
+            }),
+            column('reviewerId', 'reviewer_id', int4Column, { nullable: true, unexposed: true }),
+          ],
+          id: { columns: ['id'] },
+          foreignKeys: [
+            { columns: ['user_id'], references: { model: 'User', table: 'user', columns: ['id'] } },
+            {
+              columns: ['reviewer_id'],
+              references: { model: 'User', table: 'user', columns: ['id'] },
             },
-          },
-        ],
-      },
-      {
-        modelName: 'PrismaMigration',
-        tableName: '_prisma_migrations',
-        unexposed: true,
-        fields: [
-          column('id', 'id', textColumn),
-          column('migrationName', 'migration_name', textColumn),
-          column('appliedStepsCount', 'applied_steps_count', int4Column, {
-            default: { kind: 'literal', value: 0 },
-          }),
-        ],
-        id: { columns: ['id'] },
-      },
-    ],
-  },
-  assemblePostgresCodecRegistryWithBuiltins([]),
-);
+          ],
+          relations: [
+            {
+              fieldName: 'author',
+              toModel: 'User',
+              toTable: 'user',
+              cardinality: 'N:1',
+              nullable: false,
+              on: {
+                parentTable: 'post',
+                parentColumns: ['user_id'],
+                childTable: 'user',
+                childColumns: ['id'],
+              },
+            },
+          ],
+        },
+        {
+          modelName: 'PrismaMigration',
+          tableName: '_prisma_migrations',
+          unexposed: true,
+          fields: [
+            column('id', 'id', textColumn),
+            column('migrationName', 'migration_name', textColumn),
+            column('appliedStepsCount', 'applied_steps_count', int4Column, {
+              default: { kind: 'literal', value: 0 },
+            }),
+          ],
+          id: { columns: ['id'] },
+        },
+      ],
+    },
+    assemblePostgresCodecRegistryWithBuiltins([]),
+  );
+}
+
+export const contract = buildUnexposedStorageContract('unexposed');
