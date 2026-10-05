@@ -100,12 +100,11 @@ describe('arktype-json decoding of values read through the Postgres runtime driv
         decodeRow(rows[0]!, decodeCtx, {}, sqlNativeArrayListDecoder),
       ).rejects.toMatchObject({
         code: 'RUNTIME.DECODE_FAILED',
-        message: `Failed to decode column documents.body with codec '${codec.id}': arktype-json wire value is not JSON text`,
+        message: expect.stringMatching(
+          /^Failed to decode column documents\.body with codec 'arktype\/json@1': .*not valid JSON/,
+        ),
         details: { table: 'documents', column: 'body', codec: codec.id, wirePreview: 'not json' },
-        cause: {
-          message: 'arktype-json wire value is not JSON text',
-          cause: expect.any(SyntaxError),
-        },
+        cause: expect.any(SyntaxError),
       });
     },
     timeouts.spinUpPpgDev,

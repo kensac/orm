@@ -147,20 +147,10 @@ describe('arktypeJsonColumn encode/encodeJson agreement', () => {
     await expect(codec.decode(wire, CALL_CTX)).rejects.toThrow(/price/);
   });
 
-  it('decode rejects wire text that is not JSON with a plain error the runtime wraps', async () => {
+  it('decode rejects wire text that is not JSON with the SyntaxError the runtime wraps', async () => {
     const codec = arktypeJsonColumn(type('string')).codecFactory(SYNTH_CTX);
 
-    const error = await codec.decode('not json', CALL_CTX).then(
-      () => {
-        throw new Error('expected decode to reject');
-      },
-      (err: unknown) => err,
-    );
-    expect(isStructuredError(error)).toBe(false);
-    expect(error).toMatchObject({
-      message: 'arktype-json wire value is not JSON text',
-      cause: expect.any(SyntaxError),
-    });
+    await expect(codec.decode('not json', CALL_CTX)).rejects.toThrow(SyntaxError);
   });
 
   it('decode rethrows non-runtime schema errors', async () => {

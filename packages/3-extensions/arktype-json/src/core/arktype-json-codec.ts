@@ -106,19 +106,11 @@ function serializeJson<TInferred>(value: TInferred): JsonValue {
   return JSON.parse(serializeWire(value)) as JsonValue;
 }
 
-function parseJsonText(wire: string): unknown {
-  try {
-    return JSON.parse(wire);
-  } catch (error) {
-    throw new Error('arktype-json wire value is not JSON text', { cause: error });
-  }
-}
-
 function decodeWireValue<TInferred>(
   schema: ArktypeSchemaLike,
   wire: string | JsonValue,
 ): TInferred {
-  return validateSchema<TInferred>(schema, typeof wire === 'string' ? parseJsonText(wire) : wire);
+  return validateSchema<TInferred>(schema, typeof wire === 'string' ? JSON.parse(wire) : wire);
 }
 
 function rehydrateSchema(jsonIr: object): ArktypeSchemaLike {
