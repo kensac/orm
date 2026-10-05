@@ -448,7 +448,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
    * `CREATE POLICY` / `DROP POLICY` / `ALTER POLICY … RENAME TO` ops — a
    * `not-equal` finding (an exact-named policy whose content drifted)
    * becomes drop + create, or a disallowed-call conflict when the policy
-   * forbids the destructive drop. It
+   * forbids the drop, which is `widening`. It
    * does not re-diff — it consumes exactly the policy-node subset of the
    * shared diff's issues. Enablement is NOT decided here: `ENABLE`/`DISABLE
    * ROW LEVEL SECURITY` derive from the table's marker-driven `rlsEnabled`
@@ -466,7 +466,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
    * The pairing runs only when the policy allows `widening` (rename's
    * class). Without it (db-init's additive-only set), pairing degrades
    * deliberately to the additive half: the new name is CREATEd and the old
-   * policy survives live until a widening/destructive-allowed plan runs —
+   * policy survives live until a plan that allows `widening` runs —
    * emitting an ungated widening rename would only fail at the runner's
    * class re-enforcement.
    */

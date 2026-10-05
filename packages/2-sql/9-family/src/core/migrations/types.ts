@@ -367,7 +367,7 @@ export interface SqlMigrationPlannerPlanOptions {
    * Ownership oracle over the whole contract-space composition (the passive
    * aggregate). The planner asks it, per live extra node, whether any space
    * declares that entity: a sibling-owned node is left untouched, an unowned
-   * node is a genuine extra it may drop under a destructive policy. The
+   * node is a genuine extra it may drop under a policy that allows the drop's class. The
    * planner holds no list of other spaces' names — ownership lives in the
    * aggregate; it only asks. Absent for a single-space plan handed no
    * aggregate. See {@link SchemaOwnership}.
