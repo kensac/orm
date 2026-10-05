@@ -16,7 +16,7 @@ GA is the last chance to make breaking changes, so this stream decides the date.
 | 2 | One CLI and one config file: merge Composer's config into `prisma.config.ts`, remove the `prisma-composer` CLI, add `destroy` to `prisma` | Must | Design finished by Will 2026-09-30. Implementation to be delegated; brief in [briefs/one-cli-one-config-file.md](briefs/one-cli-one-config-file.md). Docs fix tracked as TML-3340. | |
 | 3 | Early MySQL attempt, to find shared code that assumes PostgreSQL | Must | Not started | |
 | 4 | SQL expression literals | Must | Designed. Unblocked: prisma/orm#30381 merged 2026-09-29. | |
-| 5 | PSL mixins, then remove type aliases and field presets (TML-3055) | Must | No spec | Spec |
+| 5 | PSL mixins, then remove type aliases and field presets (TML-3055) | Must | No spec. Serhii takes it (Will, 2026-10-05). | Spec |
 | 6 | Remove `@noCheck` and `.noCheck()`, and the `noCheck` field in the contract | Must | Not started. Replacements decided, see [decisions.md](decisions.md). | prisma/orm#30051 (nullable list elements) |
 
 ## Stream 2: Upgrade path from Prisma 7
@@ -39,7 +39,7 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 
 | # | Project | GA | State | Waiting on |
 | --- | --- | --- | --- | --- |
-| 1 | Emulator controls in the `prisma` CLI: start, stop, list, reset | Must, urgent | Not tracked. Raised to the top of the stream by Will on 2026-09-30: start it now. | |
+| 1 | Emulator controls in the `prisma` CLI: start, stop, list, reset | Must, urgent | Not tracked. Raised to the top of the stream by Will on 2026-09-30: start it now. Will takes it (2026-10-05). | |
 | 2 | VS Code extension: formatter without the CLI installed, go-to-definition, multi-file PSL, emulator controls | Must | In progress | 1 |
 | 3 | Review how the VS Code extension handles local and remote Prisma Postgres instances, and make it match the current CLI and its emulators | Must | Not started | 1 |
 | 4 | Multi-file PSL | Must | Done. Last part merged 2026-09-30 (prisma/orm#30456). | |
@@ -50,7 +50,8 @@ Everything here is additive, so nothing here can block a breaking change.
 
 | # | Project | GA | State | Waiting on |
 | --- | --- | --- | --- | --- |
-| 1 | Transaction options: isolation levels, timeouts, nested transactions | Must | Not designed | Design |
+| 1 | Transaction options: isolation levels and timeouts | Must | Not designed. Split from nested transactions on 2026-10-05. | Design |
+| 1b | Nested transactions (transactions inside transactions) | Must | Not designed. Its own project since 2026-10-05. | Design |
 | 2 | Nested writes on relations: `update`, `delete`, `upsert`, `set`, `connectOrCreate` (TML-2781) | Aim | Not started. Large. | Spec |
 | 3 | Design the replacement for `omit` | Must (design only) | Not started | |
 | 4 | Expressions in updates, which cover what `increment` and `decrement` did in Prisma 7 | When there is time | Not designed. `update` takes plain values only today. | |
@@ -83,6 +84,7 @@ Test: the getting-started eval passes, in few steps and with no workarounds.
 | Item | Priority |
 | --- | --- |
 | Manifesto (prisma/prisma-orm-messaging#17) | Publish this week |
+| One lowering for PSL and the TypeScript contract builder: WhyAsh (prisma-idb) spiked translating PSL into `defineContract` input so both authoring surfaces share one implementation. Serhii takes over the topic with WhyAsh (Will, 2026-10-05). Spike: [prisma-idb plan](https://github.com/prisma-idb/prisma-idb/blob/ad0914f94ba2321e79904a4d3e34305867533659/packages/prisma-orm/plans/PLAN_SPIKE_psl_via_ts_dsl.md), [Discord thread](https://discord.com/channels/937751382725886062/1501983204381298732/1555550194664214608). | Not a GA item unless Will says so. |
 | Asks | Lower. Will, in parallel. |
 | Eval harness | Lower. Will, in parallel. |
 | Platform faults found by the eval | Will, as platform lead. Not an ORM priority unless they delay GA. |
