@@ -38,7 +38,7 @@ Existing Prisma 7 users must be able to upgrade. They reacted badly to the relea
 ## Streams
 
 1. Foundations and breaking changes: the critical path below.
-2. Upgrade path: Prisma 7 schema gaps, baseline command, upgrade guide.
+2. Upgrade path: Prisma 7 schema gaps, follow-ups to the migration handover, upgrade guide. No baseline command is needed (2026-10-05, see context.md).
 3. Editor and tools: VS Code extension, multi-file PSL, emulator controls.
 4. Query features. The stream exists whether or not each feature in it is required for GA. Which features are required is not decided.
 
@@ -154,7 +154,7 @@ PostgreSQL must be ready at GA. The other databases can finish after the GA laun
 | 3 | Early MySQL attempt | Not started. Purpose: find shared code that assumes PostgreSQL. |
 | 4 | SQL expression literals. Required, because row-level security, expression indexes and partial indexes are fully supported at GA and their syntax must be final. | 6 tickets in backlog. Blocked, see below. |
 | 5 | PSL mixins (TML-3055). They replace type aliases and field presets, which are then removed. | Backlog. No spec and no plan. Large. |
-| In parallel | Upgrade path: Prisma 7 schema gaps, baseline command, upgrade guide rewrite | Will is working on it now. |
+| In parallel | Upgrade path: Prisma 7 schema gaps, upgrade guide rewrite. The baseline command listed here on 2026-09-28 is not needed (2026-10-05, see context.md). | Will is working on it now. |
 | In parallel | Docs items from the eval | 11 items, 5 high. Owned by the team. |
 | In parallel | Multi-file PSL | 2 of 3 parts merged. Language server part open in prisma/orm#30456. |
 | In parallel, Serhii | VS Code extension | Critical. Serhii is working on it. No Linear project found. Must have at GA: the formatter works without the `prisma` CLI installed, go-to-definition into PSL, multi-file PSL support, integration with the `prisma` emulator controls. |

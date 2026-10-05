@@ -26,8 +26,8 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 | # | Project | GA | State | Waiting on |
 | --- | --- | --- | --- | --- |
 | 1 | Close every urgent and high upgrade issue (Linear: "Prisma 7 contract source: gaps and defects", "Contract print and Prisma 7 source follow-ups") | Must | In progress. 2 in review, about 6 open. | |
-| 2 | Baseline command | Must | Not tracked | |
-| 3 | Upgrade guide rewrite | Must | Not tracked | 2 |
+| 2 | Prisma 8 owns migrations in a Prisma 7 project that still reads `schema.prisma` | Must | Proven 2026-10-05 in prisma/orm#30601. No baseline command is needed. Open: TML-3452 (constraint names, high) and the planner refusals TML-3456 and TML-3457 (high), TML-3458, TML-3459, then TML-3460 (extensions), TML-3461 (answer Prisma 7's `migrate` commands), TML-3462. | TML-3453: decide how strict verify treats `_prisma_migrations` |
+| 3 | Upgrade guide rewrite | Must | Not tracked. The guide already drops the baseline commands (prisma/web#8291). It still tells `prisma7Schema` users to switch to a printed contract file before Prisma 8 takes over migrations, which prisma/orm#30601 showed is unnecessary. | |
 | 4 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` (TML-3270) | Must | Backlog | |
 | 5 | Design: columns Prisma 8 does not manage, including columns of unknown type, in PSL and the Prisma 7 source (proposed: `@control(external)` on a column, and an `unknown` type) | Must | Proposed 2026-09-30. Not designed. The contract IR already has a control policy per column. PSL only has `@@control` per model. | Design |
 | 6 | Adopting a Prisma 7 database without changing it: the enum membership check must not require a database change before cutover | Must | Not designed. Rejected: marking the contract as not managed during side-by-side running (see decisions.md). | Design |

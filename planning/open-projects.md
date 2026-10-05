@@ -23,7 +23,7 @@ Snapshot taken 2026-09-28 from Will's notes, Linear, and the open pull requests 
 
 ### 1.2 Use Prisma 8 for migrations in an existing Prisma 7 project, queries unchanged
 
-- Baseline command: no ticket or project found. Related: TML-3101 (`db verify` cannot reach a clean baseline against a Prisma Migrate database), still in Triage since July.
+- Baseline command: not needed (2026-10-05). `db sign` sets the `db` ref and the first `migration plan` writes the baseline; prisma/orm#30601 proved the handover on the Prisma 7 source. Its follow-ups are TML-3452 to TML-3462 in "Prisma 7 contract source: gaps and defects". Related: TML-3101 (`db verify` cannot reach a clean baseline against a Prisma Migrate database), still in Triage since July; TML-3453 is the decision on the same `_prisma_migrations` table.
 - Upgrade guide: TML-3291 is in progress (stop recommending `"module": "nodenext"`). No ticket found for writing or consolidating the guide itself.
 - The Prisma 7 `orm init` work merged (prisma/orm#30291). Its release is still pending.
 
@@ -105,7 +105,7 @@ Snapshot taken 2026-09-28 from Will's notes, Linear, and the open pull requests 
 
 ## 3. Gaps between the notes and what is tracked
 
-1. No tracked work exists for: baseline command, upgrade guide consolidation, VS Code extension, `@hint`, query linting, and the migration runner service after its proof of concept.
+1. No tracked work exists for: upgrade guide consolidation, VS Code extension, `@hint`, query linting, and the migration runner service after its proof of concept.
 2. Asks tickets in Linear describe slices 1 to 3. The repo is at slice 24.
 3. Two ORM projects have target dates that passed (Prisma 8 RC1, launch readiness).
 4. About a dozen issues are marked In Progress with no activity since July or August.
@@ -117,7 +117,7 @@ Read 2026-09-28. The repo has 41 project folders. None is dedicated to any of th
 
 | Priority | What the project docs say | What is still missing |
 | --- | --- | --- |
-| Baseline command | `prisma-8-rc1/parallel-install.md` names it as a known gap for 8.0.0 final: the command that advances the migration baseline at cutover is not implemented, and users follow a manual path. `prisma7-contract-source/slices/04-prisma7-adoption-example/spec.md` writes out that manual path: `prisma migration plan --name baseline`, `prisma db sign`, `prisma migration ref set db <timestamp>_baseline`. Both `prisma7-contract-source` specs put the cutover out of scope. | A spec and a ticket for the command. The manual three-step path is its requirements. |
+| Baseline command | `prisma-8-rc1/parallel-install.md` names it as a known gap for 8.0.0 final: the command that advances the migration baseline at cutover is not implemented, and users follow a manual path. `prisma7-contract-source/slices/04-prisma7-adoption-example/spec.md` writes out that manual path: `prisma migration plan --name baseline`, `prisma db sign`, `prisma migration ref set db <timestamp>_baseline`. Both `prisma7-contract-source` specs put the cutover out of scope. | Nothing (2026-10-05). The command is not needed: `db sign` sets the `db` ref and the first `migration plan` writes the baseline. prisma/orm#30601 proved it on the Prisma 7 source. |
 | Upgrade guide | The public guides exist (PostgreSQL 7 to 8, MongoDB 6 to 8). `prisma7-contract-source/spec.md` says its source replaces phase 2 of the Postgres guide (`contract infer` plus hand edits). `prisma-8-rc1/plan.md` still has an unchecked close-out item to move the upgrade guide into `docs/`. `parallel-install.md` is marked out of date. | A task to rewrite the guide around `prisma7Schema()` and the baseline command. No project owns it. |
 | VS Code extension | No project covers the extension itself. The language server is covered: `multifile-psl` (slice 2 makes it see unopened files) and `symbol-table-resolve` (moves existing features onto the binder). The server in code already offers formatting, semantic tokens, completion, signature help and diagnostics. `symbol-table-resolve/spec.md` rules go-to-definition, hover, references and rename to be follow-on work in a later project. `prisma-8-rc1/plan.md` has an open item: confirm the Prisma 7 extension and the Prisma 8 language server coexist. `prisma7-contract-source/spec.md` rules out teaching the language server to read Prisma 7 files. | A project for the extension: packaging, running without the CLI npm package, and go-to-definition. The binder it needs comes from `symbol-table-resolve`. |
 | `@hint(was: oldName)` | No doc mentions `@hint`. `psl-verbatim-table-names` slice 2 adds a rename-table migration operation (PR prisma/orm#30331). Its spec says there is no automatic rename: the planner stops with an error when a plan looks like a rename. | A spec for how the contract states a rename so the planner emits the rename operation. The operation itself exists once #30331 merges. |
@@ -127,7 +127,7 @@ Read 2026-09-28. The repo has 41 project folders. None is dedicated to any of th
 
 Three findings from this comparison:
 
-1. Baseline command, upgrade guide and `@hint` are one piece of work. They all serve priority 1.2 (Prisma 8 migrations in an existing Prisma 7 project).
+1. Upgrade guide and `@hint` serve priority 1.2 (Prisma 8 migrations in an existing Prisma 7 project). The baseline command was listed here too; it is not needed (2026-10-05).
 2. The VS Code priority is partly done in the language server. The untracked part is the extension and go-to-definition.
 3. `projects/prisma-8-rc1` is still open and holds stale commitments (mixins, upgrade guide close-out, extension coexistence check).
 

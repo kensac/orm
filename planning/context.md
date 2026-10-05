@@ -17,7 +17,7 @@ This file holds the findings and reasoning from the planning discussion of 2026-
 - Prisma 8 must describe the same database features as Prisma 7, so an existing database can be signed. It does not copy the query API.
 - Users run the Prisma 7 client beside the Prisma 8 client: old queries stay on Prisma 7, new queries use Prisma 8.
 - The Prisma 7 work is at the top because users of earlier versions reacted badly to the release candidate. The features they need are needed for GA anyway.
-- The manual cutover today is three commands: `prisma migration plan --name baseline`, `prisma db sign`, `prisma migration ref set db <timestamp>_baseline` (read in `projects/prisma7-contract-source/slices/04-prisma7-adoption-example/spec.md`). The baseline command replaces them.
+- No baseline command is needed (checked 2026-10-05). `db sign` sets the `db` ref, and the first `migration plan` after it writes the baseline migration itself. The three manual commands in the older project docs (`prisma migration plan --name baseline`, `prisma db sign`, `prisma migration ref set db <timestamp>_baseline`) are obsolete, and prisma/web#8291 removed them from the upgrade guide. prisma/orm#30601 proved the handover on the Prisma 7 source: Prisma 8 plans and applies migrations while it still reads `schema.prisma`, and Prisma 7 keeps generating the client. The loop is `contract emit`, `migration plan`, `db migrate --advance-ref db`, `prisma7 generate`.
 - With opaque columns ruled out, the set of codecs decides who can upgrade. Users may need to write their own codec, so the error for a missing codec should point to `docs/reference/codec-authoring-guide.md`.
 
 ## One CLI and one config file: what was found
