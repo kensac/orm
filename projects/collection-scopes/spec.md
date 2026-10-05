@@ -26,34 +26,34 @@ const postScopes = fulltextSearchScopes<Contract, 'Post'>();
 class PostCollection extends Collection<Contract, 'Post'> {
   published()   { return this.where((p) => p.publishedAt.isNotNull()); }
   newestFirst() { return this.orderBy((p) => p.publishedAt.desc()); }
-  search(q: TsqueryArgument) { return this.pipe(postScopes.post_search(q)); }
+  search(q: TsqueryArgument) { return this.apply(postScopes.post_search(q)); }
 }
 
 const posts = await db.Post
   .published()
-  .pipe((posts) => (input.q ? posts.search(websearchToTsquery(input.q)) : posts))
+  .apply((posts) => (input.q ? posts.search(websearchToTsquery(input.q)) : posts))
   .newestFirst()
   .limit(20)
   .all();
 ```
 
 - Class methods chain, before and after built-in methods.
-- `pipe` applies any function. The conditional yields a collection whose search filter is not known; `published()` already made it filtered, so `update` is allowed.
+- `apply` runs any function. The conditional yields a collection whose search filter is not known; `published()` already made it filtered, so `update` is allowed.
 - `postScopes.post_search(q)` is a step built from the index's definition in the contract. The query it adds uses the index.
 
 ## Where things stand (grounded 2026-10-01)
 
 - **A custom collection class loses its methods in the types after any chained call**, and inside include refinements. Every chaining method returns `Collection<TContract, ModelName, Row, State>`. The run time keeps the subclass. TML-3403.
 - **The collection's type state is not part of assignability.** It appears only in method parameter types, so a filtered and an unfiltered collection are assignable to each other, and a ternary between them may keep the filtered one. TML-3397.
-- **`Collection` has no `pipe` method.**
+- **`Collection` has no `apply` method.**
 - **Single-column full-text search works.** `fullTextMatches`, `fullTextRank` and `fullTextHeadline` are column operations taking a `tsquery`; `@@fullTextIndex([field])` and the TypeScript `fullTextIndex` helper author a GIN index over one field.
 - **The Postgres full-text index is stored as an opaque expression** in the contract. Nothing can recover the fields or language from it.
-- **Spikes on the `bot` remote** prove the collection typing (`spike-this-typed-chaining`), the fragment helpers (`spike-pipe-fragments`) and the scope builder in its collection-taking form (`spike-scope-helper-authoring`). Write-ups are under `spikes/`.
+- **Spikes on the `bot` remote** prove the collection typing (`spike-this-typed-chaining`), the fragment helpers (`spike-apply-fragments`) and the scope builder in its collection-taking form (`spike-scope-helper-authoring`). Write-ups are under `spikes/`.
 - **There is no MySQL target.** The MongoDB ORM client is out of scope for delivery.
 
 ## Decided
 
-- **A method is a step with the receiver bound** (ADR 258). The type state and the row are declared properties; unknown flags are `boolean`. `where` returns `Filtered<Self>`, `orderBy` returns `Ordered<Self>`, `include` returns `Including<Self, Rel>`, `limit`, `offset`, `distinct` and `cursor` return `Self`, and `pipe(step)` returns `step(this)`. `select` and `variant` return the shared `Collection` type.
+- **A method is a step with the receiver bound** (ADR 258). The type state and the row are declared properties; unknown flags are `boolean`. `where` returns `Filtered<Self>`, `orderBy` returns `Ordered<Self>`, `include` returns `Including<Self, Rel>`, `limit`, `offset`, `distinct` and `cursor` return `Self`, and `apply(step)` returns `step(this)`. `select` and `variant` return the shared `Collection` type.
 - **A filtered collection is a subtype of an unfiltered one**, so a conditional reduces to the unfiltered type and any function body is sound. The query API has no control-flow methods.
 - **Query fragments are functions** (ADR 259): `FieldExpression` for a row field named by codec, `rowFragment` with `RowOf` for a shared `select` and `include`, `sortField` for a sort field from a request.
 - **A scope is a `Step<Self, Filtered<Self>>` that a package builds from an index definition** (ADR 260). `fulltextSearchScopes<Contract, 'Post'>()` returns one scope per full-text index on the model, named after the index. The ORM client provides the builder `defineIndexScopes`.
@@ -72,7 +72,7 @@ const posts = await db.Post
 
 ## Place in the larger world
 
-- **ORM client (`sql-orm-client`).** The `Collection` type changes shape: state and row as declared properties, `this: Self` chaining methods, the named facts, `pipe`. It gains `FieldExpression`, `rowFragment`, `RowOf`, `sortField`, and `defineIndexScopes`. Public names grow (ADR 258, "Consequences").
+- **ORM client (`sql-orm-client`).** The `Collection` type changes shape: state and row as declared properties, `this: Self` chaining methods, the named facts, `apply`. It gains `FieldExpression`, `rowFragment`, `RowOf`, `sortField`, and `defineIndexScopes`. Public names grow (ADR 258, "Consequences").
 - **Postgres target.** Owns the weighted full-text index: the attribute with weight groups, the structured index data, its DDL, `fullTextMatches` and `fullTextRank` over weight groups, and `fulltextSearchScopes`.
 - **Postgres facade (`@prisma/orm-postgres`).** Re-exports the new client surface and the scope helper.
 - **Contract and emitter.** Carry the full-text index as structured data; storage hashes of contracts that declare one change.
@@ -81,7 +81,7 @@ const posts = await db.Post
 
 ## Cross-cutting requirements
 
-- **Class methods are available after every method that keeps the model's rows**, on a root collection, a chained collection, after `include`, and inside `pipe`.
+- **Class methods are available after every method that keeps the model's rows**, on a root collection, a chained collection, after `include`, and inside `apply`.
 - **Any function body yields a sound type.** A ternary in either order, an early return, a `switch`, a loop, and `let` with `if` all refuse `update`, `delete` and `cursor` unless every path sets the flag.
 - **Nothing that compiles on an unconditional chain today stops compiling**, apart from the patterns listed under Upgrades.
 - **Every fragment and scope works at every site**: a root collection, a chained collection, a collection after `select` where the fragment allows it, an include refinement, and `this` inside a custom collection class.
@@ -102,7 +102,7 @@ const posts = await db.Post
 - [ ] ADR 258, ADR 259 and ADR 260 are Accepted and match what shipped, including their examples.
 - [ ] TML-3403 is closed by type tests for chaining class methods; the include refinement part is split into its own ticket.
 - [ ] TML-3397 is closed by a test: a ternary between a filtered and an unfiltered collection refuses `deleteAll`.
-- [ ] `examples/prisma-8-demo` chains its custom collection methods, has a conditional list query written with `pipe`, a shared filter typed with `FieldExpression`, and a sort field from a request.
+- [ ] `examples/prisma-8-demo` chains its custom collection methods, has a conditional list query written with `apply`, a shared filter typed with `FieldExpression`, and a sort field from a request.
 - [ ] A model with a weighted multi-field full-text index can be searched through a scope on a root collection, a chained collection, an include refinement, and a custom collection class, with whole-result assertions.
 - [ ] Results are ordered by relevance by default, a title match ranks above a body match in a test, and an explicit `orderBy` replaces that order.
 - [ ] `EXPLAIN` shows the planner using the declared index for a scope query.

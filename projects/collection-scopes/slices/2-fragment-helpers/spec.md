@@ -15,7 +15,7 @@ db.Tag.where(notDeleted);                                  // error: Tag has no 
 
 const summary = rowFragment<Contract, 'Post'>()((posts) => posts.select('id', 'title').include('user'));
 type PostSummary = CollectionRowOf<ReturnType<typeof summary>>;
-db.User.include('posts', (posts) => posts.pipe(summary));
+db.User.include('posts', (posts) => posts.apply(summary));
 
 db.Post.orderBy(sortField(db.Post, input.sort, input.direction, ['title', 'createdAt']));
 ```
@@ -28,7 +28,7 @@ As ADR 259 sections 3 to 5, in `packages/3-extensions/sql-orm-client`, exported 
 - **`rowFragment<TContract, ModelName>()(body)`**: the body is typed once against the plain collection of the model; the returned step accepts that model's collection in any state (root, chained, after `select`, include refinement, `this` in a custom class) and is refused for another model. Its result has the default state. The row is named with `CollectionRowOf` from slice 1; there is no separate `RowOf`.
 - **`sortField(collection, name, direction?, allowed?)`**: `allowed` is typed against the model's fields whose codec has the `order` trait (`SortableFieldName`). At run time an unknown name, a field without the `order` trait, a relation, or a name outside `allowed` throws `ORM.ARGUMENT_INVALID` before the query runs. The selector fits any collection of a model with the allowed fields.
 
-The spike on `bot/spike-pipe-fragments` (write-up `projects/collection-scopes/spikes/pipe-fragments.md`) is the reference for all three. Do not land `when`, `fragment`, `stateFragment` or the spike's soft-delete fixture contract made by patching a generated `contract.d.ts`.
+The spike on `bot/spike-apply-fragments` (write-up `projects/collection-scopes/spikes/apply-fragments.md`) is the reference for all three. Do not land `when`, `fragment`, `stateFragment` or the spike's soft-delete fixture contract made by patching a generated `contract.d.ts`.
 
 ## Coherence rationale
 
@@ -38,7 +38,7 @@ Three small, independent helpers with one purpose, shared query fragments. One r
 
 In: the three helpers, their exports, tests, the package README and `skills/prisma-8/references/queries-postgres.md`, the demo using each helper, ADR 259 set to match the code and to Accepted.
 
-Out: `pipe` and the step vocabulary (slice 1); a default fragment per model; the missing-field error message naming the wrong `where` overload, unless a small change fixes it (report it either way); collection scopes (slice 4).
+Out: `apply` and the step vocabulary (slice 1); a default fragment per model; the missing-field error message naming the wrong `where` overload, unless a small change fixes it (report it either way); collection scopes (slice 4).
 
 ## Pre-investigated edge cases
 

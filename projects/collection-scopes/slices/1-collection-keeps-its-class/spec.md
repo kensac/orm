@@ -17,7 +17,7 @@ db.Post.include('user').published();
 const posts = search ? db.Post.published() : db.Post;
 await posts.deleteAll();                                  // error
 
-db.Post.pipe((c) => (search ? c.where((p) => p.title.eq(search)) : c)).limit(10);
+db.Post.apply((c) => (search ? c.where((p) => p.title.eq(search)) : c)).limit(10);
 ```
 
 ## Chosen design
@@ -28,7 +28,7 @@ As ADR 258, in `packages/3-extensions/sql-orm-client`:
 - `HasWhere`, `HasOrderBy` interfaces; `Filtered<Self>`, `Ordered<Self>`, `Including<Self, Rel>`, `Step<In, Out>`, `CollectionStateOf<C>`, `CollectionRowOf<C>` types, all exported.
 - `where`, `orderBy`, `limit`, `offset`, `distinct`, `distinctOn`, `cursor` and `include` take `this: Self` and return `Filtered<Self>`, `Ordered<Self>`, `Self` or `Including<Self, Rel>`. `select` and `variant` infer state and row from a `this` parameter and return the shared `Collection` type.
 - Row-returning methods read the row as `CollectionRowOf<this>`. Guards read the flag from `this`: the argument form where there is an argument, the `this`-parameter form for the deletes.
-- `pipe<Self, Out>(this: Self, step: Step<Self, Out>): Out`.
+- `apply<Self, Out>(this: Self, step: Step<Self, Out>): Out`.
 - `CollectionImpl` is exported; the public entry exports the names ADR 258 lists.
 
 The spike on `bot/spike-this-typed-chaining` (tip `b2b7c94d6b`) is the reference implementation; `projects/collection-scopes/spikes/this-typed-chaining.md` records every casualty and its fix. Do not land the earlier spikes' helpers (`when`, `fragment`, `stateFragment`, `rowFragment`, `sortField`, the full-text scope code) that the branch still carries.
@@ -53,7 +53,7 @@ Out: fragment helpers (slice 2); the class inside include refinements; a run-tim
 
 ## Slice-specific done conditions
 
-- Type tests cover: class methods after `where`, `orderBy`, `limit`, `include` and inside `pipe`; chained includes; `select` after `include`; guards on the class root and after a class method; every conditional form at every site; the regression for TML-3397. Each `@ts-expect-error` is verified to fail for the stated reason.
+- Type tests cover: class methods after `where`, `orderBy`, `limit`, `include` and inside `apply`; chained includes; `select` after `include`; guards on the class root and after a class method; every conditional form at every site; the regression for TML-3397. Each `@ts-expect-error` is verified to fail for the stated reason.
 - The whole repository typechecks; `sql-orm-client` tests pass; the demo typechecks through `dist`; lint passes including `lint:throws` and `check:upgrade-coverage`.
 - Type instantiations on `examples/prisma-8-demo` do not rise.
 - Upgrade instructions cover: `DefaultCollectionTypeState` flags; `CollectionStateOf` and `CollectionRowOf` in place of type arguments; `ReturnType<C['where']>`; explicit type arguments on `include`.
