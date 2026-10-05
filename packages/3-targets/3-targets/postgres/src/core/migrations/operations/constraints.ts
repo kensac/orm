@@ -237,7 +237,7 @@ export async function dropCheckConstraint(
   return {
     id: `dropCheckConstraint.${tableName}.${constraintName}`,
     label: `Drop check constraint "${constraintName}" on "${tableName}"`,
-    operationClass: 'destructive',
+    operationClass: 'widening',
     target: targetDetails('checkConstraint', constraintName, schemaName, tableName),
     precheck: [step(`ensure constraint "${constraintName}" exists`, present.sql, present.params)],
     execute: [
@@ -275,7 +275,7 @@ export async function dropConstraint(
   return {
     id: `dropConstraint.${tableName}.${constraintName}`,
     label: `Drop constraint "${constraintName}" on "${tableName}"`,
-    operationClass: 'destructive',
+    operationClass: 'widening',
     target: targetDetails(kind, constraintName, schemaName, tableName),
     precheck: [step(`ensure constraint "${constraintName}" exists`, present.sql, present.params)],
     execute: [
