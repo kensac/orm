@@ -111,9 +111,9 @@ export interface BuilderContext {
    */
   readonly aggregates: SqlAggregateDescriptorRegistry;
   /**
-   * Whether the composed stack registers a codec descriptor for the id. A computed result names its codec id but no codec ref; the lane stamps a ref from that id only when the runtime can resolve it.
+   * Whether the composed stack can build the codec from its id alone: a descriptor is registered and needs no type parameters. A computed result names its codec id but no codec ref; the lane stamps a ref from that id only when the runtime can resolve it.
    */
-  readonly knowsCodec: (codecId: string) => boolean;
+  readonly materializesWithoutTypeParams: (codecId: string) => boolean;
 }
 
 /**
@@ -302,7 +302,7 @@ export function assertCapability(
 
 export function codecRefOf(field: ScopeField, ctx: BuilderContext): CodecRef | undefined {
   if (field.codec !== undefined) return field.codec;
-  return ctx.knowsCodec(field.codecId) ? { codecId: field.codecId } : undefined;
+  return ctx.materializesWithoutTypeParams(field.codecId) ? { codecId: field.codecId } : undefined;
 }
 
 export function resolveSelectArgs(

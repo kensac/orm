@@ -59,4 +59,14 @@ describe('integration: SELECT', { timeout: timeouts.databaseOperation }, () => {
     );
     expect(rows).toEqual([{ id: 1, isFirst: true, hasComments: true, distance: 0 }]);
   });
+  it('a raw expression typed by a codec that needs type parameters returns the stored text', async () => {
+    const rows = await runtime().query(
+      db()
+        .public.posts.select('id')
+        .select('mood', (_f, fns) => fns.raw`'happy'`.returns('pg/enum@1'))
+        .where((f, fns) => fns.eq(f.id, 1))
+        .build(),
+    );
+    expect(rows).toEqual([{ id: 1, mood: 'happy' }]);
+  });
 });

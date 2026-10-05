@@ -182,6 +182,28 @@ describe('select', () => {
     expect(ast.projection.map((item) => item.codec)).toEqual([undefined]);
   });
 
+  it('a computed projection whose codec needs type parameters carries no codec', () => {
+    const requiresTypeName = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate: () => ({ issues: [{ message: 'typeName must be a string' }] }),
+      },
+    };
+    const d = sql({
+      context: {
+        ...stubBase,
+        codecDescriptors: { descriptorFor: () => ({ paramsSchema: requiresTypeName }) },
+        contract: sqlContract,
+      } as unknown as ExecutionContext<typeof sqlContract>,
+      rawCodecInferer: stubInferer,
+    });
+    const ast = getAst(
+      d.public.users.select('mood', (_f, fns) => fns.raw`'happy'`.returns('pg/enum@1')),
+    );
+    expect(ast.projection.map((item) => item.codec)).toEqual([undefined]);
+  });
+
   it('chained select accumulates projections', () => {
     const ast = getAst(db().public.users.select('id').select('name'));
     expect(ast.projection).toHaveLength(2);
