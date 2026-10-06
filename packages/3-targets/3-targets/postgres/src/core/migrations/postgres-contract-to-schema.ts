@@ -1,7 +1,6 @@
-import type { ColumnDefault, Contract } from '@internal/contract/types';
-import { sqlTypeLookupsOf } from '@internal/family-sql/control';
+import type { Contract } from '@internal/contract/types';
+import { type DefaultRenderer, sqlTypeLookupsOf } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
-import type { StorageColumn } from '@internal/sql-contract/types';
 import { blindCast } from '@internal/utils/casts';
 import { postgresResolveDefault } from '../default-normalizer';
 import type { PostgresContract } from '../postgres-schema';
@@ -9,16 +8,16 @@ import type { PostgresDatabaseSchemaNode } from '../schema-ir/postgres-database-
 import { contractToPostgresDatabaseSchemaNode } from './contract-to-postgres-database-schema-node';
 import { renderDefaultLiteral } from './planner-ddl-builders';
 
-export function postgresRenderDefault(
-  def: ColumnDefault,
-  column: StorageColumn,
-  type: { readonly dataType: string; readonly baseTypeName: string },
-): string {
+export const postgresRenderDefault: DefaultRenderer = (def, column, type) => {
   if (def.kind === 'function') {
     return def.expression;
   }
-  return renderDefaultLiteral(def.value, { many: column.many, ...type });
-}
+  return renderDefaultLiteral(def.value, {
+    many: column.many,
+    dataType: type.dataType,
+    baseTypeName: type.baseTypeName,
+  });
+};
 
 /**
  * The Postgres schema tree a contract describes, as the planner's "from" side:

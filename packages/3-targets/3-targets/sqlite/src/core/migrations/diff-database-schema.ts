@@ -1,5 +1,4 @@
 import type {
-  ColumnDefault,
   ColumnDefaultLiteralInputValue,
   Contract,
   ControlPolicy,
@@ -16,18 +15,14 @@ import type {
 import { diffSchemas } from '@internal/framework-components/control';
 import { entityAt } from '@internal/framework-components/ir';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
-import type { SqlStorage, StorageColumn, StorageTable } from '@internal/sql-contract/types';
+import type { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import type {
   SqlColumnIRInput,
   SqlSchemaIRInput,
   SqlSchemaIRNode,
   SqlTableIRInput,
 } from '@internal/sql-schema-ir/types';
-import {
-  defaultInCanonicalForm,
-  relationalNodeGranularity,
-  SqlSchemaIR,
-} from '@internal/sql-schema-ir/types';
+import { relationalNodeGranularity, SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { blindCast } from '@internal/utils/casts';
 import { InternalError } from '@internal/utils/internal-error';
 import { SQLITE_NOW_EXPRESSION } from '../datetime-text';
@@ -42,29 +37,21 @@ interface SqliteDiffDatabaseSchemaInput {
 }
 
 /**
- * Renders a column default for the SQLite dialect. A literal the column's canonical form holds is
- * written in that form, as the text the column's codec declares the database holds. One the
- * canonical form refuses is written as the contract has it, so the planner refuses it and verify
- * explains it.
+ * Renders a column default for the SQLite dialect. A literal arrives in the canonical form of the
+ * column's values, with the text its codec declares the database holds when there is one.
  */
-export function sqliteRenderDefault(
-  def: ColumnDefault,
-  column: StorageColumn,
-  type: Parameters<DefaultRenderer>[2],
-): string {
+export const sqliteRenderDefault: DefaultRenderer = (def, _column, type) => {
   if (def.kind === 'function') {
     if (def.expression === 'now()') {
       return SQLITE_NOW_EXPRESSION;
     }
     return def.expression;
   }
-  const many = column.many !== undefined && column.many !== false;
-  const canonical = defaultInCanonicalForm(def.value, type.toCanonicalForm, many);
-  return renderDefaultLiteral(contractJson(canonical.value), {
+  return renderDefaultLiteral(contractJson(def.value), {
     dataType: type.dataType,
-    toDatabaseText: canonical.refusal === undefined ? type.toDatabaseText : undefined,
+    toDatabaseText: type.toDatabaseText,
   });
-}
+};
 
 function contractJson(value: ColumnDefaultLiteralInputValue): JsonValue {
   if (value instanceof Date) {

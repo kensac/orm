@@ -14,7 +14,7 @@ import type { Codec } from './codec';
 import type { CodecInstanceContext, CodecTrait } from './codec-types';
 import type { DataTypeId, DataTypeLookup, ToCanonicalForm } from './data-type';
 
-/** A pure function from a value in canonical form to the text the database holds for it in a row. */
+/** A pure function from a value in canonical form to the text the database holds for it. */
 export type ToDatabaseText = (canonical: JsonValue) => string;
 
 /**
@@ -57,7 +57,7 @@ export interface CodecDescriptorTemplate<P = void> {
    */
   readonly toCanonicalForm?: ToCanonicalForm;
   /**
-   * The text the database holds in a row for a value in canonical form. A codec declares it only where the database compares stored text byte by byte and the text a row holds differs from the canonical form, so that DDL writes a default as the text every row holds. `encode` writes the same text. ADR 254.
+   * The text the database holds for a value in canonical form. A codec declares it only where its database compares that text exactly and it differs from the canonical form, so that a default the database applies equals what `encode` writes. ADR 254.
    */
   readonly toDatabaseText?: ToDatabaseText;
   /** The curried higher-order codec. For non-parameterized codecs, the factory is constant — every call returns the same shared codec instance. For parameterized codecs, the factory is called once per `storage.types` instance (or once per inline-`typeParams` column), with `ctx` carrying the column set the resulting codec serves. */

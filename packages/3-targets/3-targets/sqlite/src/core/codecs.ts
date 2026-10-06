@@ -584,7 +584,10 @@ const datetimeCanonicalForm: ToCanonicalForm = (value) => {
   });
 };
 
-/** SQLite compares text byte by byte, so a datetime default is the text the codec writes for every row. */
+/**
+ * SQLite compares text byte by byte, so DDL writes a datetime default as the text `encode` writes
+ * for every row, not as the canonical form.
+ */
 const datetimeDatabaseText: ToDatabaseText = (canonical) =>
   encodeSqliteDatetime(new Date(String(datetimeCanonicalForm(canonical))));
 

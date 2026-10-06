@@ -30,6 +30,7 @@ import {
 } from '@internal/sql-contract/types';
 import { namingOf } from '@internal/sql-schema-ir/naming';
 import {
+  defaultInCanonicalForm,
   RelationalSchemaNodeKind,
   type SqlCheckConstraintIRInput,
   type SqlColumnIRInput,
@@ -52,9 +53,11 @@ import { sqlFamilyError } from '../errors';
  * Default value serialization is target-specific (quoting, casting, type syntax vary
  * between Postgres, MySQL, SQLite, …). The target provides its renderer when calling
  * `contractToSchemaIR`, keeping the family layer target-agnostic. `type.dataType` is the id of
- * the data type the column's codec represents, `type.baseTypeName` its base name,
- * `type.toCanonicalForm` the canonical form of the column's values, and `type.toDatabaseText` the
- * text the column's codec declares the database holds for a canonical value.
+ * the data type the column's codec represents, `type.baseTypeName` its base name, and
+ * `type.toDatabaseText` the text the column's codec declares the database holds for the value. A
+ * literal reaches the renderer in the canonical form of the column's values; one that form refuses
+ * reaches it as the contract has it, with no database text, so the planner refuses it and verify
+ * explains it.
  */
 export type DefaultRenderer = (
   def: ColumnDefault,
@@ -62,10 +65,26 @@ export type DefaultRenderer = (
   type: {
     readonly dataType: string;
     readonly baseTypeName: string;
-    readonly toCanonicalForm: ToCanonicalForm | undefined;
     readonly toDatabaseText: ToDatabaseText | undefined;
   },
 ) => string;
+
+/**
+ * The default a renderer writes: a literal in the canonical form of the column's values, with the
+ * codec's database text, or a literal that form refuses as the contract has it, with none.
+ */
+function renderableDefault(
+  columnDefault: ColumnDefault,
+  toCanonicalForm: ToCanonicalForm | undefined,
+  toDatabaseText: ToDatabaseText | undefined,
+  many: boolean,
+): { readonly def: ColumnDefault; readonly toDatabaseText: ToDatabaseText | undefined } {
+  if (columnDefault.kind !== 'literal') return { def: columnDefault, toDatabaseText: undefined };
+  const canonical = defaultInCanonicalForm(columnDefault.value, toCanonicalForm, many);
+  return canonical.refusal === undefined
+    ? { def: { kind: 'literal', value: canonical.value }, toDatabaseText }
+    : { def: columnDefault, toDatabaseText: undefined };
+}
 
 /**
  * Target-supplied hook (same IoC seam as `DefaultRenderer`)
@@ -113,6 +132,10 @@ function convertColumn(
     rawColumnDefault !== undefined && resolveDefault
       ? resolveDefault(rawColumnDefault, resolvedNativeType)
       : rawColumnDefault;
+  const renderable =
+    rawColumnDefault === undefined
+      ? undefined
+      : renderableDefault(rawColumnDefault, toCanonicalForm, codec?.toDatabaseText, many);
   return {
     name,
     nativeType,
@@ -120,12 +143,11 @@ function convertColumn(
     ...ifDefined('many', many ? true : undefined),
     ...ifDefined(
       'default',
-      column.default != null && renderDefault
-        ? renderDefault(column.default, column, {
+      renderable !== undefined && renderDefault
+        ? renderDefault(renderable.def, column, {
             dataType: dataType.id,
             baseTypeName,
-            toCanonicalForm,
-            toDatabaseText: codec?.toDatabaseText,
+            toDatabaseText: renderable.toDatabaseText,
           })
         : undefined,
     ),

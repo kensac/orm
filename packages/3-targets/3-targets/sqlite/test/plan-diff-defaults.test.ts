@@ -189,9 +189,18 @@ describe('buildSqlitePlanDiff writes a literal default as the text its data type
     ).toBe('\'["2024-01-01T00:00:00.000Z","2024-01-01T00:00:00.500Z"]\'');
   });
 
-  it.each(['2024-01-01T25:00:00Z', 'not a date'])(
+  it.each([
+    [
+      '2024-01-01T25:00:00Z',
+      '"2024-01-01T25:00:00Z" is not a time of day that exists: hours run from 00 to 23, and minutes and seconds from 00 to 59. Write one, as in "2024-01-01T12:34:56Z".',
+    ],
+    [
+      'not a date',
+      'sqlite/datetime@1 cannot read "not a date". Write a date and time with a UTC offset, as in "2024-01-01T12:34:56Z".',
+    ],
+  ])(
     'refuses a datetime default %s that its data type cannot read, naming the column',
-    (value) => {
+    (value, refusal) => {
       const diff = buildSqlitePlanDiff({
         contract: contractWithDefault({ kind: 'literal', value }, { codecId: 'sqlite/datetime@1' }),
         actualSchema: new SqlSchemaIR({ tables: {} }),
@@ -199,9 +208,11 @@ describe('buildSqlitePlanDiff writes a literal default as the text its data type
       });
       const column = diff.expected.tables['event']?.columns['at'];
       if (column === undefined) throw new Error('expected column derived');
+      expect(column.default).toBe(`'${value}'`);
       expect(() => columnSpecFromNode(column, false, sqliteTestTypes)).toThrow(
         expect.objectContaining({
           code: 'CONTRACT.DEFAULT_INVALID',
+          message: `Column "at": The contract holds this default in a form its data type does not store: ${refusal} Re-emit the contract, then try again.`,
           meta: { reason: 'default-not-canonical', column: 'at' },
         }),
       );
