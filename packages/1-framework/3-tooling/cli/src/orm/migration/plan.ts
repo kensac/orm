@@ -158,7 +158,11 @@ function planBlocks(result: MigrationPlanResult, migrationsRelative: string): re
   if (result.noOp) {
     return [
       ...warningBlocks(result),
-      { kind: 'summary', status: 'ok', text: 'No changes detected' },
+      {
+        kind: 'summary',
+        status: 'ok',
+        text: result.appliedStatements.length > 0 ? result.summary : 'No changes detected',
+      },
       ...appliedStatementBlocks(result.appliedStatements),
       outcome,
     ];

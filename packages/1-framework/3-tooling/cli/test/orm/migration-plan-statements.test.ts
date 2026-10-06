@@ -159,17 +159,57 @@ describe('migration plan --rename', () => {
     });
   });
 
+  /**
+   * The database is at the emitted contract's storage hash, but the snapshot of that hash still
+   * names the model `Profile`: a rename whose table name is kept leaves the storage unchanged.
+   */
+  async function storageUnchangedProject() {
+    const project = await createOfflineProject({ storageHash: HASH_TO, models: ['User', 'Post'] });
+    await seedMigrationPackage({
+      appMigrationsDir: project.appMigrationsDir,
+      dirName: '20260101T0000_initial',
+      from: null,
+      to: HASH_TO,
+    });
+    await seedContractSnapshot({
+      migrationsDir: project.migrationsDir,
+      storageHash: HASH_TO,
+      models: ['Profile', 'Article'],
+    });
+    await seedDbRef({ appMigrationsDir: project.appMigrationsDir, storageHash: HASH_TO });
+    return project;
+  }
+
   it('reports a statement that needs no operations as applied, without writing a package', async () => {
-    const project = await renamingProject();
+    const project = await storageUnchangedProject();
     const run = await harness(project, { operations: [] }).run(
       ['migration', 'plan', '--rename', 'Profile:User'],
-      { cwd: project.dir },
+      { cwd: project.dir, isTty: { stdout: true } },
     );
 
     expect(run.exitCode).toBe(0);
     expect(run.presented?.data).toMatchObject({
       noOp: true,
       appliedStatements: [{ statement: profileToUser, operationCount: 0 }],
+    });
+    expect(run.presented?.presentation.human.at(1)).toEqual({
+      kind: 'summary',
+      status: 'ok',
+      text: 'No changes to plan: the statements need no operations',
+    });
+    expect(await plannedDirs(project)).toEqual(['20260101T0000_initial']);
+  });
+
+  it('fails planning when the storage changed but the planner planned nothing, statements or not', async () => {
+    const project = await renamingProject();
+    const run = await harness(project, { operations: [] }).run(
+      ['migration', 'plan', '--rename', 'Profile:User', '--json'],
+      { cwd: project.dir },
+    );
+
+    expect(run.json.at(-1)).toMatchObject({
+      kind: 'result',
+      envelope: { ok: false, error: { code: 'MIGRATION.PLANNING_FAILED' } },
     });
     expect(await plannedDirs(project)).toEqual(['20260101T0000_initial']);
   });

@@ -127,6 +127,11 @@ async function runPlannerLeg(
   contract: Contract,
   fromContract: Contract | null,
   statements: readonly ResolvedStatement[],
+  /**
+   * True when the storage did not change and statements were given: a plan of
+   * no operations then means the statements need none, not a planning failure.
+   */
+  noOperationsExpected: boolean,
   spaceId: string,
   ownership: SchemaOwnership,
   snapshotsImportPath: string,
@@ -161,9 +166,7 @@ async function runPlannerLeg(
   let hasPlaceholders = false;
   try {
     plannedOps = await Promise.all(plannerResult.plan.operations);
-    // A plan whose statements need no storage change has nothing to run, which
-    // is not a planning failure.
-    if (plannedOps.length === 0 && statements.length === 0) {
+    if (plannedOps.length === 0 && !noOperationsExpected) {
       return notOk(
         errorMigrationPlanningFailed({
           conflicts: [
@@ -678,6 +681,7 @@ async function executeMigrationPlanCommandInner(
         fromContract,
         null,
         [],
+        false,
         aggregate.app.spaceId,
         aggregate,
         snapshotsImportPathFrom(baselinePackageDir, migrationsDir),
@@ -758,6 +762,7 @@ async function executeMigrationPlanCommandInner(
         aggregate.app.contract(),
         fromContract,
         statements,
+        false,
         aggregate.app.spaceId,
         aggregate,
         snapshotsImportPathFrom(deltaPackageDir, migrationsDir),
@@ -846,6 +851,7 @@ async function executeMigrationPlanCommandInner(
       aggregate.app.contract(),
       fromContract,
       statements,
+      statements.length > 0 && fromHash === toStorageHash,
       aggregate.app.spaceId,
       aggregate,
       snapshotsImportPathFrom(packageDir, migrationsDir),
