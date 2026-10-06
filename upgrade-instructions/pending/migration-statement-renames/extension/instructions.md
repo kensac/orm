@@ -1,19 +1,22 @@
 ---
 changes:
   - id: planner-plan-statements
-    summary: Every call to a migration planner's `plan(...)` passes a new required `statements` list; pass `statements: []` when the call states no renames.
+    summary: |
+      Every call to a migration planner's `plan(...)` passes a new required `statements` list; pass `statements: []` when the call states no renames.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
         - '\.plan\(\s*\{(?![^}]*(?<![\w$])statements\s*[:,])[^}]*(?<![\w$])fromContract\s*[:,]'
   - id: planner-success-applied-statements
-    summary: A migration planner's success result gains a required `appliedStatements` list; a planner, or a test double of one, that returns `{ kind: 'success', plan }` adds `appliedStatements`, empty when it applied no statements.
+    summary: |
+      A migration planner's success result gains a required `appliedStatements` list; a planner, or a test double of one, that returns `{ kind: 'success', plan }` adds `appliedStatements`, empty when it applied no statements.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
         - '(?<![\s\S])(?=[\s\S]*(?<![\w$])MigrationPlanner(?:Result|SuccessResult)?(?![\w$]))(?![\s\S]*(?<![\w$])appliedStatements(?![\w$]))[\s\S]*kind:\s*["'']success["'']'
   - id: sql-planner-helpers
-    summary: In `@prisma/orm-family-sql/family/control`, `plannerSuccess(plan, warnings?)` becomes `plannerSuccess(plan, appliedStatements, warnings?)`, `planFieldEventOperations(...)` takes required `renames` and `columnRenames` lists, and the conflict kind union gains `'statementRejected'`.
+    summary: |
+      In `@prisma/orm-family-sql/family/control`, `plannerSuccess(plan, warnings?)` becomes `plannerSuccess(plan, appliedStatements, warnings?)`, `planFieldEventOperations(...)` takes required `renames` and `columnRenames` lists, and the conflict kind union gains `'statementRejected'`.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -21,7 +24,8 @@ changes:
         - '(?<![\w$])planFieldEventOperations\s*\('
         - '(?<![\w$])SqlPlannerConflictKind(?![\w$])'
   - id: aggregate-planner-app-space
-    summary: The aggregate planner's `planMigration(...)` input takes a required `appSpace: { fromContract, statements }`, and a `PerSpacePlan` carries a required `appliedStatements` list.
+    summary: |
+      The aggregate planner's `planMigration(...)` input takes a required `appSpace: { fromContract, statements }`, and a `PerSpacePlan` carries a required `appliedStatements` list.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
