@@ -32,6 +32,7 @@ const postgresTargetPack: TargetPackRef<'sql', 'postgres'> = {
 function messageIndexes(options: {
   readonly mappedColumn?: string;
   readonly naming?: ContractInput['naming'];
+  readonly elements?: 'fields' | 'expression';
 }) {
   const seen: DeferredIndexColumn[][] = [];
   const searchText = options.mappedColumn
@@ -46,17 +47,27 @@ function messageIndexes(options: {
     models: {
       Message: model('Message', {
         fields: { id: field.column(int4Column).id(), title: field.column(textColumn), searchText },
-      }).sql(() => {
-        const index: IndexConstraint = {
-          kind: 'index',
-          fields: ['title', 'searchText'],
+      }).sql(({ cols }) => {
+        const method = {
           type: 'hash',
-          options: (columns) => {
+          options: (columns: readonly DeferredIndexColumn[]) => {
             seen.push([...columns]);
             return { fields: [columns.map((column) => column.name)] };
           },
           name: 'message_search',
         };
+        const index: IndexConstraint =
+          options.elements === 'expression'
+            ? {
+                kind: 'index',
+                expression: {
+                  fields: [cols.title, cols.searchText],
+                  render: (columns) =>
+                    columns.map((column) => `lower("${column.name}")`).join(', '),
+                },
+                ...method,
+              }
+            : { kind: 'index', fields: ['title', 'searchText'], ...method };
         return { table: 'message', indexes: [index] };
       }),
     },
@@ -76,6 +87,23 @@ describe('deferred index options', () => {
     ]);
     expect(indexes[0]).toMatchObject({
       columns: ['title', 'body_text'],
+      type: 'hash',
+      options: { fields: [['title', 'body_text']] },
+      prefix: 'message_search',
+    });
+  });
+
+  it("renders the options from the columns of a deferred expression's fields", () => {
+    const { indexes, seen } = messageIndexes({ mappedColumn: 'body_text', elements: 'expression' });
+
+    expect(seen).toEqual([
+      [
+        { name: 'title', codecId: 'pg/text@1' },
+        { name: 'body_text', codecId: 'pg/text@1' },
+      ],
+    ]);
+    expect(indexes[0]).toMatchObject({
+      expression: 'lower("title"), lower("body_text")',
       type: 'hash',
       options: { fields: [['title', 'body_text']] },
       prefix: 'message_search',
