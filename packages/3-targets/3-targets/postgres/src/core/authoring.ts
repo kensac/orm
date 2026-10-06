@@ -94,7 +94,6 @@ const PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS';
 const PSL_FULL_TEXT_INDEX_EMPTY_GROUP: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_EMPTY_GROUP';
-const PSL_FULL_TEXT_INDEX_NO_FIELDS: ContributedPslDiagnosticCode = 'PSL_FULL_TEXT_INDEX_NO_FIELDS';
 const PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD: ContributedPslDiagnosticCode =
   'PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD';
 const PSL_FULL_TEXT_INDEX_REQUIRES_NAME: ContributedPslDiagnosticCode =
@@ -695,20 +694,25 @@ function isFieldName(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-/** `@@fullTextIndex` has no `unique` argument, so it never writes a unique index. */
-type PslFullTextIndexProblem = Exclude<FullTextIndexProblem, { readonly kind: 'unique' }>;
+/**
+ * `@@fullTextIndex` has no `unique` argument, so it never writes a unique index, and its spec
+ * refuses an empty field list before these rules run.
+ */
+type PslFullTextIndexProblem = Exclude<
+  FullTextIndexProblem,
+  { readonly kind: 'unique' | 'no-fields' }
+>;
 
 function isPslFullTextIndexProblem(
   problem: FullTextIndexProblem,
 ): problem is PslFullTextIndexProblem {
-  return problem.kind !== 'unique';
+  return problem.kind !== 'unique' && problem.kind !== 'no-fields';
 }
 
 const FULL_TEXT_INDEX_PROBLEM_CODES: Record<
   PslFullTextIndexProblem['kind'],
   ContributedPslDiagnosticCode
 > = {
-  'no-fields': PSL_FULL_TEXT_INDEX_NO_FIELDS,
   'too-many-groups': PSL_FULL_TEXT_INDEX_TOO_MANY_GROUPS,
   'empty-group': PSL_FULL_TEXT_INDEX_EMPTY_GROUP,
   'duplicate-field': PSL_FULL_TEXT_INDEX_DUPLICATE_FIELD,
