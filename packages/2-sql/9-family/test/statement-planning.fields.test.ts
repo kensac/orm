@@ -197,6 +197,9 @@ describe('planStatements, field renames', () => {
       summary:
         'Cannot rename column "users"."name": the model\'s table changes from "users" to "app_users", and no statement renames the table',
     });
+    expect(conflict.why).toContain(
+      'rename the table by hand first, with ...this.renameTable({ table: "users", to: "app_users" }) in its own migration.ts',
+    );
   });
 
   it('rejects a field that has a column on one side only', () => {

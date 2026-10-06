@@ -374,7 +374,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Cannot rename column "${table}"."${effect.from}": the model's table changes from "${table}" to "${destinationTable.table}", and no statement renames the table`,
-          'The column would be renamed on a table the plan then drops and creates under the new name. Make the change of table name and the field rename two separate migrations.',
+          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Instead, rename the table by hand first, with ...this.renameTable({ table: "${table}", to: "${destinationTable.table}" }) in its own migration.ts, then plan the field rename on top of it.`,
           { namespaceId: effect.table.namespaceId, table, column: effect.from },
         ),
       );
