@@ -483,6 +483,70 @@ export function errorPlanOriginUnknown(
   );
 }
 
+const STATEMENT_FORMS =
+  'Each side of `<old>:<new>` is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`, and both sides name a model or both name a field.';
+
+/**
+ * A `--rename` statement is malformed, or names two things that cannot be
+ * renamed into each other (a model and a field, or fields of two models).
+ */
+export function errorStatementInvalid(statement: string, reason: string): ActionableCliError {
+  return new ActionableCliError(
+    'MIGRATION.STATEMENT_INVALID',
+    `Invalid statement "--rename ${statement}"`,
+    {
+      why: reason,
+      fix: STATEMENT_FORMS,
+      nextActions: [chooseAction('Correct the statement')],
+      meta: { statement },
+    },
+  );
+}
+
+/**
+ * A `--rename` statement is well formed, but its names do not resolve in the
+ * origin and destination contracts the way a rename requires.
+ */
+export function errorStatementUnresolved(statement: string, reason: string): ActionableCliError {
+  return new ActionableCliError(
+    'MIGRATION.STATEMENT_UNRESOLVED',
+    `Cannot resolve statement "--rename ${statement}"`,
+    {
+      why: reason,
+      fix: 'The old name must exist in the origin contract and not in the destination contract, and the new name the other way round. Names match exactly, including case.',
+      nextActions: [chooseAction('Correct the names in the statement')],
+      meta: { statement },
+    },
+  );
+}
+
+/**
+ * Statements were given, but there is no origin contract to resolve their old
+ * names against.
+ */
+export function errorStatementOriginUnknown(origin: {
+  readonly hash: string | null;
+  readonly snapshotDirectory: string;
+}): ActionableCliError {
+  const why =
+    origin.hash === null
+      ? `The database has no marker, so there is no contract hash to look up in ${origin.snapshotDirectory}.`
+      : `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`;
+  return new ActionableCliError(
+    'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+    'Cannot resolve statements: the origin contract is unknown',
+    {
+      why,
+      fix: 'Statements name things in the origin contract, so the command needs it. Plan a migration with `{bin} migration plan --from <contract>` instead, or run the command without statements.',
+      nextActions: [
+        runCommandAction('Plan from an explicit origin', '{bin} migration plan --from <contract>'),
+        chooseAction('Or run the command without statements'),
+      ],
+      meta: { hash: origin.hash, snapshotDirectory: origin.snapshotDirectory },
+    },
+  );
+}
+
 export function errorMarkerMismatch(
   markerHash: string,
   reachableHashes: readonly string[],
