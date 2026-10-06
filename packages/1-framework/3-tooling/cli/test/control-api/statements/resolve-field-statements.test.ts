@@ -91,6 +91,45 @@ describe('resolveStatements, field renames', () => {
       );
     });
 
+    it('gives no corrected statement when the old model was renamed to another model', () => {
+      const origin = contractOf({
+        app: { models: { A: { fields: ['x'] }, C: { fields: ['z'] } } },
+      });
+      const destination = contractOf({ app: { models: { B: {}, C: { fields: ['y'] } } } });
+      const failure = expectFailure(
+        resolve(['A:B', 'A.x:C.y'], origin, destination),
+        INVALID,
+        'a field cannot move between models',
+      );
+      expect(`${failure.why} ${failure.fix}`).not.toContain('--rename');
+    });
+
+    it('gives no corrected statement when another model was renamed to the new model', () => {
+      const origin = contractOf({
+        app: { models: { A: { fields: ['x'] }, C: { fields: ['z'] } } },
+      });
+      const destination = contractOf({ app: { models: { B: { fields: ['y'] } } } });
+      const failure = expectFailure(
+        resolve(['C:B', 'A.x:B.y'], origin, destination),
+        INVALID,
+        'a field cannot move between models',
+      );
+      expect(`${failure.why} ${failure.fix}`).not.toContain('--rename');
+    });
+
+    it('gives no corrected statement when the new model is also in the origin', () => {
+      const origin = contractOf({
+        app: { models: { A: { fields: ['x'] }, C: { fields: ['z'] } } },
+      });
+      const destination = contractOf({ app: { models: { C: { fields: ['y'] } } } });
+      const failure = expectFailure(
+        resolve(['A.x:C.y'], origin, destination),
+        INVALID,
+        'a field cannot move between models',
+      );
+      expect(`${failure.why} ${failure.fix}`).not.toContain('--rename');
+    });
+
     it('refuses old and new sides naming two models both contracts have', () => {
       const origin = contractOf({
         app: { models: { User: { fields: ['a'] }, Post: { fields: ['c'] } } },

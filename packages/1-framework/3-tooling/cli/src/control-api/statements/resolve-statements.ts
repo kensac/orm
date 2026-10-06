@@ -411,7 +411,7 @@ function modelPart(side: StatementSide): string {
 /**
  * The old side names a model the destination contract does not have. The
  * user most likely named the field's model by its old name, so the error
- * spells the statement with the model named as the destination names it.
+ * writes the statement with the model named as the destination names it.
  */
 function oldModelNotInDestination(
   state: ResolutionState,
@@ -440,6 +440,38 @@ function oldModelNotInDestination(
   return errorStatementInvalid(statement.text, why, fix);
 }
 
+function fieldMovesBetweenModels(
+  text: string,
+  fromModel: string,
+  toModel: string,
+): CliStructuredError {
+  return errorStatementInvalid(
+    text,
+    `The old name is a field of "${fromModel}" and the new name a field of "${toModel}"; a field cannot move between models.`,
+    'Rename a field within one model, and name that model as the destination contract names it.',
+  );
+}
+
+/**
+ * True when the old side most likely names the new side's model by its old
+ * name: no earlier statement renamed the old model to some other model or
+ * some other model to the new model, and the origin does not have the new
+ * model.
+ */
+function oldSideNamesNewModel(
+  state: ResolutionState,
+  from: FieldReading,
+  to: FieldReading,
+): boolean {
+  const oldModel = qualifiedModel(from.coordinate);
+  const renamedTo = [...state.originOfRenamedModel.entries()].find(
+    ([, origin]) => qualifiedModel(origin) === oldModel,
+  )?.[0];
+  if (renamedTo !== undefined) return renamedTo === qualifiedModel(to.coordinate);
+  if (state.originOfRenamedModel.has(qualifiedModel(to.coordinate))) return false;
+  return modelAt(state.origin.contract, to.coordinate) === undefined;
+}
+
 function resolveFieldRename(
   state: ResolutionState,
   statement: ParsedRename,
@@ -449,16 +481,14 @@ function resolveFieldRename(
   const text = statement.text;
   const toModel = qualifiedModel(to.coordinate);
   if (from.destinationModel === undefined) {
-    return notOk(oldModelNotInDestination(state, statement, from, toModel));
+    return notOk(
+      oldSideNamesNewModel(state, from, to)
+        ? oldModelNotInDestination(state, statement, from, toModel)
+        : fieldMovesBetweenModels(text, qualifiedModel(from.coordinate), toModel),
+    );
   }
   if (qualifiedModel(from.destinationModel) !== toModel) {
-    return notOk(
-      errorStatementInvalid(
-        text,
-        `The old name is a field of "${qualifiedModel(from.destinationModel)}" and the new name a field of "${toModel}"; a field cannot move between models.`,
-        'Rename a field within one model, and name that model as the destination contract names it.',
-      ),
-    );
+    return notOk(fieldMovesBetweenModels(text, qualifiedModel(from.destinationModel), toModel));
   }
   const fromKey = `${FIELD_RENAMES}:${qualifiedField(from.coordinate)}`;
   const toKey = `${FIELD_RENAMES}:${qualifiedField(to.coordinate)}`;
