@@ -135,7 +135,7 @@ describe('Postgres planner, model statements', () => {
     ]);
   });
 
-  it('computes the companions of a later statement on the schema an earlier one left', async () => {
+  it('plans two statements in the order given, each with its companions', async () => {
     const fromTwo = withModels(
       contractOf('Profile', uniqueEmail, 'from', (profile) => ({
         post: postTableNamed('post', profile),

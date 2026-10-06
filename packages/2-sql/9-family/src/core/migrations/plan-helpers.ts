@@ -136,7 +136,6 @@ export function plannerSuccess<TTargetDetails>(
                 ...(conflict.why ? { why: conflict.why } : {}),
                 ...(conflict.location ? { location: Object.freeze({ ...conflict.location }) } : {}),
                 ...(conflict.statement ? { statement: conflict.statement } : {}),
-                ...(conflict.statement ? { statement: conflict.statement } : {}),
                 ...(conflict.meta ? { meta: cloneRecord(conflict.meta) } : {}),
               }),
             ),
