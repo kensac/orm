@@ -175,10 +175,9 @@ describe('db update --rename', () => {
     );
   });
 
-  it('hands no statements when no --rename is given', async () => {
+  it('hands an empty list when no --rename is given', async () => {
     await harness().run(['db', 'update'], { cwd: projectDir });
-    const [options] = mocks.dbUpdate.mock.calls[0] ?? [];
-    expect(options?.renames ?? []).toEqual([]);
+    expect(mocks.dbUpdate).toHaveBeenCalledWith(expect.objectContaining({ renames: [] }));
   });
 
   it('lists the applied statements after the operations, and in the JSON document', async () => {

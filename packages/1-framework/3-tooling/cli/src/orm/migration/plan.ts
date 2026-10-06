@@ -332,7 +332,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
             ...ifDefined('name', args.flags.name),
             ...ifDefined('from', args.flags.from),
             ...ifDefined('to', args.flags.to),
-            renames: args.flags.rename,
+            renames: args.flags.rename ?? [],
             ...ifDefined('consent', consent),
             ...ifDefined(
               'carryEmittedExtensionDirs',

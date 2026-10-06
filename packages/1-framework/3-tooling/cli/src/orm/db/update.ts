@@ -213,7 +213,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
             contract: contractJson,
             mode,
             migrationsDir,
-            renames: args.flags.rename,
+            renames: args.flags.rename ?? [],
             ...(consent === undefined ? {} : { consent }),
             onProgress: controlProgressReporter(ctx.report),
           });
