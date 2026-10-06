@@ -7,6 +7,7 @@ import type {
 import type { Contract, ContractMarkerRecord, LedgerEntryRecord } from '@internal/contract/types';
 import type { AuthoringPslBlockDescriptorNamespace } from '@internal/framework-components/authoring';
 import type {
+  AppliedStatement,
   ControlAdapterDescriptor,
   ControlDriverDescriptor,
   ControlExtensionDescriptor,
@@ -255,6 +256,12 @@ export interface DbUpdateOptions {
    * root.
    */
   readonly migrationsDir: string;
+  /**
+   * `--rename <old>:<new>` statements, as the user wrote them. They resolve
+   * against the contract the database marker names, read from the snapshot
+   * store, and the destination contract.
+   */
+  readonly renames?: readonly string[];
   /** Optional progress callback for observing operation progress */
   readonly onProgress?: OnControlProgress;
 }
@@ -415,6 +422,8 @@ export interface DbInitSuccess {
    * See {@link PerSpaceExecutionEntry}.
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
+  /** The statements the application space's plan applied, in order; empty when none were given. */
+  readonly appliedStatements: readonly AppliedStatement[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }
@@ -492,6 +501,8 @@ export interface DbUpdateSuccess {
    * alphabetically, then app). See {@link PerSpaceExecutionEntry}.
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
+  /** The statements the application space's plan applied, in order; empty when none were given. */
+  readonly appliedStatements: readonly AppliedStatement[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

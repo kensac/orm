@@ -51,6 +51,11 @@ export interface ExecuteDbUpdateOptions<TFamilyId extends string, TTargetId exte
   readonly extensions?: ReadonlyArray<ControlExtensionDescriptor<TFamilyId, TTargetId>>;
   /** Content check for contract snapshots the aggregate loader resolves. */
   readonly verifySnapshotContent?: SnapshotContentVerifier;
+  /**
+   * `--rename <old>:<new>` statements as the user wrote them. Both the plan and
+   * the destructive pre-plan resolve and apply them.
+   */
+  readonly renames?: readonly string[];
   readonly onProgress?: OnControlProgress;
 }
 
@@ -78,6 +83,7 @@ export async function executeDbUpdate<TFamilyId extends string, TTargetId extend
     extensions: options.extensions ?? [],
     policy: DB_UPDATE_POLICY,
     action: 'dbUpdate' as const,
+    renames: options.renames ?? [],
     ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     ...ifDefined('onProgress', options.onProgress),
   };

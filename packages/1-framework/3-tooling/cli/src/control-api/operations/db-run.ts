@@ -5,6 +5,7 @@
 import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
+  AppliedStatement,
   ControlAdapterInstance,
   ControlDriverInstance,
   ControlExtensionDescriptor,
@@ -13,21 +14,32 @@ import type {
   MigrationPlannerConflict,
   MigrationPlanOperation,
   OperationPreview,
+  ResolvedStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
-import { hasOperationPreview } from '@internal/framework-components/control';
+import {
+  CONTRACT_SNAPSHOTS_DIRNAME,
+  hasOperationPreview,
+} from '@internal/framework-components/control';
+import type { ContractMarkerRecordLike } from '@internal/migration-tools/aggregate';
 import {
   type ContractSpaceAggregate,
   collectAggregateNamespaces,
   type PlannerError,
   planMigration,
 } from '@internal/migration-tools/aggregate';
-import type { SnapshotContentVerifier } from '@internal/migration-tools/contract-snapshot-store';
+import {
+  contractSnapshotDir,
+  readContractSnapshotJsonTolerant,
+  type SnapshotContentVerifier,
+} from '@internal/migration-tools/contract-snapshot-store';
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok } from '@internal/utils/result';
+import { join } from 'pathe';
 import { CliStructuredError } from '../../utils/cli-errors';
+import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
 import type {
   DbInitFailure,
   DbInitResult,
@@ -87,6 +99,8 @@ export interface ExecuteRunOptions<TFamilyId extends string, TTargetId extends s
   readonly targetId: TTargetId;
   readonly policy: MigrationOperationPolicy;
   readonly action: 'dbInit' | 'dbUpdate';
+  /** `--rename <old>:<new>` statements as the user wrote them; empty for `db init`. */
+  readonly renames: readonly string[];
   /**
    * Identity of the plan the caller consented to (`db update` only). When
    * set, the apply refuses with `CONSENT_PLAN_MISMATCH` if the freshly
@@ -156,6 +170,27 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // 2. Read live DB state (markers + schema).
   const markerRows = await familyInstance.readAllMarkers({ driver });
 
+  // 2b. The application space's origin: the contract the marker names, read
+  // from the snapshot store. Statements resolve against it.
+  const appOrigin = await readAppOrigin({
+    marker: markerRows.get(aggregate.app.spaceId) ?? null,
+    migrationsDir,
+    deserializeContract: (json) => familyInstance.deserializeContract(json),
+    ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
+  });
+  let statements: readonly ResolvedStatement[] = [];
+  if (options.renames.length > 0) {
+    const resolved = resolveStatements({
+      renames: options.renames,
+      origin: appOrigin.origin,
+      destination: contract,
+    });
+    if (!resolved.ok) {
+      throw resolved.failure;
+    }
+    statements = resolved.value;
+  }
+
   // 2a. Orphan-marker pre-flight: refuse to *apply* when a marker row
   // exists for a space that is not declared in the aggregate. Plan mode
   // (`db init/update --dry-run`) must still be able to introspect the
@@ -199,6 +234,10 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     frameworkComponents,
     callerPolicy: { ignoreGraphFor: new Set([aggregate.app.spaceId]) },
     operationPolicy: policy,
+    appSpace: {
+      fromContract: appOrigin.contract,
+      statements,
+    },
   });
   if (!planResult.ok) {
     onProgress?.({ action, kind: 'spanEnd', spanId: SPAN_IDS.plan, outcome: 'error' });
@@ -218,6 +257,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     );
   }
   const appPlan = appResolution.entry.plan;
+  const appliedStatements = appResolution.entry.appliedStatements;
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -235,6 +275,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       preview,
       perSpace,
       summary,
+      appliedStatements,
       ...ifDefined('warnings', plannerWarnings),
     });
   }
@@ -304,8 +345,45 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     operationsExecuted: applied.value.totalOpsExecuted,
     perSpace: applied.value.perSpace,
     summary,
+    appliedStatements,
     ...ifDefined('warnings', plannerWarnings),
   });
+}
+
+/**
+ * The contract the application space's marker names, from the local snapshot
+ * store, or where it was looked for when the store does not have it.
+ */
+async function readAppOrigin(input: {
+  readonly marker: ContractMarkerRecordLike | null;
+  readonly migrationsDir: string;
+  readonly deserializeContract: (json: unknown) => Contract;
+  readonly verifySnapshotContent?: SnapshotContentVerifier;
+}): Promise<{ readonly contract: Contract | null; readonly origin: StatementOrigin }> {
+  const snapshotsDir = join(input.migrationsDir, CONTRACT_SNAPSHOTS_DIRNAME);
+  if (input.marker === null) {
+    return {
+      contract: null,
+      origin: { kind: 'missing', hash: null, snapshotDirectory: snapshotsDir },
+    };
+  }
+  const hash = input.marker.storageHash;
+  const json = await readContractSnapshotJsonTolerant(
+    input.migrationsDir,
+    hash,
+    input.verifySnapshotContent,
+  );
+  if (json !== undefined) {
+    const contract = input.deserializeContract(json);
+    return { contract, origin: { kind: 'contract', contract } };
+  }
+  let snapshotDirectory = snapshotsDir;
+  try {
+    snapshotDirectory = contractSnapshotDir(input.migrationsDir, hash);
+  } catch {
+    // A marker hash the store cannot address names no snapshot directory.
+  }
+  return { contract: null, origin: { kind: 'missing', hash, snapshotDirectory } };
 }
 
 function aggregatePlannerWarnings(
@@ -408,10 +486,12 @@ function wrapPlanResult(args: {
   readonly preview: OperationPreview | undefined;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
+  readonly appliedStatements: readonly AppliedStatement[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'plan',
+    appliedStatements: args.appliedStatements,
     plan: {
       operations: stripOperations(args.operations),
       ...ifDefined('preview', args.preview),
@@ -434,10 +514,12 @@ function wrapApplyResult(args: {
   readonly operationsExecuted: number;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
+  readonly appliedStatements: readonly AppliedStatement[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'apply',
+    appliedStatements: args.appliedStatements,
     plan: { operations: stripOperations(args.operations) },
     destination: {
       storageHash: args.destination.storageHash,

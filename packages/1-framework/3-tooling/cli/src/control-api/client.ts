@@ -470,6 +470,7 @@ class ControlClientImpl implements ControlClient {
       extensions: this.options.extensions ?? [],
       ...ifDefined('acceptDataLoss', options.acceptDataLoss),
       ...ifDefined('consent', options.consent),
+      ...ifDefined('renames', options.renames),
       ...ifDefined('verifySnapshotContent', this.snapshotVerifier),
       ...ifDefined('onProgress', onProgress),
     });
