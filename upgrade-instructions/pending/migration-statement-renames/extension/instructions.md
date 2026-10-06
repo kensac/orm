@@ -37,7 +37,7 @@ changes:
 
 ## `planner-plan-statements`
 
-The options of `MigrationPlanner.plan` (from `@prisma/orm-framework/components/control`), of the SQL family's `SqlMigrationPlannerPlanOptions`, and of the Postgres and SQLite planners gain a required `statements: readonly ResolvedStatement[]`: the `--rename` statements the user gave, resolved into namespace, model and field names. For each `plan({ ... })` call, add `statements: []` beside `fromContract`. A planner that forwards its options to another planner forwards `statements` too.
+The options of `MigrationPlanner.plan` (from `@prisma/orm-framework/components/control`), of the SQL family's `SqlMigrationPlannerPlanOptions`, of the Postgres and SQLite planners, and of `MongoMigrationPlanner` (from `@prisma/orm-target-mongo/target/control`) gain a required `statements: readonly ResolvedStatement[]`: the `--rename` statements the user gave, resolved into namespace, model and field names. For each `plan({ ... })` call, add `statements: []` beside `fromContract`. A planner that forwards its options to another planner forwards `statements` too. `MongoMigrationPlanner` refuses a non-empty `statements` with a `statementRejected` conflict in this release.
 
 ## `planner-success-applied-statements`
 
