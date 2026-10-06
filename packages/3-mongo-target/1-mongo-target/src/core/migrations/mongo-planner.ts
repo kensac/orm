@@ -9,6 +9,7 @@ import type {
   MigrationPlannerResult,
   MigrationPlanWithAuthoringSurface,
   MigrationScaffoldContext,
+  ResolvedStatement,
 } from '@internal/framework-components/control';
 import type { MongoContract } from '@internal/mongo-contract';
 import type {
@@ -211,6 +212,23 @@ export type PlanCallsResult =
   | { readonly kind: 'success'; readonly calls: OpFactoryCall[] }
   | { readonly kind: 'failure'; readonly conflicts: MigrationPlannerConflict[] };
 
+function describeStatement(statement: ResolvedStatement): string {
+  if (statement.entity === 'model') {
+    return `rename model "${statement.from.model}" to "${statement.to.model}"`;
+  }
+  const model = statement.to.model;
+  return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
+}
+
+function statementNotApplied(statement: ResolvedStatement): MigrationPlannerConflict {
+  return {
+    kind: 'statementRejected',
+    summary: `MongoDB does not apply rename statements in this release, so nothing was planned: ${describeStatement(statement)}`,
+    why: 'The MongoDB planner cannot carry out a rename yet. Without the statement, the same change is planned as removing the old name and adding the new one.',
+    statement,
+  };
+}
+
 export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'> {
   planCalls(options: {
     readonly contract: unknown;
@@ -362,6 +380,8 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
      * on the produced plan as `fromContract?.storage.storageHash ?? null`.
      */
     readonly fromContract: Contract | null;
+    /** The `--rename` statements, resolved; MongoDB refuses any statement in this release. */
+    readonly statements: readonly ResolvedStatement[];
     readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'mongo', 'mongo'>>;
     /**
      * POSIX-relative path from the migration package dir to
@@ -370,6 +390,10 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
      */
     readonly snapshotsImportPath: string;
   }): MigrationPlannerResult {
+    const [statement] = options.statements;
+    if (statement !== undefined) {
+      return { kind: 'failure', conflicts: [statementNotApplied(statement)] };
+    }
     const contract = blindCast<
       MongoContract,
       'framework planner passes the Mongo contract selected for the mongo target'
