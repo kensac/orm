@@ -1236,8 +1236,8 @@ function createConstraintsDsl<IndexTypes extends IndexTypeMap = Record<never, ne
       ...(opts?.options !== undefined
         ? {
             options: blindCast<
-              Record<string, unknown>,
-              'the public overloads type options as the pack-declared options object; the loose implementation signature erases it to unknown'
+              IndexOptionsInput,
+              'the public overloads type options as the pack-declared options object or a function of the covered columns that returns it; the loose implementation signature erases it to unknown'
             >(opts.options),
           }
         : {}),
