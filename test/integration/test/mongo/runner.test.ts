@@ -243,6 +243,7 @@ function planFor(contract: MongoContract, fromContract: MongoContract | null) {
     schema: contractToMongoSchemaIR(fromContract),
     policy: ALL_POLICY,
     fromContract,
+    statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
   });

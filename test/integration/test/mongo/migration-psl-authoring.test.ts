@@ -125,6 +125,7 @@ async function planAndApply(
     schema,
     policy: ALL_POLICY,
     fromContract: origin,
+    statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
   });

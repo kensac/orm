@@ -72,6 +72,7 @@ beforeAll(async () => {
     schema: new MongoSchemaIR([]),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract: null,
+    statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
   });

@@ -133,6 +133,7 @@ function planFor(
     schema: contractToMongoSchemaIR(fromContract),
     policy: ALL_POLICY,
     fromContract,
+    statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
   });

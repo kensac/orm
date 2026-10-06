@@ -211,6 +211,7 @@ describe('MongoMigrationRunner - closed validators', () => {
       schema: originIR,
       policy: wideningPolicy,
       fromContract: null,
+      statements: [],
       frameworkComponents: [],
       snapshotsImportPath: '../../snapshots',
     });

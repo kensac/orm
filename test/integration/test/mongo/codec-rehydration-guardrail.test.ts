@@ -163,6 +163,7 @@ function planAndRehydrate(contract: MongoContract): readonly MongoMigrationPlanO
     schema: contractToMongoSchemaIR(null),
     policy: ALL_POLICY,
     fromContract: null,
+    statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
   });

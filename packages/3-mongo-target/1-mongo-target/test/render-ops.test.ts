@@ -176,6 +176,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });
@@ -209,6 +210,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });
@@ -246,6 +248,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });
@@ -279,6 +282,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });
@@ -325,6 +329,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });
@@ -381,6 +386,7 @@ describe('renderOps', () => {
         schema,
         policy: ALL_CLASSES_POLICY,
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         snapshotsImportPath: '../../snapshots',
       });

@@ -160,6 +160,7 @@ describe('MongoMigrationRunner - validator widen', () => {
       schema: originIR,
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: null,
+      statements: [],
       frameworkComponents: [],
       snapshotsImportPath: '../../snapshots',
     });
@@ -230,6 +231,7 @@ describe('MongoMigrationRunner - validator widen', () => {
       schema: originIR,
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: null,
+      statements: [],
       frameworkComponents: [],
       snapshotsImportPath: '../../snapshots',
     });
@@ -276,6 +278,7 @@ describe('MongoMigrationRunner - validator widen', () => {
       schema: staleOriginIR,
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: null,
+      statements: [],
       frameworkComponents: [],
       snapshotsImportPath: '../../snapshots',
     });
