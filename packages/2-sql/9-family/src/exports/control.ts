@@ -14,6 +14,7 @@ export type {
 export { assembleAuthoringContributions } from '@internal/framework-components/control';
 export { checkSqlDefaultBody } from '@internal/sql-contract/validators';
 export { extractCodecControlHooks } from '../core/assembly';
+export { assertContractDefaultStorable } from '../core/assert-contract-default-storable';
 export type { SqlControlFamilyInstance } from '../core/control-instance';
 export type {
   SqlControlTargetDescriptor,
@@ -101,7 +102,6 @@ export type {
   SqlPlanTargetDetails,
   StorageTypePlanResult,
 } from '../core/migrations/types';
-export { refuseContractDefault } from '../core/refused-contract-default';
 export {
   temporalCodecPresetWithPrecision,
   temporalStringAuthoringPresets,

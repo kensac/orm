@@ -1,4 +1,4 @@
-import { refuseContractDefault } from '@internal/family-sql/control';
+import { assertContractDefaultStorable } from '@internal/family-sql/control';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import {
@@ -8,11 +8,7 @@ import {
   PrimaryKeyConstraint,
   UniqueConstraint,
 } from '@internal/sql-relational-core/ast';
-import {
-  contractDefaultRefusal,
-  type SqlColumnIR,
-  type SqlTableIR,
-} from '@internal/sql-schema-ir/types';
+import type { SqlColumnIR, SqlTableIR } from '@internal/sql-schema-ir/types';
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
@@ -64,12 +60,12 @@ function columnLike(
  */
 function plannableDefault(column: SqlColumnIR): StorageColumn['default'] {
   const columnDefault = column.authoredDefault ?? column.resolvedDefault;
-  const refusal = contractDefaultRefusal(
+  assertContractDefaultStorable(
+    column.name,
     columnDefault,
     column.dataType?.toCanonicalForm,
     (column.many ?? column.codecRef?.many) === true,
   );
-  if (refusal !== undefined) refuseContractDefault(column.name, refusal);
   return columnDefault;
 }
 

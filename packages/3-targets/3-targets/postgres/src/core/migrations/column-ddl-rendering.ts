@@ -1,12 +1,14 @@
 import type { ColumnDefault } from '@internal/contract/types';
-import { type CodecControlHooks, refuseContractDefault } from '@internal/family-sql/control';
+import {
+  assertContractDefaultStorable,
+  type CodecControlHooks,
+} from '@internal/family-sql/control';
 import type { DataType } from '@internal/framework-components/codec';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import type { DdlColumn } from '@internal/sql-relational-core/ast';
 import * as contractFree from '@internal/sql-relational-core/contract-free';
 import {
-  contractDefaultRefusal,
   defaultInCanonicalForm,
   type SqlColumnDefaultIR,
   type SqlColumnIR,
@@ -79,8 +81,7 @@ function inCanonicalForm(
   many: boolean,
 ): ColumnDefault | undefined {
   if (columnDefault?.kind !== 'literal') return columnDefault;
-  const refusal = contractDefaultRefusal(columnDefault, dataType?.toCanonicalForm, many);
-  if (refusal !== undefined) refuseContractDefault(columnName, refusal);
+  assertContractDefaultStorable(columnName, columnDefault, dataType?.toCanonicalForm, many);
   return {
     kind: 'literal',
     value: defaultInCanonicalForm(columnDefault.value, dataType?.toCanonicalForm, many).value,
