@@ -175,35 +175,31 @@ const stack = {
   extensions: [],
 } as unknown as ControlStack<'sql', 'sqlite'>;
 
-describe('SqliteMigration.renameColumn', () => {
-  function migration(
-    start: Contract<SqlStorage>,
-    end: Contract<SqlStorage>,
-    build: (m: {
-      renameTable: (o: { table: string; to: string }) => readonly Promise<unknown>[];
-      renameColumn: (o: {
-        table: string;
-        column: string;
-        to: string;
-      }) => readonly Promise<unknown>[];
-    }) => readonly Promise<unknown>[],
-  ) {
-    const serializer = new SqliteContractSerializer();
-    const startJson = serializer.serializeContract(start) as never;
-    const endJson = serializer.serializeContract(end) as never;
-    class HandWritten extends SqliteMigration {
-      override readonly startContractJson = startJson;
-      override readonly endContractJson = endJson;
-      override get operations() {
-        return build({
-          renameTable: (o) => this.renameTable(o),
-          renameColumn: (o) => this.renameColumn(o),
-        }) as never;
-      }
+function migration(
+  start: Contract<SqlStorage>,
+  end: Contract<SqlStorage>,
+  build: (m: {
+    renameTable: (o: { table: string; to: string }) => readonly Promise<unknown>[];
+    renameColumn: (o: { table: string; column: string; to: string }) => readonly Promise<unknown>[];
+  }) => readonly Promise<unknown>[],
+) {
+  const serializer = new SqliteContractSerializer();
+  const startJson = serializer.serializeContract(start) as never;
+  const endJson = serializer.serializeContract(end) as never;
+  class HandWritten extends SqliteMigration {
+    override readonly startContractJson = startJson;
+    override readonly endContractJson = endJson;
+    override get operations() {
+      return build({
+        renameTable: (o) => this.renameTable(o),
+        renameColumn: (o) => this.renameColumn(o),
+      }) as never;
     }
-    return new HandWritten(stack);
   }
+  return new HandWritten(stack);
+}
 
+describe('SqliteMigration.renameColumn', () => {
   it('renames a column of a table an earlier renameTable renamed', async () => {
     const objects = { emailIndex: true };
     const ops = (await Promise.all(
@@ -269,6 +265,25 @@ describe('SQLite planner, field statements', () => {
       renameField('Profile', 'posts', 'posts'),
     ]);
     expect(await labelsOf(result)).toEqual([]);
+  });
+
+  it('emits the same operations as the facade call it renders, run against the same contracts', async () => {
+    const objects = { emailIndex: true };
+    const from = profileContract('a'.repeat(64), { objects });
+    const to = profileContract('b'.repeat(64), { columns: EMAIL_RENAMED, objects });
+    const result = plan(from, to, [renameEmail]);
+    if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
+    expect(result.plan.renderTypeScript((specifier) => specifier)).toContain(
+      '...this.renameColumn({ table: "Profile", column: "email", to: "emailAddress" })',
+    );
+    const planned = await Promise.all(result.plan.operations);
+    const handWritten = await Promise.all(
+      migration(from, to, (m) =>
+        m.renameColumn({ table: 'Profile', column: 'email', to: 'emailAddress' }),
+      ).operations,
+    );
+    expect(handWritten).toEqual(planned);
+    expect(planned).toHaveLength(3);
   });
 
   it('renames the column on the table an earlier model statement renamed', async () => {

@@ -1,4 +1,7 @@
 import { asNamespaceId, type Contract } from '@internal/contract/types';
+import type { SqlMigrationPlanOperation } from '@internal/family-sql/control';
+import type { SqlControlAdapter } from '@internal/family-sql/control-adapter';
+import type { ControlStack } from '@internal/framework-components/control';
 import {
   APP_SPACE_ID,
   type ResolvedFieldRename,
@@ -8,12 +11,27 @@ import {
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
-import { RenameColumnCall } from '../../src/core/migrations/op-factory-call';
 import { createPostgresMigrationPlanner } from '../../src/core/migrations/planner';
+import type { PostgresPlanTargetDetails } from '../../src/core/migrations/planner-target-details';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
+import { PostgresMigration } from '../../src/core/migrations/postgres-migration';
+import { PostgresContractSerializer } from '../../src/core/postgres-contract-serializer';
 import type { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
 import { ORIGINAL_COLUMNS, type ProfileObjects, profileContract } from './rename-column-fixtures';
 import { stubLowerer } from './rename-table-fixtures';
+
+type Op = SqlMigrationPlanOperation<PostgresPlanTargetDetails>;
+type ContractJson = { readonly storage: { readonly storageHash: string } };
+
+const stack = {
+  adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'> },
+  target: { kind: 'target', familyId: 'sql', targetId: 'postgres' },
+  extensions: [],
+} as unknown as ControlStack<'sql', 'postgres'>;
+
+function jsonOf(contract: Contract<SqlStorage>): ContractJson {
+  return new PostgresContractSerializer().serializeContract(contract) as unknown as ContractJson;
+}
 
 const ALL_CLASSES = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
 const NS = asNamespaceId(UNBOUND_NAMESPACE_ID);
@@ -180,20 +198,28 @@ describe('Postgres planner, field statements', () => {
     ]);
   });
 
-  it('plans the call the facade call it renders would emit', async () => {
+  it('emits the same operations as the facade call it renders, run against the same contracts', async () => {
     const objects = { emailUnique: {}, emailIndex: true };
     const from = profileContract('a'.repeat(64), { objects });
     const to = profileContract('b'.repeat(64), { columns: EMAIL_RENAMED, objects });
     const result = success(plan(from, to, [renameEmail]));
-    const ops = await Promise.all(result.plan.operations);
-    const call = new RenameColumnCall(UNBOUND_NAMESPACE_ID, 'Profile', 'email', 'emailAddress', []);
-    expect(call.renderTypeScript()).toBe(
-      '...this.renameColumn({ table: "Profile", column: "email", to: "emailAddress" })',
-    );
-    expect(result.plan.renderTypeScript((specifier) => specifier)).toContain(
-      call.renderTypeScript(),
-    );
-    expect(ops.map((op) => op.id)).toEqual([
+    const rendered =
+      '...this.renameColumn({ table: "Profile", column: "email", to: "emailAddress" })';
+    expect(result.plan.renderTypeScript((specifier) => specifier)).toContain(rendered);
+
+    const startJson = jsonOf(from);
+    const endJson = jsonOf(to);
+    class HandWritten extends PostgresMigration {
+      override readonly startContractJson = startJson;
+      override readonly endContractJson = endJson;
+      override get operations(): readonly Promise<Op>[] {
+        return [...this.renameColumn({ table: 'Profile', column: 'email', to: 'emailAddress' })];
+      }
+    }
+    const planned = await Promise.all(result.plan.operations);
+    const handWritten = await Promise.all(new HandWritten(stack).operations);
+    expect(handWritten).toEqual(planned);
+    expect(planned.map((op) => op.id)).toEqual([
       'renameColumn.Profile.email',
       expect.stringContaining('Profile_email_key'),
       expect.stringContaining('Profile_email_idx'),
