@@ -1,4 +1,4 @@
-import { type Contract, coreHash, profileHash } from '@internal/contract/types';
+import { type Contract, type ControlPolicy, coreHash, profileHash } from '@internal/contract/types';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import {
@@ -22,6 +22,7 @@ const integer = { nativeType: 'integer', codecId: 'sqlite/integer@1', nullable: 
 const text = { nativeType: 'text', codecId: 'sqlite/text@1', nullable: false };
 
 export interface ProfileSpec {
+  readonly control?: ControlPolicy;
   readonly uniques?: readonly UniqueConstraintInput[];
   readonly foreignKeys?: (tableName: string) => readonly ForeignKeyInput[];
   readonly indexes?: (tableName: string) => readonly IndexInput[];
@@ -54,6 +55,7 @@ export function contractOf(
                 uniques: spec.uniques ?? [],
                 indexes: spec.indexes?.(profileTableName) ?? [],
                 foreignKeys: spec.foreignKeys?.(profileTableName) ?? [],
+                ...(spec.control === undefined ? {} : { control: spec.control }),
               }),
               account: new StorageTable({
                 columns: { id: integer },
@@ -109,4 +111,26 @@ export function plainTable(): StorageTable {
     indexes: [],
     foreignKeys: [],
   });
+}
+
+/** `contract` with one model per entry of `tables`, each stored in the named table. */
+export function withModels(
+  contract: Contract<SqlStorage>,
+  tables: Record<string, string>,
+): Contract<SqlStorage> {
+  return {
+    ...contract,
+    domain: applicationDomainOf({
+      models: Object.fromEntries(
+        Object.entries(tables).map(([model, table]) => [
+          model,
+          {
+            fields: {},
+            relations: {},
+            storage: { table, namespaceId: UNBOUND_NAMESPACE_ID, fields: {} },
+          },
+        ]),
+      ),
+    }),
+  };
 }

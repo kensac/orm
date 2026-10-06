@@ -1,8 +1,10 @@
 import type { Contract } from '@internal/contract/types';
 import type {
   MigrationOperationPolicy,
+  PlannedStatements,
   SqlMigrationPlanner,
   SqlMigrationPlannerPlanOptions,
+  SqlPlannerConflict,
   SqlPlannerFailureResult,
 } from '@internal/family-sql/control';
 import {
@@ -10,6 +12,7 @@ import {
   extractCodecControlHooks,
   planFieldEventOperations,
   plannerFailure,
+  planStatements,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -28,7 +31,8 @@ import {
   type SqlSchemaIR,
   SqlTableIR,
 } from '@internal/sql-schema-ir/types';
-import { buildSqlitePlanDiff } from './diff-database-schema';
+import { ok, type Result } from '@internal/utils/result';
+import { buildSqlitePlanDiff, sqliteActualSchema } from './diff-database-schema';
 import { indexNameCaseChange, pairIndexReplacements } from './index-replacements';
 import {
   coalesceSubtreeIssues,
@@ -44,6 +48,9 @@ import {
 } from './planner-produced-sqlite-migration';
 import { sqlitePlannerStrategies } from './planner-strategies';
 import type { SqlitePlanTargetDetails } from './planner-target-details';
+import { sqliteSchemaTables } from './schema-tables';
+import { sqliteTableRenameCall } from './table-rename-calls';
+import { createWorkingSchema } from './working-schema';
 
 export function createSqliteMigrationPlanner(
   lowerer: ExecuteRequestLowerer,
@@ -143,7 +150,13 @@ export class SqliteMigrationPlanner
     const policyResult = this.ensureAdditivePolicy(options.policy);
     if (policyResult) return policyResult;
 
-    const { expected, actual, issues: diffIssues } = this.collectSchemaIssues(options);
+    const statements = this.planStatements(options);
+    if (!statements.ok) return plannerFailure([statements.failure]);
+    const {
+      expected,
+      actual,
+      issues: diffIssues,
+    } = this.collectSchemaIssues(options, statements.value.schema);
     const replacedIndexes = pairIndexReplacements(diffIssues, indexNameCaseChange);
     const disallowedIndexCalls = replacedIndexes.calls.filter(
       (call) => !options.policy.allowedOperationClasses.includes(call.operationClass),
@@ -198,12 +211,17 @@ export class SqliteMigrationPlanner
       priorContract: options.fromContract,
       newContract: options.contract,
       codecHooks,
-      renames: [],
+      renames: statements.value.renames,
     });
     // Codec-emitted calls already conform to `OpFactoryCall` — render +
     // toOp + importRequirements ride directly through the same emit path
     // as structural ops, no `RawSqlCall` wrap.
-    const calls = [...replacedIndexes.calls, ...result.value.calls, ...fieldEventOps];
+    const calls = [
+      ...statements.value.calls,
+      ...replacedIndexes.calls,
+      ...result.value.calls,
+      ...fieldEventOps,
+    ];
 
     const destination: SqliteMigrationDestinationInfo = {
       storageHash: options.contract.storage.storageHash,
@@ -225,8 +243,41 @@ export class SqliteMigrationPlanner
         destination,
         this.#lowerer,
       ),
-      appliedStatements: [],
+      appliedStatements: statements.value.appliedStatements,
     };
+  }
+
+  /**
+   * Plans the statements against a working copy of the schema the plan starts from, in order, so
+   * each rename's index replacements are computed against the schema the earlier statements left.
+   * The diff then runs on that schema.
+   */
+  private planStatements(
+    options: SqlMigrationPlannerPlanOptions,
+  ): Result<
+    PlannedStatements<RenameTableCall> & { readonly schema: SqlSchemaIR },
+    SqlPlannerConflict
+  > {
+    const working = createWorkingSchema(sqliteActualSchema(options.schema));
+    const planned = planStatements({
+      statements: options.statements,
+      fromContract: options.fromContract,
+      contract: options.contract,
+      target: {
+        tables: () => sqliteSchemaTables(working.current),
+        renameCall: (rename) =>
+          sqliteTableRenameCall({
+            previous: working.current,
+            contract: options.contract,
+            rename,
+            frameworkComponents: options.frameworkComponents,
+          }),
+        apply: (call) => working.apply(call),
+        operationCount: (call) => 1 + call.companions.length,
+      },
+    });
+    if (!planned.ok) return planned;
+    return ok({ ...planned.value, schema: working.current });
   }
 
   private ensureAdditivePolicy(policy: MigrationOperationPolicy): SqlPlannerFailureResult | null {
@@ -271,7 +322,10 @@ export class SqliteMigrationPlanner
    *    an additive-only plan must never even consider dropping an unclaimed
    *    object, not just refuse to emit the drop.
    */
-  private collectSchemaIssues(options: SqlMigrationPlannerPlanOptions): {
+  private collectSchemaIssues(
+    options: SqlMigrationPlannerPlanOptions,
+    schema: SqlSchemaIR,
+  ): {
     readonly expected: SqlSchemaIR;
     readonly actual: SqlSchemaIR;
     readonly issues: readonly SchemaDiffIssue[];
@@ -284,7 +338,7 @@ export class SqliteMigrationPlanner
       issues: rawIssues,
     } = buildSqlitePlanDiff({
       contract: options.contract,
-      actualSchema: options.schema,
+      actualSchema: schema,
       frameworkComponents: options.frameworkComponents,
     });
     const coalesced = coalesceSubtreeIssues(rawIssues);
