@@ -119,6 +119,9 @@ export async function planFromDiff<TFamilyId extends string, TTargetId extends s
   const plan: MigrationPlan = new Proxy(producedPlan, {
     get(target, prop) {
       if (prop === 'targetId') return input.aggregateTargetId;
+      // A diff plan applies from whatever state the database is in. The origin
+      // contract only informs planning, so the runner sees no origin to check.
+      if (prop === 'origin') return null;
       // Forward `this` as the original target so prototype-bound
       // private fields (#destination, #operations, …) resolve.
       return Reflect.get(target, prop, target);

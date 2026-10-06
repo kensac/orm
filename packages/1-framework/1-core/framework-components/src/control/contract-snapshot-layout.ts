@@ -5,6 +5,11 @@ export const CONTRACT_SNAPSHOTS_DIRNAME = 'snapshots';
 const STORAGE_HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 /** Validate a storage hash for use as a directory name. */
+/** Whether the snapshot store can address `storageHash`. */
+export function isStorageHashHex(storageHash: string): boolean {
+  return STORAGE_HASH_PATTERN.test(storageHash);
+}
+
 export function storageHashHex(storageHash: string): string {
   if (!STORAGE_HASH_PATTERN.test(storageHash)) {
     throw new InternalError(

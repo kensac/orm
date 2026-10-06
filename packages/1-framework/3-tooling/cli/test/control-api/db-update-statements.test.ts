@@ -57,12 +57,21 @@ const driver = {
   databaseName: async () => 'appdb',
 } as unknown as ControlDriverInstance<'sql', 'postgres'>;
 
-function familyWithMarker(marker: ContractMarkerRecord | undefined) {
+/** A family whose serializer refuses the snapshot of the origin hash when `unreadableOrigin` is set. */
+function familyWithMarker(
+  marker: ContractMarkerRecord | undefined,
+  options: { readonly unreadableOrigin?: boolean } = {},
+) {
   return {
     familyId: 'sql',
     readAllMarkers: async () => (marker === undefined ? new Map() : new Map([['app', marker]])),
     introspect: async () => ({ tables: {} }),
-    deserializeContract: (json: unknown) => json as Contract,
+    deserializeContract: (json: unknown) => {
+      if (options.unreadableOrigin && (json as Contract).storage.storageHash === ORIGIN_HASH) {
+        throw new Error('unknown contract format');
+      }
+      return json as Contract;
+    },
     toOperationPreview: () => ({ statements: [] }),
   } as unknown as ControlFamilyInstance<'sql', unknown>;
 }
@@ -74,6 +83,11 @@ interface PlannerCall {
 
 function recordingMigrations(operationClass: 'additive' | 'destructive' = 'additive') {
   const calls: PlannerCall[] = [];
+  const execute = vi.fn().mockResolvedValue(
+    ok({
+      perSpaceResults: [{ space: 'app', value: { operationsPlanned: 1, operationsExecuted: 1 } }],
+    }),
+  );
   const migrations = {
     createPlanner: () => ({
       plan: (options: PlannerCall): MigrationPlannerResult => {
@@ -88,6 +102,10 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
           })),
           plan: {
             targetId: 'postgres',
+            origin:
+              options.fromContract === null
+                ? null
+                : { storageHash: (options.fromContract as Contract).storage.storageHash },
             destination: { storageHash: DESTINATION_HASH },
             operations: [
               renamed
@@ -99,21 +117,13 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
         };
       },
     }),
-    createRunner: () => ({
-      execute: vi.fn().mockResolvedValue(
-        ok({
-          perSpaceResults: [
-            { space: 'app', value: { operationsPlanned: 1, operationsExecuted: 1 } },
-          ],
-        }),
-      ),
-    }),
+    createRunner: () => ({ execute }),
   } as unknown as TargetMigrationsCapability<
     'sql',
     'postgres',
     ControlFamilyInstance<'sql', unknown>
   >;
-  return { migrations, calls };
+  return { migrations, calls, execute };
 }
 
 const tempDirs: string[] = [];
@@ -139,6 +149,7 @@ function update(options: {
   readonly marker: ContractMarkerRecord | undefined;
   readonly renames: readonly string[];
   readonly mode?: 'plan' | 'apply';
+  readonly unreadableOrigin?: boolean;
   readonly migrations: TargetMigrationsCapability<
     'sql',
     'postgres',
@@ -148,7 +159,9 @@ function update(options: {
   return executeDbUpdate({
     driver,
     adapter: {} as unknown as ControlAdapterInstance<'sql', 'postgres'>,
-    familyInstance: familyWithMarker(options.marker),
+    familyInstance: familyWithMarker(options.marker, {
+      unreadableOrigin: options.unreadableOrigin ?? false,
+    }),
     contract: destination,
     mode: options.mode ?? 'plan',
     migrations: options.migrations,
@@ -188,6 +201,36 @@ describe('executeDbUpdate with statements', () => {
         operationCount: 1,
       }),
     ]);
+  });
+
+  it('hands the runner a plan with no origin, as without statements', async () => {
+    const { migrations, execute } = recordingMigrations();
+    await update({
+      migrationsDir: await migrationsDirWithSnapshot(origin),
+      marker: markerAt(ORIGIN_HASH),
+      renames: ['Profile:User'],
+      mode: 'apply',
+      migrations,
+    });
+    const [runnerOptions] = execute.mock.calls[0] ?? [];
+    expect(runnerOptions.perSpaceOptions[0].plan.origin).toBeNull();
+  });
+
+  it('refuses statements when the snapshot of the marker hash cannot be read, naming why', async () => {
+    const { migrations, calls } = recordingMigrations();
+    await expect(
+      update({
+        migrationsDir: await migrationsDirWithSnapshot(origin),
+        marker: markerAt(ORIGIN_HASH),
+        renames: ['Profile:User'],
+        unreadableOrigin: true,
+        migrations,
+      }),
+    ).rejects.toMatchObject({
+      code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      why: expect.stringContaining('unknown contract format'),
+    });
+    expect(calls).toEqual([]);
   });
 
   it('reports the applied statements on an apply', async () => {
@@ -243,7 +286,12 @@ describe('executeDbUpdate with statements', () => {
         renames: ['Profile:User'],
         migrations,
       }),
-    ).rejects.toMatchObject({ code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN', meta: { hash: null } });
+    ).rejects.toMatchObject({
+      code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      meta: { hash: null },
+      why: expect.stringContaining('nothing to rename'),
+      fix: expect.not.stringContaining('--advance-ref'),
+    });
   });
 
   it('refuses the same statements once the database is at the destination', async () => {
@@ -258,24 +306,26 @@ describe('executeDbUpdate with statements', () => {
     ).rejects.toMatchObject({ code: 'MIGRATION.STATEMENT_UNRESOLVED' });
   });
 
-  it('plans from the snapshot without statements, and needs no snapshot', async () => {
+  it('reads no snapshot without statements, and plans from no origin contract', async () => {
     const withSnapshot = recordingMigrations();
-    await update({
+    const result = await update({
       migrationsDir: await migrationsDirWithSnapshot(origin),
       marker: markerAt(ORIGIN_HASH),
       renames: [],
+      unreadableOrigin: true,
       migrations: withSnapshot.migrations,
     });
-    expect(withSnapshot.calls).toEqual([{ fromContract: origin, statements: [] }]);
+    expect(result.ok).toBe(true);
+    expect(withSnapshot.calls).toEqual([{ fromContract: null, statements: [] }]);
 
     const without = recordingMigrations();
-    const result = await update({
+    const withoutSnapshot = await update({
       migrationsDir: await migrationsDirWithSnapshot(undefined),
       marker: markerAt(ORIGIN_HASH),
       renames: [],
       migrations: without.migrations,
     });
     expect(without.calls).toEqual([{ fromContract: null, statements: [] }]);
-    expect(result.ok && result.value.appliedStatements).toEqual([]);
+    expect(withoutSnapshot.ok && withoutSnapshot.value.appliedStatements).toEqual([]);
   });
 });

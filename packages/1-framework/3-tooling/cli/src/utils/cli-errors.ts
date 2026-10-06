@@ -532,11 +532,24 @@ export function errorStatementUnresolved(
 export function errorStatementOriginUnknown(origin: {
   readonly hash: string | null;
   readonly snapshotDirectory: string;
+  readonly unreadable: string | undefined;
 }): ActionableCliError {
+  if (origin.hash === null) {
+    return new ActionableCliError(
+      'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      'Cannot resolve statements: the database has no marker',
+      {
+        why: 'The database has no marker: it has never been initialised or updated, so there is nothing to rename.',
+        fix: 'Run the command without statements.',
+        nextActions: [chooseAction('Run the command without statements')],
+        meta: { hash: null, snapshotDirectory: origin.snapshotDirectory },
+      },
+    );
+  }
   const why =
-    origin.hash === null
-      ? `The database has no marker, so there is no contract hash to look up in ${origin.snapshotDirectory}.`
-      : `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`;
+    origin.unreadable === undefined
+      ? `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`
+      : `The contract snapshot for hash "${origin.hash}" in ${origin.snapshotDirectory} could not be read: ${origin.unreadable}`;
   return new ActionableCliError(
     'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
     'Cannot resolve statements: the origin contract is unknown',
@@ -551,7 +564,11 @@ export function errorStatementOriginUnknown(origin: {
         runCommandAction('Plan from an explicit origin', '{bin} migration plan --from <contract>'),
         chooseAction('Or run the command without statements'),
       ],
-      meta: { hash: origin.hash, snapshotDirectory: origin.snapshotDirectory },
+      meta: {
+        hash: origin.hash,
+        snapshotDirectory: origin.snapshotDirectory,
+        ...ifDefined('unreadable', origin.unreadable),
+      },
     },
   );
 }

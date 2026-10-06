@@ -33,6 +33,8 @@ export type StatementOrigin =
       readonly kind: 'missing';
       readonly hash: string | null;
       readonly snapshotDirectory: string;
+      /** Why the snapshot that exists for `hash` could not be read; `undefined` when there is none. */
+      readonly unreadable: string | undefined;
     };
 
 /**

@@ -132,6 +132,47 @@ describe('planFromDiff', () => {
     expect(observedOwnership).toBe(ownership);
   });
 
+  it('hands the planner the origin contract and statements, and gives the runner a plan with no origin', async () => {
+    const appSpace = makeSpace('app', {});
+    const fromContract = appSpace.contract();
+    let received: { fromContract: unknown; statements: readonly unknown[] } | undefined;
+    const stubPlanner: MigrationPlanner<'sql', 'postgres'> = {
+      plan: (options) => {
+        received = { fromContract: options.fromContract, statements: options.statements };
+        return {
+          kind: 'success',
+          plan: { ...makeStubPlan('placeholder'), origin: { storageHash: 'origin-hash' } },
+          appliedStatements: [],
+        };
+      },
+      emptyMigration: () => {
+        throw new Error('not used');
+      },
+    };
+    const outcome = await planFromDiff({
+      aggregateTargetId: 'postgres',
+      currentMarker: null,
+      space: appSpace,
+      ownership: STUB_OWNERSHIP,
+      schemaIntrospection: { tables: {} },
+      adapter: STUB_ADAPTER,
+      migrations: {
+        createPlanner: () => stubPlanner,
+        createRunner: () => {
+          throw new Error('runner not used');
+        },
+        contractToSchema: () => ({ tables: {} }),
+      },
+      frameworkComponents: [],
+      operationPolicy: POLICY,
+      fromContract,
+      statements: [],
+    });
+
+    expect(received).toEqual({ fromContract, statements: [] });
+    expect(outcome.kind === 'ok' && outcome.result.plan.origin).toBeNull();
+  });
+
   it('forwards planner failures verbatim', async () => {
     const stubPlanner: MigrationPlanner<'sql', 'postgres'> = {
       plan: () => ({

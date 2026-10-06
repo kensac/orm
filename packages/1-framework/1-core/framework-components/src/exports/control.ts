@@ -4,6 +4,7 @@ export {
   CONTRACT_SNAPSHOTS_DIRNAME,
   contractSnapshotJsonSpecifier,
   contractSnapshotTypesSpecifier,
+  isStorageHashHex,
   storageHashHex,
 } from '../control/contract-snapshot-layout';
 export type {

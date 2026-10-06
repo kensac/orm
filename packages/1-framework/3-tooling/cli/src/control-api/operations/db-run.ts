@@ -20,6 +20,7 @@ import type {
 import {
   CONTRACT_SNAPSHOTS_DIRNAME,
   hasOperationPreview,
+  isStorageHashHex,
 } from '@internal/framework-components/control';
 import type { ContractMarkerRecordLike } from '@internal/migration-tools/aggregate';
 import {
@@ -170,16 +171,18 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // 2. Read live DB state (markers + schema).
   const markerRows = await familyInstance.readAllMarkers({ driver });
 
-  // 2b. The application space's origin: the contract the marker names, read
-  // from the snapshot store. Statements resolve against it.
-  const appOrigin = await readAppOrigin({
-    marker: markerRows.get(aggregate.app.spaceId) ?? null,
-    migrationsDir,
-    deserializeContract: (json) => familyInstance.deserializeContract(json),
-    ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
-  });
+  // 2b. Statements resolve against the contract the application space's
+  // marker names, read from the snapshot store. Without statements nothing is
+  // read and the plan has no origin contract, as before statements existed.
+  let fromContract: Contract | null = null;
   let statements: readonly ResolvedStatement[] = [];
   if (options.renames.length > 0) {
+    const appOrigin = await readAppOrigin({
+      marker: markerRows.get(aggregate.app.spaceId) ?? null,
+      migrationsDir,
+      deserializeContract: (json) => familyInstance.deserializeContract(json),
+      ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
+    });
     const resolved = resolveStatements({
       renames: options.renames,
       origin: appOrigin.origin,
@@ -189,6 +192,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       throw resolved.failure;
     }
     statements = resolved.value;
+    fromContract = appOrigin.contract;
   }
 
   // 2a. Orphan-marker pre-flight: refuse to *apply* when a marker row
@@ -234,10 +238,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     frameworkComponents,
     callerPolicy: { ignoreGraphFor: new Set([aggregate.app.spaceId]) },
     operationPolicy: policy,
-    appSpace: {
-      fromContract: appOrigin.contract,
-      statements,
-    },
+    appSpace: { fromContract, statements },
   });
   if (!planResult.ok) {
     onProgress?.({ action, kind: 'spanEnd', spanId: SPAN_IDS.plan, outcome: 'error' });
@@ -352,38 +353,46 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
 
 /**
  * The contract the application space's marker names, from the local snapshot
- * store, or where it was looked for when the store does not have it.
+ * store, or where it was looked for and why it could not be used.
  */
 async function readAppOrigin(input: {
   readonly marker: ContractMarkerRecordLike | null;
   readonly migrationsDir: string;
   readonly deserializeContract: (json: unknown) => Contract;
   readonly verifySnapshotContent?: SnapshotContentVerifier;
-}): Promise<{ readonly contract: Contract | null; readonly origin: StatementOrigin }> {
+}): Promise<{ readonly origin: StatementOrigin; readonly contract: Contract | null }> {
   const snapshotsDir = join(input.migrationsDir, CONTRACT_SNAPSHOTS_DIRNAME);
   if (input.marker === null) {
-    return {
-      contract: null,
-      origin: { kind: 'missing', hash: null, snapshotDirectory: snapshotsDir },
+    const origin: StatementOrigin = {
+      kind: 'missing',
+      hash: null,
+      snapshotDirectory: snapshotsDir,
+      unreadable: undefined,
     };
+    return { origin, contract: null };
   }
   const hash = input.marker.storageHash;
+  const snapshotDirectory = isStorageHashHex(hash)
+    ? contractSnapshotDir(input.migrationsDir, hash)
+    : snapshotsDir;
   const json = await readContractSnapshotJsonTolerant(
     input.migrationsDir,
     hash,
     input.verifySnapshotContent,
   );
-  if (json !== undefined) {
-    const contract = input.deserializeContract(json);
-    return { contract, origin: { kind: 'contract', contract } };
+  if (json === undefined) {
+    return {
+      origin: { kind: 'missing', hash, snapshotDirectory, unreadable: undefined },
+      contract: null,
+    };
   }
-  let snapshotDirectory = snapshotsDir;
   try {
-    snapshotDirectory = contractSnapshotDir(input.migrationsDir, hash);
-  } catch {
-    // A marker hash the store cannot address names no snapshot directory.
+    const contract = input.deserializeContract(json);
+    return { origin: { kind: 'contract', contract }, contract };
+  } catch (error) {
+    const unreadable = error instanceof Error ? error.message : String(error);
+    return { origin: { kind: 'missing', hash, snapshotDirectory, unreadable }, contract: null };
   }
-  return { contract: null, origin: { kind: 'missing', hash, snapshotDirectory } };
 }
 
 function aggregatePlannerWarnings(

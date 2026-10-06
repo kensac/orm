@@ -268,7 +268,12 @@ describe('resolveStatements, origin contract unknown', () => {
   it('refuses before reading any statement, naming the hash and the directory', () => {
     const result = resolveStatements({
       renames: ['not a statement'],
-      origin: { kind: 'missing', hash: 'sha256:abc', snapshotDirectory: 'migrations/snapshots' },
+      origin: {
+        kind: 'missing',
+        hash: 'sha256:abc',
+        snapshotDirectory: 'migrations/snapshots',
+        unreadable: undefined,
+      },
       destination,
     });
     expectFailure(
@@ -282,21 +287,26 @@ describe('resolveStatements, origin contract unknown', () => {
   it('says there is no marker when there is no hash to look for', () => {
     const result = resolveStatements({
       renames: ['Profile:User'],
-      origin: { kind: 'missing', hash: null, snapshotDirectory: 'migrations/snapshots' },
+      origin: {
+        kind: 'missing',
+        hash: null,
+        snapshotDirectory: 'migrations/snapshots',
+        unreadable: undefined,
+      },
       destination,
     });
-    expectFailure(
-      result,
-      'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
-      'no marker',
-      'migrations/snapshots',
-    );
+    expectFailure(result, 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN', 'no marker', 'nothing to rename');
   });
 
   it('resolves to no statements when none are given', () => {
     const result = resolveStatements({
       renames: [],
-      origin: { kind: 'missing', hash: null, snapshotDirectory: 'migrations/snapshots' },
+      origin: {
+        kind: 'missing',
+        hash: null,
+        snapshotDirectory: 'migrations/snapshots',
+        unreadable: undefined,
+      },
       destination,
     });
     expect(expectValue(result)).toEqual([]);
