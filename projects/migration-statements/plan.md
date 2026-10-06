@@ -12,7 +12,7 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Linear:** [TML-3475](https://linear.app/prisma-company/issue/TML-3475) · **Folder:** `slices/renames/`
 
-**Outcome.** Both commands accept `--rename old:new` for models and fields, including a model rename across namespaces. The framework parses each statement, resolves it against the origin and destination contracts, and applies it in order to a working copy of the origin. The SQL planners emit the table or column rename and every companion rename, with names from the destination contract. `db update` resolves its origin contract from the marker hash through the snapshot store and fails every rename when it cannot. An unusable statement is an error. Non-data drops are widening. The written migration is what a user could write by hand.
+**Outcome.** Both commands accept `--rename old:new` for models and fields, with a model rename across namespaces resolved but refused until slice 3. The framework parses each statement, resolves it against the origin and destination contracts, and applies it in order to a working copy of the origin. The SQL planners emit the table or column rename and every companion rename, with names from the destination contract. `db update` resolves its origin contract from the marker hash through the snapshot store and fails every rename when it cannot. An unusable statement is an error. Non-data drops are widening. The written migration is what a user could write by hand.
 
 **Builds on.** The planner substrate from prisma/orm#30570, without its contract section.
 
@@ -32,7 +32,7 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Linear:** [TML-3477](https://linear.app/prisma-company/issue/TML-3477) · **Folder:** `slices/convert-backfill/`
 
-**Outcome.** `--convert` scaffolds the type change with the placeholder in the slot that carries the conversion, and `--backfill` the backfill transform; both refused on `db update`; the scaffolding stops being automatic. `--rename` on enum values, namespaces and value object fields, and `--convert` on a variant, plan the row updates, the JSON rewrites and the schema rename. `--delete` on an enum value nulls where nullable, else refuses.
+**Outcome.** `--convert` scaffolds the type change with the placeholder in the slot that carries the conversion, and `--backfill` the backfill transform; both refused on `db update`; the scaffolding stops being automatic. `--rename` on enum values, namespaces and value object fields, a model move across namespaces (`alter table set schema` on Postgres, deferred from slice 1 on 2026-10-06 because no operation existed for it), and `--convert` on a variant, plan the row updates, the JSON rewrites and the schema rename. `--delete` on an enum value nulls where nullable, else refuses.
 
 **Builds on.** Slice 2.
 
