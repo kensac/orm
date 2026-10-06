@@ -248,7 +248,7 @@ Reading a default is then:
 4. The value, cast or not, is validated by the codec instance for the column's parameters; a refusal is a diagnostic at the value with the codec's message.
 5. The value is stored in the column's canonical form. The contract's two default forms, a value and an expression, are unchanged.
 
-The TypeScript builder is not a text surface: `.default(value)` hands the codec a JS value that TypeScript has typed, `encodeJson` produces a stored form, and the builder stores its canonical form, so the rule holds for every codec. A value the canonical form refuses is a build error with its message.
+The TypeScript builder is not a text surface: `.default(value)` hands the codec a JS value that TypeScript has typed, `encodeJson` produces a form the column reads, and the builder stores its canonical form, so the rule holds for every codec. A value the canonical form refuses is a build error with its message.
 
 ## Assembly
 

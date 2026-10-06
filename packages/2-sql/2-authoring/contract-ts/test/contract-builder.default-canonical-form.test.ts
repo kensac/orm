@@ -157,7 +157,7 @@ describe('a literal default in a TypeScript contract', () => {
       expect.objectContaining({
         code: 'CONTRACT.DEFAULT_INVALID',
         message:
-          'Field "Event.at" has a default that the canonical form of its values refuses: "2024-01-01T00:00:00" has no UTC offset.',
+          'Field "Event.at" has a default its column does not store: "2024-01-01T00:00:00" has no UTC offset.',
         meta: {
           modelName: 'Event',
           fieldName: 'at',
@@ -176,7 +176,7 @@ describe('a literal default in a TypeScript contract', () => {
       expect.objectContaining({
         code: 'CONTRACT.DEFAULT_INVALID',
         message:
-          'Field "Event.at" has a default that the canonical form of its values refuses: "2024-01-01T00:00:00" has no UTC offset.',
+          'Field "Event.at" has a default its column does not store: "2024-01-01T00:00:00" has no UTC offset.',
         meta: {
           modelName: 'Event',
           fieldName: 'at',

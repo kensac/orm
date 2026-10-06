@@ -39,7 +39,6 @@ import {
   type ColumnTypeDescriptor,
   canonicalFormOf,
   codecForRef,
-  type DataType,
   type DataTypeLookup,
   type ToCanonicalForm,
 } from '@internal/framework-components/codec';
@@ -254,7 +253,7 @@ function inCanonicalForm(
   if (canonical.refusal !== undefined) {
     throw contractError(
       'CONTRACT.DEFAULT_INVALID',
-      `Field "${site.modelName}.${site.fieldName}" has a default that the canonical form of its values refuses: ${canonical.refusal}`,
+      `Field "${site.modelName}.${site.fieldName}" has a default its column does not store: ${canonical.refusal}`,
       {
         meta: {
           modelName: site.modelName,
@@ -968,17 +967,6 @@ interface TypeLookups {
   readonly dataTypeLookup: DataTypeLookup;
 }
 
-function columnCanonicalForm(
-  codecId: string,
-  dataType: DataType,
-  lookups: TypeLookups,
-): ToCanonicalForm | undefined {
-  const codec = lookups.codecLookup.descriptorFor(codecId);
-  return codec === undefined
-    ? dataType.toCanonicalForm
-    : canonicalFormOf(codec, lookups.dataTypeLookup);
-}
-
 function buildStorageColumn(
   field: FieldNode | ValueObjectFieldNode,
   enumRefs: EnumValueSetRefs | undefined,
@@ -996,6 +984,11 @@ function buildStorageColumn(
   const noCheck = isValueObjectMember(field) ? undefined : field.noCheck;
   const typeParams = resolvedTypeParams(descriptor, storageTypes);
   const dataType = sqlDataTypeOfCodec(codecId, lookups);
+  const codecDescriptor = codecLookup.descriptorFor(codecId);
+  invariant(
+    codecDescriptor !== undefined,
+    `sqlDataTypeOfCodec found codec "${codecId}", so its descriptor is registered.`,
+  );
   validateColumnTypeParams(dataType, typeParams, { modelName, fieldName: field.fieldName });
   const encodedDefault =
     field.default !== undefined
@@ -1006,7 +999,7 @@ function buildStorageColumn(
           { modelName, fieldName: field.fieldName, codecId },
           {
             dataType: dataType.id,
-            toCanonicalForm: columnCanonicalForm(codecId, dataType, lookups),
+            toCanonicalForm: canonicalFormOf(codecDescriptor, lookups.dataTypeLookup),
           },
           isListColumn,
           field.elementNullable === true,
