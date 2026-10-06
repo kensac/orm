@@ -131,10 +131,15 @@ Positionals are fixed slots with an output key. Variadic positionals are not sup
 
 An attribute argument is one of two kinds, and the kit has a set of combinators for each.
 
-- **Grammar** is typed by its shape: a name (`@@map("users")`), a flag (`unique: true`), a keyword (`onDelete: Cascade`), a reference (`fields: [a, b]`), a list or a record of these. The database never stores or compares it. `str()`, `num()`, `bool()`, `identifier()`, `fieldRef()`, `list()`, `record()` and `oneOf()` read grammar.
-- **A database value** is a value Prisma stores or passes to the database ([ADR 254](ADR%20254%20-%20Data%20types%20and%20casts.md)): the value of `@default(...)`, or the raw SQL of `@@index(where:)`. Its question is not "is this a string" but "which data type is this value, and does the receiving type take it", and the answer is the cast rule. `dataTypeValue(T)` reads a database value.
+- **A database value** is a value of a data type ([ADR 254](ADR%20254%20-%20Data%20types%20and%20casts.md)): a value a column holds, such as the value of `@default(...)`, or an expression the database evaluates, such as the raw SQL of `@@index(where:)`. Its question is not "is this a string" but "which data type is this value, and does the receiving type take it", and the answer is the cast rule. `dataTypeValue(T)` reads a database value.
+- **Grammar** is everything else: a name (`@@map("users")`), a flag (`unique: true`), a keyword (`onDelete: Cascade`), a reference (`fields: [a, b]`), a DDL parameter (`VarChar(255)`, an index weight), the size of a client-side generator (`nanoid(8)`), and lists and records of these. Grammar is typed by its shape. A name reaches the database in DDL, but it is not a value of any data type, so the cast rule has nothing to say about it.
 
-A table name is never `pg/text`, and asking which type casts into it would tie the family's grammar to a target's type registry; a column default is never "a string", because `"8"` and `8` are different values with different types. The two sets of combinators keep the two questions apart. `@default` is the one database position still read through grammar combinators, for the reason given under [SQL defaults](#sql-defaults).
+| Kind | Combinators |
+| --- | --- |
+| Grammar | `str`, `num`, `int`, `bool`, `identifier`, `fieldRef`, `referencedFieldRef`, `entityRef`, `list`, `record`, `oneOf`, `funcCall`, `json` |
+| Database value | `dataTypeValue`; and the grammar-shaped readers `numLiteral`, `taggedLiteral` and `jsonValue`, which read a database value's syntax for the positions listed next and leave the type check to their interpreter |
+
+A table name is never `pg/text`, and asking which type casts into it would tie the family's grammar to a target's type registry; a column default is never "a string", because `"8"` and `8` are different values with different types. The two sets of combinators keep the two questions apart. Three database positions are still read through grammar-shaped readers, each for a reason: `@default`, because its receiving type comes from the column and the spec factory does not know it (see [SQL defaults](#sql-defaults)); an enum member's stored value (`jsonValue()`), because the enum's codec checks it; and Mongo's partial index filter (`json()`), because the Mongo family registers no data type for a filter expression.
 
 ### Scalars and pinned literals
 
@@ -204,7 +209,7 @@ This is intentionally narrower than an arbitrary JSON value. Its shipped use is 
 
 Building the argument never throws, because the language server builds every spec, including on stacks that lack the type. Parsing throws an internal error when the stack does not register `dataType`: a spec that names a type its stack lacks is a pack bug. The argument carries `tags` and `documentation` for completion.
 
-`dataTypeValue` is used as a parameter in a `funcCall` signature, not as a bare arm of `oneOf`, whose aggregate diagnostic would hide the message that says how to write the value. It is not a replacement for `str()`, `num()` or `bool()`, and a position whose value the database never sees keeps those: the size in `nanoid(8)` is a parameter of a generator that runs in the client, so it is grammar, checked as an integer in a range, whatever the column's type.
+`dataTypeValue` is used as a parameter of an attribute, a block or a `funcCall`, never as a bare arm of `oneOf`, whose aggregate diagnostic would hide the message that says how to write the value. It is not a replacement for `str()`, `num()` or `bool()`, and a position whose value is not of a data type keeps those: the size in `nanoid(8)` is a parameter of a generator that runs in the client, so it is grammar, checked as an integer in a range, whatever the column's type.
 
 ### Alternatives
 
