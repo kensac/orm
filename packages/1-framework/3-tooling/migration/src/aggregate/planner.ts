@@ -10,6 +10,7 @@ import type { AggregateContractSpace } from './types';
 export type {
   AggregateCurrentDBState,
   AggregateMigrationEdgeRef,
+  AppSpacePlanningInputs,
   CallerPolicy,
   PerSpacePlan,
   PlannerError,
@@ -88,6 +89,9 @@ export async function planMigration<TFamilyId extends string, TTargetId extends 
         migrations: input.migrations,
         frameworkComponents: input.frameworkComponents,
         operationPolicy: input.operationPolicy,
+        ...(space.spaceId === aggregate.app.spaceId
+          ? input.appSpace
+          : { fromContract: null, statements: [] }),
       });
       if (diffOutcome.kind === 'failure') {
         return notOk({
@@ -168,6 +172,7 @@ export async function planMigration<TFamilyId extends string, TTargetId extends 
       displayOps: [],
       destinationContract: space.contract(),
       strategy: 'declared-state',
+      appliedStatements: [],
       migrationEdges: [
         buildFabricatedMigrationEdge({
           currentMarkerStorageHash: currentMarker?.storageHash,

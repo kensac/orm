@@ -17,6 +17,7 @@ export type { ContractMarkerRecordLike } from '../aggregate/marker-types';
 export {
   type AggregateCurrentDBState,
   type AggregateMigrationEdgeRef,
+  type AppSpacePlanningInputs,
   type CallerPolicy,
   type PerSpacePlan,
   type PlannerError,

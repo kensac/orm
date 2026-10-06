@@ -1,12 +1,14 @@
 import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
+  AppliedStatement,
   ControlAdapterInstance,
   ControlFamilyInstance,
   MigrationOperationPolicy,
   MigrationPlan,
   MigrationPlannerConflict,
   MigrationPlanOperation,
+  ResolvedStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import type { Result } from '@internal/utils/result';
@@ -84,6 +86,18 @@ export interface PlannerInput<TFamilyId extends string, TTargetId extends string
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<TFamilyId, TTargetId>>;
   readonly callerPolicy: CallerPolicy;
   readonly operationPolicy: MigrationOperationPolicy;
+  /**
+   * What the application space's diff plan starts from: the contract the
+   * database is at, when the caller knows it, and the statements the user gave.
+   * Other spaces plan with no origin contract and no statements.
+   */
+  readonly appSpace: AppSpacePlanningInputs;
+}
+
+/** See {@link PlannerInput.appSpace}. */
+export interface AppSpacePlanningInputs {
+  readonly fromContract: Contract | null;
+  readonly statements: readonly ResolvedStatement[];
 }
 
 /**
@@ -138,6 +152,8 @@ export interface PerSpacePlan {
   readonly destinationContract: Contract;
   readonly strategy: 'resolve-recorded-path' | 'plan-from-diff' | 'declared-state';
   readonly warnings?: readonly MigrationPlannerConflict[];
+  /** The statements the plan applied; empty for a space planned without statements. */
+  readonly appliedStatements: readonly AppliedStatement[];
   /**
    * Per-edge breakdown of the chain. `resolve-recorded-path` plans carry
    * one entry per authored edge; `plan-from-diff` and `declared-state`

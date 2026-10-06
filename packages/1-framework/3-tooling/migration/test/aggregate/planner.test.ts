@@ -6,6 +6,7 @@ import type {
   MigrationPlanner,
   MigrationPlannerResult,
   MigrationPlanWithAuthoringSurface,
+  ResolvedStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import { createSqlContract } from '@repo/test-utils';
@@ -108,6 +109,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(true);
@@ -116,6 +118,50 @@ describe('planMigration', () => {
     expect(success.perSpace.get('app')?.strategy).toBe('plan-from-diff');
     // Aggregate planner overrides the family planner's targetId.
     expect(success.perSpace.get('app')?.plan.targetId).toBe('postgres');
+  });
+
+  it('hands the app space its origin contract and statements, and returns the statements the planner applied', async () => {
+    const aggregate = makeAggregate({ app: makeSpace({ spaceId: 'app' }) });
+    const origin = aggregate.app.contract();
+    const statement = {
+      kind: 'rename',
+      entity: 'model',
+      from: { namespace: 'app', model: 'Profile' },
+      to: { namespace: 'app', model: 'User' },
+    } as unknown as ResolvedStatement;
+    const applied = {
+      statement,
+      description: 'rename model "Profile" to "User"',
+      operationCount: 1,
+    };
+    let received: { fromContract: unknown; statements: readonly ResolvedStatement[] } | undefined;
+    const planner: MigrationPlanner<'sql', 'postgres'> = {
+      plan: (options) => {
+        received = { fromContract: options.fromContract, statements: options.statements };
+        return {
+          kind: 'success',
+          plan: makeSyntheticPlan('postgres'),
+          appliedStatements: [applied],
+        };
+      },
+      emptyMigration: () => {
+        throw new Error('not used');
+      },
+    };
+
+    const result = await planMigration({
+      aggregate,
+      currentDBState: { markersBySpaceId: new Map(), schemaIntrospection: { tables: {} } },
+      adapter: STUB_ADAPTER,
+      migrations: makeStubMigrations(planner),
+      frameworkComponents: [],
+      callerPolicy: { ignoreGraphFor: new Set(['app']) },
+      operationPolicy: POLICY,
+      appSpace: { fromContract: origin, statements: [statement] },
+    });
+
+    expect(received).toEqual({ fromContract: origin, statements: [statement] });
+    expect(result.assertOk().perSpace.get('app')?.appliedStatements).toEqual([applied]);
   });
 
   it('resolves the recorded path for an extension space with a non-empty graph reaching its head ref', async () => {
@@ -145,6 +191,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(true);
@@ -197,6 +244,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set() },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(true);
@@ -250,6 +298,7 @@ describe('planMigration', () => {
       // that's a policy conflict.
       callerPolicy: { ignoreGraphFor: new Set(['app', 'cipherstash']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(false);
@@ -289,6 +338,7 @@ describe('planMigration', () => {
       // empty graph can't satisfy its non-empty invariants.
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(false);
@@ -342,6 +392,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(false);
@@ -395,6 +446,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(true);
@@ -425,6 +477,7 @@ describe('planMigration', () => {
       frameworkComponents: [],
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [] },
     });
 
     expect(result.ok).toBe(false);

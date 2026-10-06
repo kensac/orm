@@ -1,3 +1,4 @@
+import type { ResolvedStatement } from '@internal/framework-components/control';
 import { ifDefined } from '@internal/utils/defined';
 import type { Diagnostic, NextAction, StructuredError } from '@internal/utils/structured-error';
 import { docsUrlFor } from '@internal/utils/structured-error';
@@ -35,6 +36,8 @@ export interface CliErrorConflict {
   readonly kind: string;
   readonly summary: string;
   readonly why?: string;
+  /** The statement the conflict refuses, in domain coordinates. */
+  readonly statement?: ResolvedStatement;
 }
 
 /**

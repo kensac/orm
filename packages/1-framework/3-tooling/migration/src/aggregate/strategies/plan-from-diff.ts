@@ -1,3 +1,4 @@
+import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   ControlAdapterInstance,
@@ -6,6 +7,7 @@ import type {
   MigrationPlan,
   MigrationPlannerConflict,
   MigrationPlannerResult,
+  ResolvedStatement,
   SchemaOwnership,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
@@ -36,6 +38,9 @@ export interface PlanFromDiffInputs<TFamilyId extends string, TTargetId extends 
   >;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<TFamilyId, TTargetId>>;
   readonly operationPolicy: MigrationOperationPolicy;
+  /** The contract the database is at, when the caller knows it. */
+  readonly fromContract: Contract | null;
+  readonly statements: readonly ResolvedStatement[];
 }
 
 export type PlanFromDiffOutcome =
@@ -84,8 +89,8 @@ export async function planFromDiff<TFamilyId extends string, TTargetId extends s
     contract: input.space.contract(),
     schema: input.schemaIntrospection,
     policy: input.operationPolicy,
-    fromContract: null,
-    statements: [],
+    fromContract: input.fromContract,
+    statements: input.statements,
     frameworkComponents: input.frameworkComponents,
     spaceId: input.space.spaceId,
     ownership: input.ownership,
@@ -134,6 +139,7 @@ export async function planFromDiff<TFamilyId extends string, TTargetId extends s
       displayOps: producedOps,
       destinationContract,
       strategy: 'plan-from-diff',
+      appliedStatements: plannerResult.appliedStatements,
       ...(plannerResult.warnings && plannerResult.warnings.length > 0
         ? { warnings: plannerResult.warnings }
         : {}),

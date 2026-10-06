@@ -99,6 +99,8 @@ describe('planFromDiff', () => {
       migrations: stubMigrations,
       frameworkComponents: [],
       operationPolicy: POLICY,
+      fromContract: null,
+      statements: [],
     });
 
     expect(outcome.kind).toBe('ok');
@@ -162,6 +164,8 @@ describe('planFromDiff', () => {
       migrations: stubMigrations,
       frameworkComponents: [],
       operationPolicy: POLICY,
+      fromContract: null,
+      statements: [],
     });
 
     expect(outcome.kind).toBe('failure');
