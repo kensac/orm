@@ -1,5 +1,10 @@
 import { assertDefined } from '@internal/utils/assertions';
-import type { FullTextIndexDefinition } from './full-text-index-definition';
+import { postgresError } from './errors';
+import {
+  describeFullTextIndexProblem,
+  type FullTextIndexDefinition,
+  fullTextIndexProblems,
+} from './full-text-index-definition';
 import { FULL_TEXT_WEIGHTS, type FullTextWeightGroups } from './full-text-weight-groups';
 import { quoteIdentifier } from './sql-utils';
 
@@ -43,9 +48,25 @@ export function renderFullTextDocument<Field>(
   return vectors.length === 1 ? only : `(${vectors.join(' || ')})`;
 }
 
-/** The search document over storage columns, as the index DDL and the schema node carry it. */
+/**
+ * The search document over storage columns, as the index DDL and the schema node carry it. A
+ * definition that breaks a rule of a full-text index is refused.
+ */
 export function renderFullTextIndexDocument(definition: FullTextIndexDefinition): string {
-  return renderFullTextDocument(definition.weightGroups, {
+  const { weightGroups } = definition;
+  const [problem] = fullTextIndexProblems({ weightGroups });
+  if (problem !== undefined) {
+    throw postgresError(
+      'CONTRACT.INDEX_INVALID',
+      describeFullTextIndexProblem('The full-text index definition', problem),
+      {
+        why: 'Each field of a search document is weighted by the position of its group, so the document is rendered only from weight groups that follow the rules of a full-text index.',
+        fix: 'Pass one to four non-empty weight groups that name each column once.',
+        meta: { weightGroups },
+      },
+    );
+  }
+  return renderFullTextDocument(weightGroups, {
     column: quoteIdentifier,
     language: `'${definition.language}'`,
   });

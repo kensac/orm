@@ -37,7 +37,7 @@ The renderer now draws the whole search document of a full-text index, which may
 +renderFullTextIndexDocument({ weightGroups: [['body']], language: 'english' })
 ```
 
-One field renders exactly what it rendered before, `to_tsvector('english', "body")`. A document of several columns wraps every column in `coalesce(column, '')`.
+One field renders exactly what it rendered before, `to_tsvector('english', "body")`. A document of several columns wraps every column in `coalesce(column, '')`. A definition that breaks a rule of a full-text index (no group, more than four groups, an empty group, or a column named twice) is refused with `CONTRACT.INDEX_INVALID`.
 
 A Postgres full-text index in a contract is now an index of type `fullText`, registered in the Postgres index type registry, with `columns` and `options: { weightGroups, language }`, not an expression. `columns` is exactly `weightGroups.flat()`; a contract where they differ is refused with `CONTRACT.INDEX_INVALID` when it is loaded, as is a full-text index over a column whose codec Postgres does not know to be `textual`. Code that reads indexes from a contract recognises a full-text index by `type === 'fullText'` (exported as `FULL_TEXT_INDEX_TYPE` from `@internal/target-postgres/full-text-index-authoring`), and must not treat its `columns` as a plain index over those columns. In the database it is a `gin` index over the rendered document: the `fullText` entry of the Postgres index type registry declares `accessMethod: 'gin'`.
 

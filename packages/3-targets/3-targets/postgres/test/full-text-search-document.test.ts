@@ -39,6 +39,19 @@ describe('renderFullTextIndexDocument', () => {
       `to_tsvector('english', "Body Text")`,
     );
   });
+
+  it.each([
+    ['an empty weight group', [['a'], [], ['b']], 'has an empty weight group at position 2'],
+    ['a field named twice', [['a'], ['b', 'a']], 'names the field "a" more than once'],
+  ])('refuses a definition with %s', (_label, weightGroups, problem) => {
+    expect(() => render({ weightGroups, language: 'english' })).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.INDEX_INVALID',
+        message: expect.stringContaining(problem),
+        meta: { weightGroups },
+      }),
+    );
+  });
 });
 
 describe('renderFullTextDocument', () => {
