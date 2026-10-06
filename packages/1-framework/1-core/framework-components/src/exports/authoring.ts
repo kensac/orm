@@ -71,7 +71,7 @@ export type {
   PslExtensionBlockParsedAttribute,
   PslExtensionBlockPrintEntry,
 } from '../shared/psl-extension-block';
-export { printedTaggedLiteralReadsBack, printTaggedLiteral } from '../shared/tagged-literal';
+export { printTaggedLiteral } from '../shared/tagged-literal';
 export type { PresetStorageTemplate } from '../shared/temporal-presets';
 export {
   TEMPORAL_ON_CREATE_ARG,

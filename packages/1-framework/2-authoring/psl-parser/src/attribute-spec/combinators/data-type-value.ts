@@ -8,6 +8,7 @@ import {
   describeRefusal,
   exactRewrite,
   readWrittenValue,
+  tagForm,
   type WrittenForm,
 } from '@internal/framework-components/authoring';
 import type { DataTypeId } from '@internal/framework-components/codec';
@@ -36,7 +37,8 @@ export function dataTypeValue(
   const forms = admittedForms(support, [dataType]);
   return {
     kind: 'dataTypeValue',
-    label: firstTag === undefined ? describeAdmittedForms(support, dataType) : `${firstTag}\`...\``,
+    label:
+      firstTag === undefined ? describeAdmittedForms(support, dataType) : tagForm(firstTag).phrase,
     dataType,
     tags,
     documentation: support.entries[dataType]?.documentation ?? '',
