@@ -45,12 +45,12 @@ Update an assertion on the span or range of one of these diagnostics to the writ
 
 ## Refusals say what to write
 
-`@default` and every other position that takes a value of a data type now word a refusal of the cast rule the same way. A refusal starts with what to write instead, the forms the column's type admits, as in `Expected a number`, not the list of types it casts from. It names the column's type and the value's type only when the value has an admitted form and is still refused, such as a number too large for the column. An element of a list written on a column whose type has a list cast, such as a vector, is refused with the forms of the list cast's element types. The two other refusals change as the table shows. The codes do not change.
+`@default` and every other position that takes a value of a data type now word a refusal of the cast rule the same way. A refusal starts with what to write instead, the forms the column's type admits, as in `Expected a number`, not the list of types it casts from. It names the column's type and the value's type only when the value has an admitted form and is still refused, such as a number too large for the column. A quoted string on a column whose type has a tag also gets that string as a tagged literal to write, when the column's type takes it, as the `Jsonb` row shows. An element of a list written on a column whose type has a list cast, such as a vector, is refused with the forms of the list cast's element types. The two other refusals change as the table shows. The codes do not change.
 
 | Written | Message before | Message now |
 | --- | --- | --- |
 | `count Int @default(100000000000000099)` | `Field "N.count": pg/int4 has no cast from pg/int8; it casts from pg/int2` | `Field "N.count": Expected a number that pg/int4 can hold; got pg/int8` |
-| `meta Jsonb @default("{}")` | `Field "N.meta": pg/jsonb has no cast from pg/text; it casts from pg/json` | ``Field "N.meta": Expected json`...` `` |
+| `meta Jsonb @default("{}")` | `Field "N.meta": pg/jsonb has no cast from pg/text; it casts from pg/json` | ``Field "N.meta": Expected json`...`; write json`{}` `` |
 | `count Int @default([1])` | `Field "N.count": pg/int4 has no cast from a list; it casts from pg/int2` | `Field "N.count": Expected a number; got a list` |
 | `embed pgvector.Vector(3) @default([1, "x", 3])` | `Field "N.embed" at element 2: pgvector/vector has no cast from pg/text; it casts from pg/int2, pg/int4, pg/int8, pg/numeric` | `Field "N.embed" at element 2: Expected a number` |
 | `active Int @default(true)` on SQLite | `Field "N.active": this target has no data type for a boolean value` | `Field "N.active": Expected a number; this target has no data type for a boolean value` |
