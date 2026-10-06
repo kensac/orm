@@ -118,13 +118,10 @@ function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): s
     : coordinate.model;
 }
 
-function fieldName(contract: ContractWithDomain, coordinate: FieldCoordinate): string {
-  return `${modelName(contract, coordinate)}.${coordinate.field}`;
-}
-
 /**
  * The text that reports a statement, in domain names: a model or field is named with its
- * namespace only when its contract has more than one.
+ * namespace only when its contract has more than one. A field is named through its model as the
+ * destination contract names it, as the statement itself is written.
  */
 export function describeStatement(
   statement: ResolvedStatement,
@@ -134,7 +131,8 @@ export function describeStatement(
   if (statement.entity === 'model') {
     return `rename model "${modelName(fromContract, statement.from)}" to "${modelName(contract, statement.to)}"`;
   }
-  return `rename field "${fieldName(fromContract, statement.from)}" to "${fieldName(contract, statement.to)}"`;
+  const model = modelName(contract, statement.to);
+  return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
 }
 
 /** What a target supplies for planning statements against its working schema. */

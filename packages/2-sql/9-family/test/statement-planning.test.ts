@@ -67,6 +67,14 @@ describe('describeStatement', () => {
     );
   });
 
+  it('names the old field through the model as the statement does, after a model rename', () => {
+    const origin = contractOf({ Profile: { table: 'Profile' } });
+    const destination = contractOf({ User: { table: 'User' } });
+    expect(
+      describeStatement(renameField('Profile', 'name', 'fullName', 'User'), origin, destination),
+    ).toBe('rename field "User.name" to "User.fullName"');
+  });
+
   it('names a field with its model', () => {
     const contract = contractOf({ User: { table: 'User' } });
     expect(describeStatement(renameField('User', 'name', 'fullName'), contract, contract)).toBe(
