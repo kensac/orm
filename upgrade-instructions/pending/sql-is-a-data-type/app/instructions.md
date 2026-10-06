@@ -53,6 +53,6 @@ This matters only to code that reads PSL diagnostic codes, such as a test that a
 
 The unknown-tag message lists the known tags in the order the stack registers them. The SQL family registers `sql` before the target registers `json`, so a Postgres or SQLite stack lists `sql, json`, where it used to list `json, sql, pg.sql` or `json, sql, sqlite.sql`. The completion list and the `Expected one of` message of `@default` offer `sql` before `json` for the same reason.
 
-A `sql` literal inside a list literal used to report `Literal tag "sql" produces a default of its own and cannot be an element of a list literal.` It is now refused by the cast rule, like any other value the column's type does not take: `Field "Post.tags" at element 1: pg/text has no cast from sql/expression; it casts from nothing`. Write the whole list as one `sql` literal instead, as in `` @default(sql`'{}'::text[]`) ``.
+A `sql` literal inside a list literal used to report `Literal tag "sql" produces a default of its own and cannot be an element of a list literal.` It is now refused by the cast rule, like any other value the column's type does not take: `Field "Post.tags" at element 1: Expected a quoted string`. Write the whole list as one `sql` literal instead, as in `` @default(sql`'{}'::text[]`) ``.
 
 This supersedes the codes named in the `data-types-column-defaults` app instructions of the upgrade from 8.0.0-rc.11 to 8.0.0-rc.12: where they name `PSL_DEFAULT_TYPE_INCOMPATIBLE` for a value a column's type has no cast from, or `PSL_INVALID_JSON_LITERAL`, read the new codes above.

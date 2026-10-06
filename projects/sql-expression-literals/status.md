@@ -131,6 +131,17 @@ Brief: `dispatches/2t-round-2-fixes-brief.md`. Reviews: `slice-reviews/2t-round-
 
 Verification, logs in `wip/2t-round-2-fixes/`: `build`, `typecheck`, `lint`, `lint:deps`, `check:error-reference` (361 codes), `fixtures:check` (tree clean) and `check:upgrade-coverage` pass. `lint:casts` delta 0, `lint:throws` delta 0, `lint:framework-vocabulary` 272 of 272. `test:packages` (`test-packages.log`): 1438 files pass, 6 fail. The three tarball tests fail on the registry refusal. `cli-telemetry` `cli-e2e.test.ts` and `integration.test.ts` timed out and pass alone (`rerun-cli-telemetry.log`); `cli` `migration-cli.exit-scheme.test.ts` failed once and passes alone (`rerun-cli-exit-scheme.log`). Integration `test/authoring test/number-defaults test/date-time-defaults`: 34 files, 230 tests pass (`integration.log`). Manual QA: `manual-qa.log`.
 
+### Slice 2t wording: refusals lead with what to write, 2026-10-06
+
+Brief: `dispatches/2t-wording-brief.md`. Serhii's review of #30539 found `pg/int4 has no cast from pg/text; write a number` worse than `Expected a number`; Will agreed. Design notes item 15 records it.
+
+- `describeRefusal(refusal, support, guidance)` takes `RefusalGuidance`, `{ forms, rewrite }`. `forms` are the phrases of the new `admittedFormPhrases`; `describeAdmittedForms` joins them.
+- Messages: `Expected <forms>`; `Expected <forms>; write <literal>` for a quoted string on a type with a tag; `Expected <forms> that <type> can hold; got <value type>` when the value's written form is one of the forms; `Expected <forms>; this target has no data type for a <syntax> value`.
+- `lowerDataTypeDefault`: `no-list-cast` is `Expected <forms>; got a list`; `no-element-cast` goes through the `no-cast` rule of `describeRefusal`.
+- The brief named `taggedLiteralTextReadsBack`, which did not exist. It is new in `tagged-literal.ts`, beside `printTaggedLiteral`: it holds when the printed literal's canonical text equals the text. A string with leading indentation, for example, now gets no rewrite. The `it as a sql literal` fallback the brief mentions did not exist in the code either, so nothing was removed for it.
+- `NO_WRITTEN_FORM` is no longer exported.
+- Docs: ADR 231, ADR 254, `error-reference.md`, the contract-psl README, the pending `arguments-typed-by-data-type` and `sql-is-a-data-type` fragments, and design sections 4, 6 and 7. The `default-refusals-say-what-to-write` detection pattern for `this target has no data type` now requires `: ` or a quote before it, so it no longer matches the new messages.
+
 ## Slice order and tickets
 
 | Order | Plan slice | Ticket | State |

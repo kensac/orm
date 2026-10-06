@@ -11,12 +11,12 @@ changes:
         - 'list of \([^)]*\bsql`\.\.\.`'
   - id: default-refusals-say-what-to-write
     summary: |
-      A `@default` refusal from the cast rule ends with what to write instead, not the list of types the column casts from. `Unknown literal tag` in a `@default` starts with the field it is about, and `this target has no data type for` starts with a capital and says what to write.
+      A `@default` refusal from the cast rule starts with what to write instead, as in `Expected a number`, not the list of types the column casts from. It names the column's type and the value's type only when a value of an admitted form is still refused, such as a number too large for the column. `Unknown literal tag` in a `@default` starts with the field it is about, and `this target has no data type for` comes after what to write.
     detection:
       glob: "**/*.{ts,mts,cts,js,mjs,json}"
       matches:
         - '; it casts from '
-        - 'this target has no data type for a (string|boolean|number) value[''"`]'
+        - '(: |[''"`])this target has no data type for a (string|boolean|number) value[''"`]'
         - '[''"`]Unknown literal tag '
   - id: function-call-arguments-keep-their-diagnostics
     summary: |
@@ -35,7 +35,7 @@ This matters only to code that reads the location of a PSL diagnostic, or the te
 
 `PSL_VALUE_TYPE_INCOMPATIBLE` and `PSL_INVALID_LITERAL` from `@default` used to point at the whole `@default(...)` attribute. They now point at the written value. When the message names a list element (`at element 2`), they point at that element. The codes are unchanged; the next section describes the new wording. `PSL_DEFAULT_LIST_EXPECTED` and `PSL_INVALID_DEFAULT_LITERAL` still point at the attribute.
 
-For `tags Int[] @default([1, "x"])`, the diagnostic `Field "Post.tags" at element 2: pg/int4 has no cast from pg/text; write a number` now spans `"x"`.
+For `tags Int[] @default([1, "x"])`, the diagnostic `Field "Post.tags" at element 2: Expected a number` now spans `"x"`.
 
 When a tagged literal has both an unknown tag and a NUL character or more text than the limit, `@default` now reports the canonicalization code, `PSL_TAGGED_LITERAL_NUL` or `PSL_TAGGED_LITERAL_TOO_LARGE`, where it used to report `PSL_UNKNOWN_LITERAL_TAG`.
 
@@ -45,15 +45,15 @@ Update an assertion on the span or range of one of these diagnostics to the writ
 
 ## Refusals say what to write
 
-`@default` and every other position that takes a value of a data type now word a refusal of the cast rule the same way. A missing cast ends with what to write instead, the forms the column's type admits, not the list of types it casts from. An element of a list written on a column whose type has a list cast, such as a vector, says the list holds a value of the wrong type, and ends with the forms of the list cast's element types. The two other refusals change as the table shows. The codes do not change.
+`@default` and every other position that takes a value of a data type now word a refusal of the cast rule the same way. A refusal starts with what to write instead, the forms the column's type admits, as in `Expected a number`, not the list of types it casts from. It names the column's type and the value's type only when the value has an admitted form and is still refused, such as a number too large for the column. An element of a list written on a column whose type has a list cast, such as a vector, is refused with the forms of the list cast's element types. The two other refusals change as the table shows. The codes do not change.
 
 | Written | Message before | Message now |
 | --- | --- | --- |
-| `count Int @default(100000000000000099)` | `Field "N.count": pg/int4 has no cast from pg/int8; it casts from pg/int2` | `Field "N.count": pg/int4 has no cast from pg/int8; write a number` |
-| `meta Jsonb @default("{}")` | `Field "N.meta": pg/jsonb has no cast from pg/text; it casts from pg/json` | ``Field "N.meta": pg/jsonb has no cast from pg/text; write json`...` `` |
-| `count Int @default([1])` | `Field "N.count": pg/int4 has no cast from a list; it casts from pg/int2` | `Field "N.count": pg/int4 has no cast from a list; write a number` |
-| `embed pgvector.Vector(3) @default([1, "x", 3])` | `Field "N.embed" at element 2: pgvector/vector has no cast from pg/text; it casts from pg/int2, pg/int4, pg/int8, pg/numeric` | `Field "N.embed" at element 2: pgvector/vector has no cast from a list holding pg/text; write a number` |
-| `active Int @default(true)` on SQLite | `Field "N.active": this target has no data type for a boolean value` | `Field "N.active": This target has no data type for a boolean value; write a number` |
+| `count Int @default(100000000000000099)` | `Field "N.count": pg/int4 has no cast from pg/int8; it casts from pg/int2` | `Field "N.count": Expected a number that pg/int4 can hold; got pg/int8` |
+| `meta Jsonb @default("{}")` | `Field "N.meta": pg/jsonb has no cast from pg/text; it casts from pg/json` | ``Field "N.meta": Expected json`...` `` |
+| `count Int @default([1])` | `Field "N.count": pg/int4 has no cast from a list; it casts from pg/int2` | `Field "N.count": Expected a number; got a list` |
+| `embed pgvector.Vector(3) @default([1, "x", 3])` | `Field "N.embed" at element 2: pgvector/vector has no cast from pg/text; it casts from pg/int2, pg/int4, pg/int8, pg/numeric` | `Field "N.embed" at element 2: Expected a number` |
+| `active Int @default(true)` on SQLite | `Field "N.active": this target has no data type for a boolean value` | `Field "N.active": Expected a number; this target has no data type for a boolean value` |
 | ``v String @default(pg.sql`x`)`` | `Unknown literal tag "pg.sql". Known tags: sql, json.` | `Field "N.v": Unknown literal tag "pg.sql". Known tags: sql, json.` |
 
 Update an assertion on one of these messages to the new text.
