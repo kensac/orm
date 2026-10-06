@@ -129,6 +129,13 @@ Positionals are fixed slots with an output key. Variadic positionals are not sup
 
 ## The combinator kit
 
+An attribute argument is one of two kinds, and the kit has a set of combinators for each.
+
+- **Grammar** is typed by its shape: a name (`@@map("users")`), a flag (`unique: true`), a keyword (`onDelete: Cascade`), a reference (`fields: [a, b]`), a list or a record of these. The database never stores or compares it. `str()`, `num()`, `bool()`, `identifier()`, `fieldRef()`, `list()`, `record()` and `oneOf()` read grammar.
+- **A database value** is a value Prisma stores or passes to the database ([ADR 254](ADR%20254%20-%20Data%20types%20and%20casts.md)): the value of `@default(...)`, or the raw SQL of `@@index(where:)`. Its question is not "is this a string" but "which data type is this value, and does the receiving type take it", and the answer is the cast rule. `dataTypeValue(T)` reads a database value.
+
+A table name is never `pg/text`, and asking which type casts into it would tie the family's grammar to a target's type registry; a column default is never "a string", because `"8"` and `8` are different values with different types. The two sets of combinators keep the two questions apart. `@default` is the one database position still read through grammar combinators, for the reason given under [SQL defaults](#sql-defaults).
+
 ### Scalars and pinned literals
 
 - `str()` parses any string literal; `str(value)` matches one exact string and preserves its literal type.
@@ -197,7 +204,7 @@ This is intentionally narrower than an arbitrary JSON value. Its shipped use is 
 
 Building the argument never throws, because the language server builds every spec, including on stacks that lack the type. Parsing throws an internal error when the stack does not register `dataType`: a spec that names a type its stack lacks is a pack bug. The argument carries `tags` and `documentation` for completion.
 
-`dataTypeValue` is used as a parameter in a `funcCall` signature, not as a bare arm of `oneOf`, whose aggregate diagnostic would hide the message that says how to write the value.
+`dataTypeValue` is used as a parameter in a `funcCall` signature, not as a bare arm of `oneOf`, whose aggregate diagnostic would hide the message that says how to write the value. It is not a replacement for `str()`, `num()` or `bool()`, and a position whose value the database never sees keeps those: the size in `nanoid(8)` is a parameter of a generator that runs in the client, so it is grammar, checked as an integer in a range, whatever the column's type.
 
 ### Alternatives
 
@@ -248,7 +255,7 @@ const enumDefault = oneOf(...enumMembers.map(identifier));
 
 The number arm is `numLiteral()`, not `num()`. `num()` yields a JavaScript number, which rounds a literal past the safe integer range and drops trailing zeros; `numLiteral()` yields the literal's source text, so a `Decimal` or `BigInt` default keeps every digit as written. What to do with that text is the lowering concern below: the plain number goes to a codec that reads one, and the decimal text to a codec that does not.
 
-`@default` still checks literal-to-type compatibility in lowering, because its receiving type comes from the column. A position whose receiving type is fixed uses `dataTypeValue` instead. A `matchingScalarLiteral` combinator is not implemented.
+`@default` reads a database value, but through the grammar combinators above, and applies the cast rule in lowering, because its receiving type comes from the column and the spec factory does not know it. A position whose receiving type is fixed uses `dataTypeValue` instead. Once the field spec context carries the column's resolved type, `@default` can become `dataTypeValue(columnType)` and the lowering check goes; that is follow-up work. A `matchingScalarLiteral` combinator is not implemented.
 
 ### Mongo index elements
 
