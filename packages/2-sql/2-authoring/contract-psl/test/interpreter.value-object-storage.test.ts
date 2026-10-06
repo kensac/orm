@@ -2,11 +2,11 @@ import type { Contract } from '@internal/contract/types';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { fixtureInterpreterTypes } from './fixture-codec-descriptors';
 import { fixtureDataTypeSupport } from './fixture-data-types';
 import {
   createBuiltinLikeControlMutationDefaults,
   interpretSqlContract,
-  postgresCodecLookup,
   postgresScalarAuthoringTypes,
   postgresScalarTypeDescriptors,
   postgresTarget,
@@ -38,10 +38,9 @@ function interpretPostgres(
       dataTypes: fixtureDataTypeSupport.entries,
       ...valueObjectStorage,
     },
-    codecLookup: postgresCodecLookup,
     composedExtensionContracts: new Map(),
     createNamespace: createTestSqlNamespace,
-    dataTypes: fixtureDataTypeSupport,
+    ...fixtureInterpreterTypes,
     capabilities: { sql: { scalarList: true } },
     controlMutationDefaults: createBuiltinLikeControlMutationDefaults(),
   });
@@ -95,7 +94,7 @@ describe('interpretPslDocumentToSqlContract value-object storage', () => {
         },
         composedExtensionContracts: new Map(),
         createNamespace: createTestSqlNamespace,
-        dataTypes: fixtureDataTypeSupport,
+        ...fixtureInterpreterTypes,
         capabilities: { sql: {} },
         controlMutationDefaults: createBuiltinLikeControlMutationDefaults(),
       });

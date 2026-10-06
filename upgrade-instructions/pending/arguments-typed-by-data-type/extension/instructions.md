@@ -104,7 +104,7 @@ Where code builds a spec context, a binder or a Mongo interpreter input, move th
 
 - `createBinder` requires `dataTypes`.
 - `createSqlBinder` and `createMongoBinder` require `dataTypes`.
-- `interpretPslDocumentToMongoContract` requires `dataTypes`.
+- `interpretPslDocumentToMongoContract` and the Prisma 6 MongoDB contract source's `interpretPrisma6Documents` require `dataTypes`.
 - A spec context literal (`{ symbols, model, controlMutationDefaults }`) adds `dataTypes`.
 - A stack that registers no data types, and a test that needs none, passes `EMPTY_DATA_TYPES` from `@internal/psl-parser`.
 - A spec factory that read `ctx.controlMutationDefaults.dataTypeEntries` reads `ctx.dataTypes.entries`.
@@ -171,7 +171,7 @@ The body is what is written between the quotes; the text is the canonical value.
 | --- | --- |
 | `TaggedLiteralCanonicalization` `{ ok: true, body }`, from `canonicalizeTaggedLiteralBody` | `{ ok: true, text }` |
 | `TaggedLiteralExprAst.body()` | `TaggedLiteralExprAst.text()` |
-| `parseJsonBody`, `printJsonBody` from `@internal/sql-relational-core/ast` | `parseJsonText`, `printJsonText` |
+| `parseJsonBody`, `printJsonBody` from `@internal/sql-relational-core/ast` | `parseJsonText`, `printJsonText` from `@internal/sql-contract/data-type-support` |
 | `checkSqlDefaultBody`, `reservedSqlDefaultBody` from `@internal/sql-contract/validators` (and `checkSqlDefaultBody` from `@internal/family-sql/control`) | `checkSqlDefaultText`, `reservedSqlDefaultText` |
 
 An entry that registers the `json` tag changes its imports:
