@@ -9,6 +9,7 @@ import { bindPslSchema } from '@internal/psl-parser/test';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
 import { prismaContract } from '../src/exports/provider';
+import { fixtureTypeLookups } from './fixture-codec-descriptors';
 import { fixtureDataTypeSupport } from './fixture-data-types';
 import {
   createPostgresTestContext,
@@ -72,6 +73,7 @@ describe('block spec context', () => {
       scalarColumnDescriptors: postgresScalarTypeDescriptors,
       composedExtensionContracts: new Map(),
       createNamespace: createTestSqlNamespace,
+      codecLookup: fixtureTypeLookups.codecLookup,
       dataTypes,
       capabilities: { sql: { scalarList: true } },
       authoringContributions: recordingContributions(seen),

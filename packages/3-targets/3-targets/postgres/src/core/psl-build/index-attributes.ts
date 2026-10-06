@@ -2,8 +2,8 @@ import type {
   PslAttributeArgument,
   PslModelAttribute,
 } from '@internal/framework-components/psl-ast';
+import { escapePslString } from '@internal/sql-contract/data-type-support';
 import { printSqlExpressionLiteral } from '@internal/sql-contract/sql-expression';
-import { escapePslString } from '@internal/sql-relational-core/ast';
 import { computeIndexContentHash, parseWireName } from '@internal/sql-schema-ir/naming';
 import { assertDefined } from '@internal/utils/assertions';
 import { buildAttribute, namedArg, positionalArg } from './psl-literals';

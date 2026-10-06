@@ -186,7 +186,6 @@ describe('defineConfig', () => {
       dataTypes: { entries: {}, lookup: createDataTypeLookup([]) },
       codecLookup: {
         get: () => undefined,
-        targetTypesFor: () => undefined,
         renderOutputTypeFor: () => undefined,
         descriptorFor: () => undefined,
       },

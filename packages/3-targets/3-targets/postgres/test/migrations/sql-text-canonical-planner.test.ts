@@ -29,6 +29,7 @@ import { PostgresRlsPolicy } from '../../src/core/postgres-rls-policy';
 import { type PostgresContract, PostgresSchema } from '../../src/core/postgres-schema';
 import { computeContentHash } from '../../src/core/rls/canonicalize';
 import { postgresRenderDefault } from '../../src/exports/control';
+import { postgresTypeComponents, postgresTypeLookups } from '../postgres-type-lookups';
 
 const TABLE = 'posts';
 const WRITTEN = '\n  owner_id = 1\n    AND id > 0\n';
@@ -127,10 +128,12 @@ function plan(kind: Naming, objects: readonly SqlObject[] = EVERY_OBJECT) {
     schema: contractToPostgresDatabaseSchemaNode(from, {
       annotationNamespace: 'pg',
       renderDefault: postgresRenderDefault,
+      codecLookup: postgresTypeLookups.codecLookup,
+      dataTypeLookup: postgresTypeLookups.dataTypeLookup,
     }),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract: from,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });

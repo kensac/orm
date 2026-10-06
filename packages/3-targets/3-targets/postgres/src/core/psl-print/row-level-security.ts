@@ -1,6 +1,6 @@
 import type { PslExtensionBlock } from '@internal/framework-components/psl-ast';
+import { escapePslString } from '@internal/sql-contract/data-type-support';
 import { printSqlExpressionLiteral } from '@internal/sql-contract/sql-expression';
-import { escapePslString } from '@internal/sql-relational-core/ast';
 import { formatWireName } from '@internal/sql-schema-ir/naming';
 import { invariant } from '@internal/utils/assertions';
 import { POLICY_BLOCK_KEYWORDS } from '../authoring';

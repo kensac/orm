@@ -2,6 +2,7 @@ import { createDataTypeLookup, dataType } from '@internal/framework-components/c
 import { InternalError } from '@internal/utils/internal-error';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { fixtureTypeLookups } from './fixture-codec-descriptors';
 import {
   fixtureDataTypeSupport,
   fixtureDataTypes,
@@ -30,7 +31,7 @@ function interpret(
   schema: string,
   codecLookup = postgresCodecLookup,
   dataTypes = fixtureDataTypeSupport.entries,
-  lookup = fixtureDataTypeSupport.lookup,
+  lookup = fixtureTypeLookups.dataTypeLookup,
 ) {
   return interpretSqlContract(schema, {
     target: postgresTarget,

@@ -8,7 +8,7 @@ import {
   type StorageHashBase,
 } from '@internal/contract/types';
 import { enumType, member } from '@internal/contract-authoring';
-import type { CodecLookup, CodecLookupWithDescriptors } from '@internal/framework-components/codec';
+import type { CodecLookupWithDescriptors } from '@internal/framework-components/codec';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import {
   buildMongoNamespace,
@@ -20,7 +20,6 @@ import {
 import {
   buildSymbolTable,
   createBinder,
-  EMPTY_DATA_TYPES,
   jsonValue,
   mapBlock,
   mapPslDiagnostics,
@@ -37,6 +36,7 @@ import {
   describeUnsupportedMongoAttribute,
   mongoAttributeSpecs,
 } from '../src/mongo-attribute-specs';
+import { mongoCodecLookup, mongoDataTypeLookup } from './derive-json-schema-helpers';
 import {
   expectInvalidAttributeSyntax,
   expectUnresolvedReference,
@@ -63,32 +63,6 @@ const mongoScalarTypeDescriptors: ReadonlyMap<string, string> = new Map([
   ['ObjectId', 'mongo/objectId@1'],
   ['Double', 'mongo/double@1'],
 ]);
-
-const mongoTargetTypes: Record<string, readonly string[]> = {
-  'mongo/string@1': ['string'],
-  'mongo/int32@1': ['int'],
-  'mongo/bool@1': ['bool'],
-  'mongo/date@1': ['date'],
-  'mongo/objectId@1': ['objectId'],
-  'mongo/double@1': ['double'],
-};
-
-const mongoCodecLookup: CodecLookupWithDescriptors = {
-  get(id: string) {
-    const targetTypes = mongoTargetTypes[id];
-    if (!targetTypes) return undefined;
-    return {
-      id,
-      encode: async (v: unknown) => v,
-      decode: async (w: unknown) => w,
-      encodeJson: (v: unknown) => v,
-      decodeJson: (j: unknown) => j,
-    } as ReturnType<CodecLookup['get']>;
-  },
-  targetTypesFor: (id: string) => mongoTargetTypes[id],
-  renderOutputTypeFor: () => undefined,
-  descriptorFor: () => undefined,
-};
 
 function mongoCollectionsFromIr(ir: {
   readonly storage: unknown;
@@ -135,6 +109,7 @@ function interpret(
       scalarTypeCodecIds: mongoScalarTypeDescriptors,
       defaultFunctionRegistry: new Map(),
       codecLookup: mongoCodecLookup,
+      dataTypes: { entries: {}, lookup: mongoDataTypeLookup },
       ...overrides,
     },
     'test.prisma',
@@ -182,12 +157,7 @@ model Item {
               kind: 'entity',
               discriminator: 'enum',
               output: {
-                factory: () =>
-                  enumType(
-                    'Role',
-                    { codecId: 'mongo/string@1', nativeType: 'string' },
-                    member('USER'),
-                  ),
+                factory: () => enumType('Role', { codecId: 'mongo/string@1' }, member('USER')),
               },
             },
           },
@@ -269,7 +239,7 @@ model Item {
       pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedMongoAttribute },
       codecLookup: mongoCodecLookup,
       controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
-      dataTypes: EMPTY_DATA_TYPES,
+      dataTypes: { entries: {}, lookup: mongoDataTypeLookup },
       resolvedInputs: [],
       capabilities: {},
     };
@@ -2374,7 +2344,7 @@ model Item {
                   factory: () =>
                     enumType(
                       'Role',
-                      { codecId: 'mongo/string@1', nativeType: 'string' },
+                      { codecId: 'mongo/string@1' },
                       { name: 'User', value: 'user' },
                       { name: 'Admin', value: 'admin' },
                     ),

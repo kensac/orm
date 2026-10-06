@@ -18,8 +18,8 @@ import type {
   PslModelAttribute,
   PslTypeConstructorCall,
 } from '@internal/framework-components/psl-ast';
+import { escapePslString } from '@internal/sql-contract/data-type-support';
 import { sqlTextsReadBack } from '@internal/sql-contract/sql-expression';
-import { escapePslString } from '@internal/sql-relational-core/ast';
 import {
   composeCheckWirePrefix,
   computeCheckContentHash,

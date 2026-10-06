@@ -159,17 +159,12 @@ function codecRefTypeParams(
  */
 function storedValueReader(input: {
   readonly column: DefaultColumn;
-  readonly codecLookup: CodecLookupWithDescriptors | undefined;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly fieldPath: string;
 }): {
   readonly descriptor: AnyCodecDescriptor;
   readonly read: (value: JsonValue, elementIndex: number | undefined) => StoredReadResult;
 } {
-  if (input.codecLookup === undefined) {
-    throw new InternalError(
-      `Field "${input.fieldPath}": no codec lookup was given, but the column was resolved from a codec descriptor.`,
-    );
-  }
   const descriptor = input.codecLookup.descriptorFor(input.column.codecId);
   const codec = codecForRef(input.codecLookup, {
     codecId: input.column.codecId,
@@ -208,7 +203,7 @@ function storedValueReader(input: {
 export function readStoredValue(input: {
   readonly value: JsonValue;
   readonly column: DefaultColumn;
-  readonly codecLookup: CodecLookupWithDescriptors | undefined;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly fieldPath: string;
 }):
   | { readonly ok: true; readonly value: JsonValue }
@@ -229,7 +224,7 @@ export function readDataTypeDefault(input: {
   readonly written: WrittenValue;
   readonly isList: boolean;
   readonly column: DefaultColumn;
-  readonly codecLookup: CodecLookupWithDescriptors | undefined;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly dataTypes: DataTypeSupport;
   readonly fieldPath: string;
 }): ReadDefaultResult {
@@ -366,7 +361,7 @@ export function lowerDataTypeDefault(input: {
   readonly spans: DefaultSpans;
   readonly isList: boolean;
   readonly column: DefaultColumn;
-  readonly codecLookup: CodecLookupWithDescriptors | undefined;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly dataTypes: DataTypeSupport;
   readonly fieldPath: string;
   /** For a written list that leaves out the source list's `null` elements: the source index of each written element. */

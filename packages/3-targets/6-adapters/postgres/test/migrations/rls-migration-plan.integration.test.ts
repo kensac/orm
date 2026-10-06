@@ -2,7 +2,6 @@ import type { Contract } from '@internal/contract/types';
 import { INIT_ADDITIVE_POLICY } from '@internal/family-sql/control';
 import type { AuthoringTypeConstructorDescriptor } from '@internal/framework-components/authoring';
 import { collectScalarTypeConstructors } from '@internal/framework-components/authoring';
-import { emptyCodecLookup } from '@internal/framework-components/codec';
 import {
   APP_SPACE_ID,
   assembleAuthoringContributions,
@@ -17,6 +16,7 @@ import {
 } from '@internal/sql-contract-psl/attribute-specs';
 import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import type { SqlSchemaIRNode } from '@internal/sql-schema-ir/types';
+import { createPostgresBuiltinCodecLookup } from '@internal/target-postgres/codecs';
 import { postgresScalarAuthoringTypes } from '@internal/target-postgres/control';
 import {
   PostgresDatabaseSchemaNode,
@@ -29,6 +29,8 @@ import {
   frameworkComponents,
   postgresTargetDescriptor,
 } from './fixtures/runner-fixtures';
+
+const postgresCodecLookup = createPostgresBuiltinCodecLookup();
 
 // `migration plan` runs offline (no live database): it derives the schema from
 // the contract via the target's `contractToSchema` hook and plans against it.
@@ -72,10 +74,7 @@ namespace public {
 }
 `;
 
-function buildScalarTypeDescriptors(): ReadonlyMap<
-  string,
-  { codecId: string; nativeType: string }
-> {
+function buildScalarTypeDescriptors(): ReadonlyMap<string, { codecId: string }> {
   return collectScalarTypeConstructors(postgresScalarAuthoringTypes);
 }
 
@@ -101,7 +100,7 @@ function buildPslContract(psl: string = PSL) {
         attributeSpecs: sqlAttributeSpecs,
       },
       pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
-      codecLookup: { ...emptyCodecLookup, descriptorFor: () => undefined },
+      codecLookup: postgresCodecLookup,
       controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
       dataTypes: postgresDataTypeSupport,
       resolvedInputs: [],

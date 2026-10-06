@@ -1,6 +1,7 @@
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { fixtureTypeLookups } from './fixture-codec-descriptors';
 import { fixtureDataTypeSupport } from './fixture-data-types';
 import {
   createBuiltinLikeControlMutationDefaults,
@@ -16,6 +17,7 @@ function interpret(schema: string) {
     composedExtensionContracts: new Map(),
     controlMutationDefaults: createBuiltinLikeControlMutationDefaults(),
     createNamespace: createTestSqlNamespace,
+    codecLookup: fixtureTypeLookups.codecLookup,
     dataTypes: fixtureDataTypeSupport,
     capabilities: { sql: { scalarList: true, checkConstraint: true } },
   });

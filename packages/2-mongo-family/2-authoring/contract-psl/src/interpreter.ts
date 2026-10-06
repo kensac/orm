@@ -30,7 +30,7 @@ import {
   isAuthoringEntityTypeDescriptor,
   isAuthoringTypeConstructorDescriptor,
 } from '@internal/framework-components/authoring';
-import type { CodecLookup } from '@internal/framework-components/codec';
+import type { CodecLookupWithDescriptors } from '@internal/framework-components/codec';
 import type { ControlMutationDefaultRegistry } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import {
@@ -118,7 +118,7 @@ export interface InterpretPslDocumentToMongoContractInput {
   readonly scalarTypeCodecIds: ReadonlyMap<string, string>;
   readonly defaultFunctionRegistry: ControlMutationDefaultRegistry;
   readonly dataTypes: DataTypeSupport;
-  readonly codecLookup?: CodecLookup;
+  readonly codecLookup: CodecLookupWithDescriptors;
   readonly seedDiagnostics?: readonly ContractSourceDiagnostic[];
   readonly authoringContributions?: AuthoringContributions;
   /** The target's default codec ids for an `enum` block that omits `@@type`. */
@@ -145,7 +145,7 @@ function deprecatedScalarWarner(input: {
       [
         {
           code: 'PSL_DEPRECATED_SCALAR_NAME',
-          message: `Scalar type "${field.typeName}" is deprecated and will be removed; use "${descriptor.deprecated.replacement}" (stored as BSON ${descriptor.output.nativeType}).`,
+          message: `Scalar type "${field.typeName}" is deprecated and will be removed; use "${descriptor.deprecated.replacement}".`,
           ...diagnosticSource(input.sources, typeNode).at(),
         },
       ],
@@ -1375,7 +1375,8 @@ export function interpretPslDocumentToMongoContract(
       family: 'mongo',
       target: 'mongo',
       ...ifDefined('enumInferenceCodecs', input.enumInferenceCodecs),
-      ...ifDefined('codecLookup', codecLookup),
+      codecLookup,
+      dataTypeLookup: input.dataTypes.lookup,
       diagnostics: {
         push: (d) => {
           diagnostics.pushExternal(
@@ -1701,15 +1702,15 @@ export function interpretPslDocumentToMongoContract(
         modelEntry.fields,
         modelEntry.discriminator.field,
         variantEntries,
+        { codecLookup, dataTypeLookup: input.dataTypes.lookup },
         valueObjects,
-        codecLookup,
         storageValueSets,
       );
     } else {
       coll['validator'] = deriveJsonSchema(
         modelEntry.fields,
+        { codecLookup, dataTypeLookup: input.dataTypes.lookup },
         valueObjects,
-        codecLookup,
         storageValueSets,
       );
     }
