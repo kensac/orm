@@ -67,6 +67,17 @@ export type {
 } from '../core/migrations/schema-differ';
 export type { SchemaTables } from '../core/migrations/schema-tables';
 export type {
+  ModelStorageEffect,
+  ModelTable,
+  PlannedStatements,
+  StatementPlanningTarget,
+} from '../core/migrations/statement-planning';
+export {
+  describeStatement,
+  modelRenameStorageEffect,
+  planStatements,
+} from '../core/migrations/statement-planning';
+export type {
   TableNameCaseGuardTable,
   TableRenameByHand,
   TableRenameInMigration,
