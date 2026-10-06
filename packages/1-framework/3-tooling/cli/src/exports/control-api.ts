@@ -11,6 +11,7 @@
 // Re-export core control plane types for consumer convenience
 export type {
   ControlStack,
+  ResolvedStatement,
   SignDatabaseResult,
   VerifyDatabaseResult,
   VerifyDatabaseSchemaResult,
@@ -136,6 +137,11 @@ export type {
   RenderContractDtsResult,
   RenderContractDtsSuccess,
 } from '../control-api/render-contract-dts';
+export {
+  type ResolveStatementsInput,
+  resolveStatements,
+  type StatementOrigin,
+} from '../control-api/statements/resolve-statements';
 // CLI-specific types
 export type {
   ContractEmitOptions,
