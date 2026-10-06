@@ -45,7 +45,7 @@ $ prisma migration plan --name age-to-int --convert User.age
 The reasoning and the alternatives rejected are in [`design-notes.md`](./design-notes.md).
 
 1. **Data loss is refused by default, in both commands.** An operation is destructive only when it loses data: dropping a model or field, deleting a value rows still carry, or changing a field's type in a way the database cannot keep. Drops of indexes, constraints, checks, policies and defaults lose nothing and are widening. `db update` already refuses through its consent prompt; `migration plan` gains the same refusal for every plan, not only auto-baselines.
-2. **Intent is stated on the command line, up front.** There is no interactive prompt that asks whether a drop is a rename, and no detection of candidate pairs. The refusal is where the user learns what to type, and it prints each statement ready to paste.
+2. **Intent is stated on the command line, up front.** There is no prompt that guesses whether a drop is a rename, and no detection of candidate pairs. The refusal is where the user learns what to type, and it prints each statement ready to paste. As a stretch goal (see [`plan.md`](./plan.md) § Stretch goal), when a human runs the command in a terminal, the refusal becomes an interactive prompt that asks the user to state what each destructive operation is; the answers are the same statements.
 3. **Four verbs, four nouns.** The verbs are `rename`, `delete`, `convert` and `backfill`. The nouns are namespace, model, field and value, addressed by contract coordinates such as `User`, `User.name`, `Status.ARCHIVED`, `Bug` and `Address.street`, with the namespace prefixed when the contract has more than one. Rename and delete apply to all four nouns; a model rename across namespaces is a move. Convert applies to fields and to variants whose discriminator value changed. Backfill applies to fields.
 4. **Statements are intent, not hints.** A statement that cannot be resolved against the origin and destination contracts, or cannot be applied, is an error and nothing is planned. There is no "spent" or "ignored" statement. A statement that resolves and applies but changes nothing in storage, such as renaming a value object or a relation field, is reported as applied with no operations.
 5. **Everything is in the application domain.** The command line never carries a table, column, collection, SQL expression or literal value. The framework resolves coordinates against the two contracts; the family turns the resolved statement into storage operations.
@@ -57,7 +57,7 @@ The reasoning and the alternatives rejected are in [`design-notes.md`](./design-
 
 ## Non-goals
 
-- No interactive prompt that asks whether a drop is a rename, and no rename detection from matching columns or any other heuristic.
+- No prompt that guesses whether a drop is a rename, and no rename detection from matching columns or any other heuristic. A prompt that asks the human to state the intent, without guessing, is the stretch goal in [`plan.md`](./plan.md), not a non-goal.
 - No intent in the contract source. `@@hint` and any attribute like it are not part of this project; the shelved attribute is not revived.
 - No expressions, literals or values on the command line. A conversion or a backfill value is written into the migration file.
 - No scaffolded migrations from `db update`.

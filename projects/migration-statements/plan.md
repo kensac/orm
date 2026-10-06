@@ -48,6 +48,14 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Hands to.** Project close-out for Mongo.
 
+## Stretch goal — interactive statements when a human runs the command
+
+Recorded 2026-10-06 at the operator's request. Not a slice; it is picked up only after slices 1 to 4 have merged, or earlier if a slice finishes with budget to spare.
+
+When `migration plan` or `db update` detects a destructive operation and no statement covers it, the command today refuses and prints the statements that would resolve it. The stretch goal: when the command is run by a human in a terminal (stdin and stdout are a TTY, and no `--json` or similar non-interactive flag is set), the refusal becomes an interactive prompt that asks, per destructive operation, what the user means: rename it to a name they type, or delete it. Each answer is exactly the statement the refusal would have printed, applied in order, and the plan then proceeds as if the statements had been given on the command line. In a script, an agent, or CI (no TTY) the behaviour stays as it is: refuse and print the statements.
+
+Rules that carry over unchanged: the prompt never guesses or proposes a rename candidate; it asks. The statements are not recorded anywhere; the migration file or the database is the record. The consent model of slice 2 (`--delete` per operation) is what the "delete" answer maps to.
+
 ## Sequencing
 
 - **Stack:** slice 1 → slice 2 → slice 3.
