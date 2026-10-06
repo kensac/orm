@@ -264,18 +264,26 @@ withTempDir(({ createTempDir }) => {
         expectAppliedStatements(updated.appliedStatements, 'S2.04');
         await expectRenamedState(ctx, db.connectionString, 'S2.05');
 
+        const dryRun = await runDbUpdate(ctx, ['--dry-run', '--json']);
+        expect(dryRun.exitCode, `S2.06: db update --dry-run: ${dryRun.stderr}`).toBe(0);
+        expect(
+          parseJsonOutput<{ plan: { operations: readonly PlannedOperation[] } }>(dryRun).plan
+            .operations,
+          'S2.06: db update without statements plans nothing against the live database',
+        ).toEqual([]);
+
         const markerHash = updated.plan.destination.storageHash;
         expect(
           existsSync(join(ctx.testDir, 'migrations', 'snapshots', markerHash, 'contract.json')),
-          'S2.06: db update stored the snapshot of the contract it applied',
+          'S2.07: db update stored the snapshot of the contract it applied',
         ).toBe(true);
         const again = await runDbUpdate(ctx, [...RENAMES, '--json']);
-        expect(again.exitCode, 'S2.06: the same statements fail on a second run').not.toBe(0);
+        expect(again.exitCode, 'S2.07: the same statements fail on a second run').not.toBe(0);
         const refusal = engineError(again);
-        expect(refusal?.code, 'S2.06: the old name no longer resolves').toBe(
+        expect(refusal?.code, 'S2.07: the old name no longer resolves').toBe(
           'MIGRATION.STATEMENT_UNRESOLVED',
         );
-        expect(refusal?.why, 'S2.06: the origin has no Profile').toContain(
+        expect(refusal?.why, 'S2.07: the origin has no Profile').toContain(
           'origin contract has no model "Profile"',
         );
       },
