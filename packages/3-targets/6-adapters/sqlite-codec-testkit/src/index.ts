@@ -16,9 +16,10 @@
  * 2. `codec.decodeJson` turns the parsed value back into the application value
  *    the case started from.
  *
- * A codec whose data type declares the text it stores (ADR 254) must also write
- * that text for a row: `codec.encode(value)` equals the type's `toStoredText` of
- * `codec.encodeJson(value)`, because DDL writes a literal default as that text.
+ * A codec whose data type declares the text the database holds (ADR 254) must
+ * also write that text for a row: `codec.encode(value)` equals the type's
+ * `toDatabaseText` of the canonical form of `codec.encodeJson(value)`, because
+ * DDL writes a literal default as that text.
  *
  * Both conditions are measured against the codec's methods as they stand.
  * Conformance is therefore agreement with today's `encodeJson` / `decodeJson`,
@@ -54,6 +55,7 @@ import {
   createDataTypeLookup,
   validateCodecTypeParams,
 } from '@internal/framework-components/codec';
+import { isSqlDataType } from '@internal/sql-contract/data-type';
 import { SqlStorage } from '@internal/sql-contract/types';
 import {
   ColumnRef,
@@ -94,8 +96,8 @@ export type ProjectionFailureKind =
   | 'decode-json-rejects'
   /** The parsed value agrees with `encodeJson` but does not carry the application value back. */
   | 'lossy-round-trip'
-  /** The codec writes other text for a row than the text its data type declares it stores. */
-  | 'stored-text-mismatch';
+  /** The codec writes other text for a row than the text its data type declares the database holds. */
+  | 'database-text-mismatch';
 
 export interface ProjectionFailure {
   readonly kind: ProjectionFailureKind;
@@ -377,13 +379,16 @@ export async function runSqliteCodecProjection(
     };
   }
 
-  const storedText = dataType?.toStoredText?.(expected);
-  if (storedText !== undefined && wire !== storedText) {
+  const databaseText =
+    dataType !== undefined && isSqlDataType(dataType)
+      ? dataType.sql.toDatabaseText?.(canonical)
+      : undefined;
+  if (databaseText !== undefined && wire !== databaseText) {
     return {
       ...base,
       failure: {
-        kind: 'stored-text-mismatch',
-        detail: `the codec writes ${JSON.stringify(wire)} for a row, but its data type ${descriptor.dataType} stores ${JSON.stringify(storedText)}`,
+        kind: 'database-text-mismatch',
+        detail: `the codec writes ${JSON.stringify(wire)} for a row, but its data type ${descriptor.dataType} declares the database holds ${JSON.stringify(databaseText)}`,
       },
     };
   }

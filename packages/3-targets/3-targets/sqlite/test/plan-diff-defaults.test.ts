@@ -189,6 +189,25 @@ describe('buildSqlitePlanDiff writes a literal default as the text its data type
     ).toBe('\'["2024-01-01T00:00:00.000Z","2024-01-01T00:00:00.500Z"]\'');
   });
 
+  it.each(['2024-01-01T25:00:00Z', 'not a date'])(
+    'refuses a datetime default %s that its data type cannot read, naming the column',
+    (value) => {
+      const diff = buildSqlitePlanDiff({
+        contract: contractWithDefault({ kind: 'literal', value }, { codecId: 'sqlite/datetime@1' }),
+        actualSchema: new SqlSchemaIR({ tables: {} }),
+        frameworkComponents: withExtensionDatetime,
+      });
+      const column = diff.expected.tables['event']?.columns['at'];
+      if (column === undefined) throw new Error('expected column derived');
+      expect(() => columnSpecFromNode(column, false, sqliteTestTypes)).toThrow(
+        expect.objectContaining({
+          code: 'CONTRACT.DEFAULT_INVALID',
+          meta: { reason: 'default-not-canonical', column: 'at' },
+        }),
+      );
+    },
+  );
+
   it('writes a text default as it is', () => {
     expect(expectedDefault({ kind: 'literal', value: '2024-01-01T00:00:00Z' }, {})).toBe(
       "'2024-01-01T00:00:00Z'",

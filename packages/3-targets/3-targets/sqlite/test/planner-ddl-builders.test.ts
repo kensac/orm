@@ -65,23 +65,18 @@ describe('buildColumnTypeSql', () => {
 });
 
 describe('renderDefaultLiteral', () => {
-  it('renders Date as ISO8601 string', () => {
-    const d = new Date('2024-01-15T10:30:00.000Z');
-    expect(renderDefaultLiteral(d)).toBe("'2024-01-15T10:30:00.000Z'");
-  });
-
   it('renders JSON objects', () => {
     expect(renderDefaultLiteral({ key: 'val' })).toBe('\'{"key":"val"}\'');
   });
 
-  const storedText = (value: JsonValue) => `${String(value)}#stored`;
+  const databaseText = (value: JsonValue) => `${String(value)}#database`;
 
-  it('writes a string as the text its data type stores', () => {
-    expect(renderDefaultLiteral('a', storedText)).toBe("'a#stored'");
+  it('writes a string as the text its data type declares the database holds', () => {
+    expect(renderDefaultLiteral('a', databaseText)).toBe("'a#database'");
   });
 
-  it('writes each string element of a list as the text its data type stores', () => {
-    expect(renderDefaultLiteral(['a', 'b'], storedText)).toBe('\'["a#stored","b#stored"]\'');
+  it('writes each string element of a list as the text its data type declares the database holds', () => {
+    expect(renderDefaultLiteral(['a', 'b'], databaseText)).toBe('\'["a#database","b#database"]\'');
   });
 
   it('writes a string as it is when its data type declares no stored text', () => {

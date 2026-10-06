@@ -15,12 +15,12 @@ export const EXTENSION_DATETIME_CODEC_ID = 'sqlite-extension/datetime@1';
 class ExtensionDatetimeCodec extends CodecImpl<string, readonly ['equality'], string, Date> {
   constructor(
     descriptor: AnyCodecDescriptor,
-    private readonly storedText: (value: Date) => string,
+    private readonly rowText: (value: Date) => string,
   ) {
     super(descriptor);
   }
   async encode(value: Date, _ctx: CodecCallContext): Promise<string> {
-    return this.storedText(value);
+    return this.rowText(value);
   }
   async decode(wire: string, _ctx: CodecCallContext): Promise<Date> {
     return new Date(wire);
@@ -33,9 +33,9 @@ class ExtensionDatetimeCodec extends CodecImpl<string, readonly ['equality'], st
   }
 }
 
-/** A codec of `sqlite/datetime` from outside the target, which writes `storedText` for a row. */
+/** A codec of `sqlite/datetime` from outside the target, which writes `rowText` for a row. */
 export class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
-  constructor(private readonly storedText: (value: Date) => string) {
+  constructor(private readonly rowText: (value: Date) => string) {
     super();
   }
   protected override jsonProjection(expression: ProjectionExpr): ProjectionExpr {
@@ -46,6 +46,6 @@ export class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
   override readonly traits = ['equality'] as const;
   override readonly paramsSchema = undefined;
   override factory(): (ctx: CodecInstanceContext) => ExtensionDatetimeCodec {
-    return () => new ExtensionDatetimeCodec(this, this.storedText);
+    return () => new ExtensionDatetimeCodec(this, this.rowText);
   }
 }

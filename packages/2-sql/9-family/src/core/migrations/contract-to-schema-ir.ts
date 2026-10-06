@@ -52,7 +52,7 @@ import { sqlFamilyError } from '../errors';
 export type DefaultRenderer = (
   def: ColumnDefault,
   column: StorageColumn,
-  dataType: string,
+  dataType: SqlDataType,
 ) => string;
 
 /**
@@ -106,7 +106,7 @@ function convertColumn(
     ...ifDefined(
       'default',
       column.default != null && renderDefault
-        ? renderDefault(column.default, column, dataType.id)
+        ? renderDefault(column.default, column, dataType)
         : undefined,
     ),
     // Contract-derived columns are resolved by construction: the computed

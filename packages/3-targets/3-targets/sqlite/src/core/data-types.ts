@@ -83,7 +83,7 @@ const datetimeCanonicalForm: ToCanonicalForm = (value) =>
 export const sqliteDatetime = sqlDataType('sqlite/datetime', {
   texts: [{ text: 'text', written: true }],
   toCanonicalForm: datetimeCanonicalForm,
-  toStoredText: (value) =>
+  toDatabaseText: (value) =>
     typeof value === 'string' ? encodeSqliteDatetime(new Date(value)) : wrongShape(value, 'text'),
   casts: { [sqliteText.id]: datetimeCanonicalForm },
 });

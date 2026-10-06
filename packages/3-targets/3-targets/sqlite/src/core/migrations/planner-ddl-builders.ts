@@ -8,12 +8,13 @@
  * see `StorageColumn` or `storageTypes`.
  */
 
-import type { ToStoredText } from '@internal/framework-components/codec';
+import type { JsonValue } from '@internal/contract/types';
 import {
   dataTypeParams,
   renderSqlTypeName,
   type SqlTypeLookups,
   sqlDataTypeOfCodec,
+  type ToDatabaseText,
 } from '@internal/sql-contract/data-type';
 import type {
   StorageColumn,
@@ -38,18 +39,15 @@ export function buildColumnTypeSql(
 }
 
 /**
- * A literal default as SQL. A string, or each string element of a list, is written as the text its
- * data type stores, when the type declares one: SQLite compares text byte by byte, so a default must
- * be the text every row holds.
+ * A literal default in canonical form as SQL. A string, or each string element of a list, is
+ * written as the text the database holds when its data type declares one: SQLite compares text
+ * byte by byte, so a default must be the text every row holds.
  */
-export function renderDefaultLiteral(value: unknown, toStoredText?: ToStoredText): string {
-  if (value instanceof Date) {
-    return `'${escapeLiteral(value.toISOString())}'`;
-  }
+export function renderDefaultLiteral(value: JsonValue, toDatabaseText?: ToDatabaseText): string {
   if (typeof value === 'string') {
-    return `'${escapeLiteral(toStoredText === undefined ? value : toStoredText(value))}'`;
+    return `'${escapeLiteral(toDatabaseText === undefined ? value : toDatabaseText(value))}'`;
   }
-  if (typeof value === 'number' || typeof value === 'bigint') {
+  if (typeof value === 'number') {
     return String(value);
   }
   if (typeof value === 'boolean') {
@@ -58,9 +56,9 @@ export function renderDefaultLiteral(value: unknown, toStoredText?: ToStoredText
   if (value === null) {
     return 'NULL';
   }
-  if (Array.isArray(value) && toStoredText !== undefined) {
+  if (Array.isArray(value) && toDatabaseText !== undefined) {
     const elements = value.map((element) =>
-      typeof element === 'string' ? toStoredText(element) : element,
+      typeof element === 'string' ? toDatabaseText(element) : element,
     );
     return `'${escapeLiteral(JSON.stringify(elements))}'`;
   }

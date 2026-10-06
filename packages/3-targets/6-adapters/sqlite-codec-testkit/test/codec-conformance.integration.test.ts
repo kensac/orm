@@ -14,15 +14,57 @@
  */
 
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import type { JsonValue } from '@internal/contract/types';
+import {
+  type CodecCallContext,
+  CodecImpl,
+  type CodecInstanceContext,
+  decodeJsonString,
+} from '@internal/framework-components/codec';
+import type { ProjectionExpr } from '@internal/sql-relational-core/ast';
+import { SqliteCodecDescriptor } from '@internal/target-sqlite/codec-descriptor';
 import { sqliteCodecDescriptorRegistry } from '@internal/target-sqlite/codecs';
+import { sqliteDatetime, sqliteDatetimeCanonical } from '@internal/target-sqlite/data-types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ConformanceConnection } from '../src/index';
 import { runSqliteCodecProjection } from '../src/index';
 import { sqliteConformanceCases } from './codec-conformance/cases';
-import {
-  EXTENSION_DATETIME_CODEC_ID,
-  ExtensionDatetimeDescriptor,
-} from './extension-datetime-codec';
+
+const EXTENSION_DATETIME_CODEC_ID = 'sqlite-extension/datetime@1';
+
+/** A codec of `sqlite/datetime` from outside the target, which writes `rowText` for a row. */
+class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
+  constructor(private readonly rowText: (value: Date) => string) {
+    super();
+  }
+  protected override jsonProjection(expression: ProjectionExpr): ProjectionExpr {
+    return expression;
+  }
+  override readonly dataType = sqliteDatetime.id;
+  override readonly codecId = EXTENSION_DATETIME_CODEC_ID;
+  override readonly traits = ['equality'] as const;
+  override readonly paramsSchema = undefined;
+  override factory(): (
+    ctx: CodecInstanceContext,
+  ) => CodecImpl<string, readonly ['equality'], string, Date> {
+    const rowText = this.rowText;
+    return () =>
+      new (class extends CodecImpl<string, readonly ['equality'], string, Date> {
+        async encode(value: Date, _ctx: CodecCallContext): Promise<string> {
+          return rowText(value);
+        }
+        async decode(wire: string, _ctx: CodecCallContext): Promise<Date> {
+          return new Date(wire);
+        }
+        encodeJson(value: Date): JsonValue {
+          return sqliteDatetimeCanonical(value.toISOString());
+        }
+        decodeJson(json: JsonValue): Date {
+          return new Date(decodeJsonString(EXTENSION_DATETIME_CODEC_ID, json));
+        }
+      })(this);
+  }
+}
 
 /** Widens a codec wire value to what `node:sqlite` binds as a positional parameter. */
 function toSqliteParam(wire: unknown): SQLInputValue {
@@ -96,7 +138,7 @@ describe('SQLite codec JSON-projection conformance', { concurrent: false }, () =
     expect(outcome.failure).toBeUndefined();
   });
 
-  it('fails a codec whose text for a row differs from the text its data type stores', async () => {
+  it('fails a codec whose text for a row differs from the text its data type declares the database holds', async () => {
     const outcome = await runSqliteCodecProjection(connection!, {
       codecId: EXTENSION_DATETIME_CODEC_ID,
       descriptor: new ExtensionDatetimeDescriptor((value) =>
@@ -108,13 +150,13 @@ describe('SQLite codec JSON-projection conformance', { concurrent: false }, () =
     });
 
     expect(outcome.failure).toEqual({
-      kind: 'stored-text-mismatch',
+      kind: 'database-text-mismatch',
       detail:
-        'the codec writes "2024-01-01T00:00:00Z" for a row, but its data type sqlite/datetime stores "2024-01-01T00:00:00.000Z"',
+        'the codec writes "2024-01-01T00:00:00Z" for a row, but its data type sqlite/datetime declares the database holds "2024-01-01T00:00:00.000Z"',
     });
   });
 
-  it('passes a codec of the type whose text for a row is the text its data type stores', async () => {
+  it('passes a codec of the type whose text for a row is the text its data type declares the database holds', async () => {
     const outcome = await runSqliteCodecProjection(connection!, {
       codecId: EXTENSION_DATETIME_CODEC_ID,
       descriptor: new ExtensionDatetimeDescriptor((value) => value.toISOString()),

@@ -46,9 +46,6 @@ export interface ListCast {
  */
 export type ToCanonicalForm = (value: JsonValue) => JsonValue;
 
-/** A pure function from a value in canonical form to the text the database stores for it. */
-export type ToStoredText = (value: JsonValue) => string;
-
 export interface DataType {
   readonly id: DataTypeId;
   /** An arktype object schema of the type's parameters. A type without one has no parameters. */
@@ -61,12 +58,6 @@ export interface DataType {
    * stored value of the type goes through it, so two forms of one value are one value.
    */
   readonly toCanonicalForm?: ToCanonicalForm;
-  /**
-   * The text the database stores for a value in canonical form. A type declares it only where the
-   * database compares stored text byte by byte and that text differs from the canonical form, so
-   * that DDL writes a default as the text every row holds.
-   */
-  readonly toStoredText?: ToStoredText;
 }
 
 export interface DataTypeSpec {
@@ -74,7 +65,6 @@ export interface DataTypeSpec {
   readonly casts?: Readonly<Record<string, Cast>>;
   readonly listCast?: { readonly of: readonly string[]; readonly cast: ListCast['cast'] };
   readonly toCanonicalForm?: ToCanonicalForm;
-  readonly toStoredText?: ToStoredText;
 }
 
 /** The assembled types of one stack, by id. */
@@ -111,8 +101,7 @@ export function dataType(id: string, spec: DataTypeSpec): DataType {
     ...(listCast === undefined
       ? {}
       : { listCast: { of: listCast.of.map(dataTypeId), cast: listCast.cast } }),
-    ...ifDefined('toCanonicalForm', spec.toCanonicalForm),
-    ...ifDefined('toStoredText', spec.toStoredText),
+    ...(spec.toCanonicalForm === undefined ? {} : { toCanonicalForm: spec.toCanonicalForm }),
   };
 }
 

@@ -58,17 +58,6 @@ describe('dataType', () => {
     expect(dataType('pg/int2', {}).toCanonicalForm).toBeUndefined();
   });
 
-  it('keeps the function that gives the text the database stores for a canonical value', () => {
-    const datetime = dataType('sqlite/datetime', {
-      toStoredText: (value) => `${String(value)}.000`,
-    });
-    expect(datetime.toStoredText?.('2024-01-01T00:00:00')).toBe('2024-01-01T00:00:00.000');
-  });
-
-  it('declares no stored-text function when none is given', () => {
-    expect(dataType('pg/int2', {}).toStoredText).toBeUndefined();
-  });
-
   it('validates the id of every type it casts from', () => {
     expect(() => dataType('pg/int8', { casts: { 'pg/int2@1': (value) => value } })).toThrow();
   });

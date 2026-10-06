@@ -4,7 +4,7 @@ Database-backed conformance harness for SQLite codec JSON projections.
 
 ## Purpose
 
-A codec descriptor's `projectJson()` renders SQL that reproduces `codec.encodeJson()` inside the database. This package runs that claim against a live SQLite: it stores a representative value in a column of the case's declared storage type, projects the stored column, executes the projection, and checks that the parsed result agrees with `encodeJson` and round-trips back through `decodeJson`. When the codec's data type declares the text it stores, such as `sqlite/datetime`, it also checks that the codec writes that text for a row, because DDL writes a literal default as that text.
+A codec descriptor's `projectJson()` renders SQL that reproduces `codec.encodeJson()` inside the database. This package runs that claim against a live SQLite: it stores a representative value in a column of the case's declared storage type, projects the stored column, executes the projection, and checks that the parsed result agrees with `encodeJson` and round-trips back through `decodeJson`. When the codec's data type declares the text the database holds, such as `sqlite/datetime`, it also checks that the codec writes that text for a row, because DDL writes a literal default as that text.
 
 It is dev-only tooling, not a runtime dependency — extension authors install it to verify their own codec descriptors the same way this package's own `test/` suite verifies every built-in SQLite codec descriptor.
 

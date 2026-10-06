@@ -1,8 +1,13 @@
-import type { ColumnDefault, Contract, ControlPolicy } from '@internal/contract/types';
+import type {
+  ColumnDefault,
+  ColumnDefaultLiteralInputValue,
+  Contract,
+  ControlPolicy,
+  JsonValue,
+} from '@internal/contract/types';
 import type { SqlSchemaDiffResult } from '@internal/family-sql/control';
 import { contractToSchemaIR, sqlTypeLookupsOf } from '@internal/family-sql/control';
 import { verifySqlSchemaByDiff } from '@internal/family-sql/diff';
-import type { ToStoredText } from '@internal/framework-components/codec';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   SchemaDiffIssue,
@@ -10,16 +15,21 @@ import type {
 } from '@internal/framework-components/control';
 import { diffSchemas } from '@internal/framework-components/control';
 import { entityAt } from '@internal/framework-components/ir';
-import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
-import type { SqlStorage, StorageTable } from '@internal/sql-contract/types';
+import type { SqlDataType, SqlTypeLookups } from '@internal/sql-contract/data-type';
+import type { SqlStorage, StorageColumn, StorageTable } from '@internal/sql-contract/types';
 import type {
   SqlColumnIRInput,
   SqlSchemaIRInput,
   SqlSchemaIRNode,
   SqlTableIRInput,
 } from '@internal/sql-schema-ir/types';
-import { relationalNodeGranularity, SqlSchemaIR } from '@internal/sql-schema-ir/types';
+import {
+  defaultInCanonicalForm,
+  relationalNodeGranularity,
+  SqlSchemaIR,
+} from '@internal/sql-schema-ir/types';
 import { blindCast } from '@internal/utils/casts';
+import { InternalError } from '@internal/utils/internal-error';
 import { SQLITE_NOW_EXPRESSION } from '../datetime-text';
 import { sqliteResolveDefault } from '../default-normalizer';
 import { renderDefaultLiteral } from './planner-ddl-builders';
@@ -31,10 +41,15 @@ interface SqliteDiffDatabaseSchemaInput {
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }
 
-/** Renders a column default for the SQLite dialect, a literal as the text the column's data type stores. */
+/**
+ * Renders a column default for the SQLite dialect. A literal the column's data type holds is written
+ * in canonical form, as the text the type declares the database holds. One the type refuses is
+ * written as the contract has it, so the planner refuses it and verify explains it.
+ */
 export function sqliteRenderDefault(
   def: ColumnDefault,
-  toStoredText: ToStoredText | undefined,
+  column: StorageColumn,
+  dataType: SqlDataType,
 ): string {
   if (def.kind === 'function') {
     if (def.expression === 'now()') {
@@ -42,7 +57,21 @@ export function sqliteRenderDefault(
     }
     return def.expression;
   }
-  return renderDefaultLiteral(def.value, toStoredText);
+  const many = column.many !== undefined && column.many !== false;
+  const canonical = defaultInCanonicalForm(def.value, dataType.toCanonicalForm, many);
+  return renderDefaultLiteral(
+    contractJson(canonical.value),
+    canonical.refusal === undefined ? dataType.sql.toDatabaseText : undefined,
+  );
+}
+
+function contractJson(value: ColumnDefaultLiteralInputValue): JsonValue {
+  if (value instanceof Date) {
+    throw new InternalError(
+      'A contract literal default is JSON; a Date never reaches the planner.',
+    );
+  }
+  return value;
 }
 
 /**
@@ -63,8 +92,7 @@ export function sqliteContractToSchema(
   // introspected counterpart by construction. No pre-diff pass, no flag.
   return contractToSchemaIR(contract, {
     annotationNamespace: 'sqlite',
-    renderDefault: (def, _column, dataTypeId) =>
-      sqliteRenderDefault(def, types.dataTypeLookup.get(dataTypeId)?.toStoredText),
+    renderDefault: sqliteRenderDefault,
     resolveDefault: sqliteResolveDefault,
     dataTypeLookup: types.dataTypeLookup,
     codecLookup: types.codecLookup,

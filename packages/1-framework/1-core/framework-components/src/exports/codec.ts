@@ -40,7 +40,6 @@ export type {
   DataTypeSpec,
   ListCast,
   ToCanonicalForm,
-  ToStoredText,
 } from '../shared/data-type';
 export {
   assembleDataTypes,
