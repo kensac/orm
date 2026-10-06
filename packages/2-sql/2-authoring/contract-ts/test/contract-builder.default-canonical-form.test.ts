@@ -163,7 +163,26 @@ describe('a literal default in a TypeScript contract', () => {
           fieldName: 'at',
           codecId: 'test/instant@1',
           dataType: 'test/instant',
-          reason: 'data-type-refused-default',
+          reason: 'default-not-canonical',
+        },
+      }),
+    );
+  });
+
+  it("is refused with the data type's message when one element of a list default is not held", () => {
+    expect(() =>
+      buildWithDefault(isoInstant, [new Date('2024-01-01T00:00:00Z'), '2024-01-01T00:00:00'], true),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.DEFAULT_INVALID',
+        message:
+          'Field "Event.at" has a default that its data type test/instant does not hold: "2024-01-01T00:00:00" has no UTC offset.',
+        meta: {
+          modelName: 'Event',
+          fieldName: 'at',
+          codecId: 'test/instant@1',
+          dataType: 'test/instant',
+          reason: 'default-not-canonical',
         },
       }),
     );

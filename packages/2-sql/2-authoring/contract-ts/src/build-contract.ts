@@ -254,7 +254,7 @@ function inCanonicalForm(
           fieldName: site.fieldName,
           codecId: site.codecId,
           dataType: dataType.id,
-          reason: 'data-type-refused-default',
+          reason: 'default-not-canonical',
         },
       },
     );
