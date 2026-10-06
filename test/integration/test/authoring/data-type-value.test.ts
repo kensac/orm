@@ -71,22 +71,26 @@ describe.each([
     name: 'Postgres',
     stack: createControlStack({ family: sql, target: postgres, adapter: postgresAdapter }),
     integer: 'pg/int4',
+    canonicalEight: 8,
     fraction: 'pg/numeric',
   },
   {
     name: 'SQLite',
     stack: createControlStack({ family: sql, target: sqlite, adapter: sqliteAdapter }),
     integer: 'sqlite/integer',
+    canonicalEight: '8',
     fraction: 'sqlite/real',
   },
-])('dataTypeValue on the assembled $name stack', ({ stack, integer, fraction }) => {
+])('dataTypeValue on the assembled $name stack', ({ stack, integer, canonicalEight, fraction }) => {
   const read = (type: string, source: string) => {
     const { argument, ctx } = parseArgument(source);
     return dataTypeValue(dataTypeId(type), stack.dataTypes).parse(argument, ctx);
   };
 
   it('takes a number for the integer type', () => {
-    expect(read(integer, '8')).toEqual(ok({ type: integer, value: 8, span: span('8') }));
+    expect(read(integer, '8')).toEqual(
+      ok({ type: integer, value: canonicalEight, span: span('8') }),
+    );
   });
 
   it('refuses a quoted string for the integer type', () => {

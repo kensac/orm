@@ -8,7 +8,7 @@ import type { JsonValue } from '@internal/contract/types';
 import { isInternalError } from '@internal/utils/internal-error';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { type DataTypeId, type DataTypeLookup, dataTypeId } from './data-type';
-import type { DataTypeAuthoringEntry } from './framework-authoring';
+import { authoringEntryType, type DataTypeAuthoringEntry } from './framework-authoring';
 import { printedTaggedLiteralReadsBack, printTaggedLiteral } from './tagged-literal';
 
 /** One written value, in the syntax a contract source wrote it in. The framework defines the list shape, and the family's default reader is the only reader of it. ADR 254. */
@@ -137,7 +137,7 @@ export function exactRewrite(
 }
 
 interface FoundEntry {
-  readonly key: DataTypeId;
+  readonly key: string;
   readonly entry: DataTypeAuthoringEntry;
 }
 
@@ -146,7 +146,7 @@ function findEntry(
   matches: (entry: DataTypeAuthoringEntry) => boolean,
 ): FoundEntry | undefined {
   for (const [key, entry] of Object.entries(support.entries)) {
-    if (matches(entry)) return { key: dataTypeId(key), entry };
+    if (matches(entry)) return { key, entry };
   }
   return undefined;
 }
@@ -206,7 +206,10 @@ export function readWrittenValue(
       : ok(classified);
   }
   try {
-    return ok({ type: found.key, value: form.parse(text) });
+    return ok({
+      type: dataTypeId(authoringEntryType(found.key, found.entry)),
+      value: form.parse(text),
+    });
   } catch (error) {
     if (isInternalError(error)) throw error;
     return notOk({ kind: 'unreadable', message: messageOf(error) });

@@ -228,7 +228,7 @@ describe('PSL number defaults on columns whose data type casts from no number', 
     });
   });
 
-  it('refuse a number on a SQLite datetime column, naming the cast it would need', async () => {
+  it('refuse a number on a SQLite datetime column, whose text type casts from nothing', async () => {
     const result = await authorSqliteContractFromPsl(
       'model Event {\n  id Int @id\n  at DateTime @default(0)\n}',
     );
