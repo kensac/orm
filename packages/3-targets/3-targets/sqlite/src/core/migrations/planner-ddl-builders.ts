@@ -8,6 +8,7 @@
  * see `StorageColumn` or `storageTypes`.
  */
 
+import type { ToStoredText } from '@internal/framework-components/codec';
 import {
   dataTypeParams,
   renderSqlTypeName,
@@ -19,8 +20,6 @@ import type {
   StorageTable,
   StorageTypeInstance,
 } from '@internal/sql-contract/types';
-import { SQLITE_DATETIME_CODEC_ID } from '../codec-ids';
-import { decodeSqliteDatetime, encodeSqliteDatetime } from '../codecs';
 import { sqliteError } from '../errors';
 import { escapeLiteral, quoteIdentifier } from '../sql-utils';
 
@@ -39,18 +38,16 @@ export function buildColumnTypeSql(
 }
 
 /**
- * A datetime default is the stored value itself in SQLite, which compares text byte by byte, so it
- * is written as the text the column's codec writes for every row, not as its canonical form.
+ * A literal default as SQL. A string, or each string element of a list, is written as the text its
+ * data type stores, when the type declares one: SQLite compares text byte by byte, so a default must
+ * be the text every row holds.
  */
-export function renderDefaultLiteral(value: unknown, codecId?: string): string {
+export function renderDefaultLiteral(value: unknown, toStoredText?: ToStoredText): string {
   if (value instanceof Date) {
-    return `'${escapeLiteral(encodeSqliteDatetime(value))}'`;
-  }
-  if (typeof value === 'string' && codecId === SQLITE_DATETIME_CODEC_ID) {
-    return `'${escapeLiteral(encodeSqliteDatetime(decodeSqliteDatetime(value)))}'`;
+    return `'${escapeLiteral(value.toISOString())}'`;
   }
   if (typeof value === 'string') {
-    return `'${escapeLiteral(value)}'`;
+    return `'${escapeLiteral(toStoredText === undefined ? value : toStoredText(value))}'`;
   }
   if (typeof value === 'number' || typeof value === 'bigint') {
     return String(value);
@@ -60,6 +57,12 @@ export function renderDefaultLiteral(value: unknown, codecId?: string): string {
   }
   if (value === null) {
     return 'NULL';
+  }
+  if (Array.isArray(value) && toStoredText !== undefined) {
+    const elements = value.map((element) =>
+      typeof element === 'string' ? toStoredText(element) : element,
+    );
+    return `'${escapeLiteral(JSON.stringify(elements))}'`;
   }
   return `'${escapeLiteral(JSON.stringify(value))}'`;
 }

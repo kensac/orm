@@ -1,6 +1,6 @@
 import { type ColumnDefault, type Contract, coreHash, profileHash } from '@internal/contract/types';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
-import { SqlStorage, type StorageTable } from '@internal/sql-contract/types';
+import { SqlStorage, type StorageColumn, type StorageTable } from '@internal/sql-contract/types';
 import { FunctionColumnDefault, opaqueSql } from '@internal/sql-relational-core/ast';
 import { SqlSchemaIR, SqlTableIR } from '@internal/sql-schema-ir/types';
 import { ifDefined } from '@internal/utils/defined';
@@ -10,6 +10,10 @@ import { parseSqliteDefault } from '../src/core/default-normalizer';
 import { columnSpecFromNode, ddlColumnFromNode } from '../src/core/migrations/column-ddl-rendering';
 import { buildSqlitePlanDiff } from '../src/core/migrations/diff-database-schema';
 import { sqliteCreateNamespace } from '../src/core/sqlite-unbound-database';
+import {
+  EXTENSION_DATETIME_CODEC_ID,
+  ExtensionDatetimeDescriptor,
+} from './extension-datetime-codec';
 import { sqliteTestComponents, sqliteTestTypes } from './sqlite-test-types';
 
 function liveSchema(rawDefault: string): SqlSchemaIR {
@@ -35,7 +39,10 @@ function liveSchema(rawDefault: string): SqlSchemaIR {
   });
 }
 
-function contractWithDefault(columnDefault: ColumnDefault): Contract<SqlStorage> {
+function contractWithDefault(
+  columnDefault: ColumnDefault,
+  column: Partial<StorageColumn> = {},
+): Contract<SqlStorage> {
   const event: StorageTable = {
     columns: {
       at: {
@@ -44,6 +51,7 @@ function contractWithDefault(columnDefault: ColumnDefault): Contract<SqlStorage>
         nullable: false,
         codecId: 'sqlite/text@1',
         default: columnDefault,
+        ...column,
       },
     },
     foreignKeys: [],
@@ -132,4 +140,58 @@ describe('buildSqlitePlanDiff derives the expected default like verify does', ()
       });
     },
   );
+});
+
+describe('buildSqlitePlanDiff writes a literal default as the text its data type stores', () => {
+  const withExtensionDatetime = [
+    ...sqliteTestComponents,
+    {
+      kind: 'extension',
+      familyId: 'sql',
+      targetId: 'sqlite',
+      id: 'sqlite-extension-datetime',
+      version: '0.0.0',
+      types: {
+        codecTypes: {
+          codecDescriptors: [new ExtensionDatetimeDescriptor((value) => value.toISOString())],
+        },
+      },
+    },
+  ] as const;
+
+  function expectedDefault(
+    columnDefault: ColumnDefault,
+    column: Partial<StorageColumn>,
+  ): string | undefined {
+    const diff = buildSqlitePlanDiff({
+      contract: contractWithDefault(columnDefault, column),
+      actualSchema: new SqlSchemaIR({ tables: {} }),
+      frameworkComponents: withExtensionDatetime,
+    });
+    return diff.expected.tables['event']?.columns['at']?.default;
+  }
+
+  it.each([['sqlite/datetime@1'], [EXTENSION_DATETIME_CODEC_ID]])(
+    'writes a %s default as the datetime text every row holds',
+    (codecId) => {
+      expect(expectedDefault({ kind: 'literal', value: '2024-01-01T00:00:00Z' }, { codecId })).toBe(
+        "'2024-01-01T00:00:00.000Z'",
+      );
+    },
+  );
+
+  it('writes each element of a datetime list default as the datetime text every row holds', () => {
+    expect(
+      expectedDefault(
+        { kind: 'literal', value: ['2024-01-01T00:00:00Z', '2024-01-01T00:00:00.5Z'] },
+        { codecId: 'sqlite/datetime@1', many: { elementNullable: false } },
+      ),
+    ).toBe('\'["2024-01-01T00:00:00.000Z","2024-01-01T00:00:00.500Z"]\'');
+  });
+
+  it('writes a text default as it is', () => {
+    expect(expectedDefault({ kind: 'literal', value: '2024-01-01T00:00:00Z' }, {})).toBe(
+      "'2024-01-01T00:00:00Z'",
+    );
+  });
 });

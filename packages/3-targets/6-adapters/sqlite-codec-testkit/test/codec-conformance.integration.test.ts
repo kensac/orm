@@ -19,6 +19,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ConformanceConnection } from '../src/index';
 import { runSqliteCodecProjection } from '../src/index';
 import { sqliteConformanceCases } from './codec-conformance/cases';
+import {
+  EXTENSION_DATETIME_CODEC_ID,
+  ExtensionDatetimeDescriptor,
+} from './extension-datetime-codec';
 
 /** Widens a codec wire value to what `node:sqlite` binds as a positional parameter. */
 function toSqliteParam(wire: unknown): SQLInputValue {
@@ -88,6 +92,36 @@ describe('SQLite codec JSON-projection conformance', { concurrent: false }, () =
     expect(sqliteCodecDescriptorRegistry.descriptorFor(unregisteredCase.codecId)).toBeUndefined();
 
     const outcome = await runSqliteCodecProjection(connection!, unregisteredCase);
+
+    expect(outcome.failure).toBeUndefined();
+  });
+
+  it('fails a codec whose text for a row differs from the text its data type stores', async () => {
+    const outcome = await runSqliteCodecProjection(connection!, {
+      codecId: EXTENSION_DATETIME_CODEC_ID,
+      descriptor: new ExtensionDatetimeDescriptor((value) =>
+        value.toISOString().replace('.000Z', 'Z'),
+      ),
+      label: 'an instant on a whole second',
+      value: new Date('2024-01-01T00:00:00.000Z'),
+      storageType: 'TEXT',
+    });
+
+    expect(outcome.failure).toEqual({
+      kind: 'stored-text-mismatch',
+      detail:
+        'the codec writes "2024-01-01T00:00:00Z" for a row, but its data type sqlite/datetime stores "2024-01-01T00:00:00.000Z"',
+    });
+  });
+
+  it('passes a codec of the type whose text for a row is the text its data type stores', async () => {
+    const outcome = await runSqliteCodecProjection(connection!, {
+      codecId: EXTENSION_DATETIME_CODEC_ID,
+      descriptor: new ExtensionDatetimeDescriptor((value) => value.toISOString()),
+      label: 'an instant on a whole second',
+      value: new Date('2024-01-01T00:00:00.000Z'),
+      storageType: 'TEXT',
+    });
 
     expect(outcome.failure).toBeUndefined();
   });

@@ -67,6 +67,7 @@ import {
   sqliteReal,
   sqliteText,
 } from './data-types';
+import { encodeSqliteDatetime } from './datetime-text';
 import { sqliteError } from './errors';
 
 /**
@@ -507,11 +508,6 @@ export function decodeSqliteDatetime(value: string): Date {
     );
   }
   return date;
-}
-
-/** The text SQLite holds for an instant: what the codec writes for every row, and for a default. */
-export function encodeSqliteDatetime(value: Date): string {
-  return value.toISOString();
 }
 
 export class SqliteDatetimeCodec extends CodecImpl<

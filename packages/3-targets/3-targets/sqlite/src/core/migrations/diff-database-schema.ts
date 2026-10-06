@@ -2,6 +2,7 @@ import type { ColumnDefault, Contract, ControlPolicy } from '@internal/contract/
 import type { SqlSchemaDiffResult } from '@internal/family-sql/control';
 import { contractToSchemaIR, sqlTypeLookupsOf } from '@internal/family-sql/control';
 import { verifySqlSchemaByDiff } from '@internal/family-sql/diff';
+import type { ToStoredText } from '@internal/framework-components/codec';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   SchemaDiffIssue,
@@ -10,7 +11,7 @@ import type {
 import { diffSchemas } from '@internal/framework-components/control';
 import { entityAt } from '@internal/framework-components/ir';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
-import type { SqlStorage, StorageColumn, StorageTable } from '@internal/sql-contract/types';
+import type { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import type {
   SqlColumnIRInput,
   SqlSchemaIRInput,
@@ -30,15 +31,18 @@ interface SqliteDiffDatabaseSchemaInput {
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }
 
-/** Renders a column default for the SQLite dialect. */
-export function sqliteRenderDefault(def: ColumnDefault, column: StorageColumn): string {
+/** Renders a column default for the SQLite dialect, a literal as the text the column's data type stores. */
+export function sqliteRenderDefault(
+  def: ColumnDefault,
+  toStoredText: ToStoredText | undefined,
+): string {
   if (def.kind === 'function') {
     if (def.expression === 'now()') {
       return SQLITE_NOW_EXPRESSION;
     }
     return def.expression;
   }
-  return renderDefaultLiteral(def.value, column.codecId);
+  return renderDefaultLiteral(def.value, toStoredText);
 }
 
 /**
@@ -59,7 +63,8 @@ export function sqliteContractToSchema(
   // introspected counterpart by construction. No pre-diff pass, no flag.
   return contractToSchemaIR(contract, {
     annotationNamespace: 'sqlite',
-    renderDefault: sqliteRenderDefault,
+    renderDefault: (def, _column, dataTypeId) =>
+      sqliteRenderDefault(def, types.dataTypeLookup.get(dataTypeId)?.toStoredText),
     resolveDefault: sqliteResolveDefault,
     dataTypeLookup: types.dataTypeLookup,
     codecLookup: types.codecLookup,

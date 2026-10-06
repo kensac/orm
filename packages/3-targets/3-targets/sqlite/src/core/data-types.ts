@@ -20,6 +20,7 @@ import {
 } from '@internal/sql-contract/data-type-support';
 import { structuredError } from '@internal/utils/structured-error';
 import { type as arktype } from 'arktype';
+import { encodeSqliteDatetime } from './datetime-text';
 
 const unchanged: Cast = (value) => value;
 
@@ -82,6 +83,8 @@ const datetimeCanonicalForm: ToCanonicalForm = (value) =>
 export const sqliteDatetime = sqlDataType('sqlite/datetime', {
   texts: [{ text: 'text', written: true }],
   toCanonicalForm: datetimeCanonicalForm,
+  toStoredText: (value) =>
+    typeof value === 'string' ? encodeSqliteDatetime(new Date(value)) : wrongShape(value, 'text'),
   casts: { [sqliteText.id]: datetimeCanonicalForm },
 });
 

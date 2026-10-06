@@ -16,6 +16,10 @@
  * 2. `codec.decodeJson` turns the parsed value back into the application value
  *    the case started from.
  *
+ * A codec whose data type declares the text it stores (ADR 254) must also write
+ * that text for a row: `codec.encode(value)` equals the type's `toStoredText` of
+ * `codec.encodeJson(value)`, because DDL writes a literal default as that text.
+ *
  * Both conditions are measured against the codec's methods as they stand.
  * Conformance is therefore agreement with today's `encodeJson` / `decodeJson`,
  * not a claim that either is already in its final form: a codec that still owes
@@ -89,7 +93,9 @@ export type ProjectionFailureKind =
   /** `decodeJson` refused the projected value. */
   | 'decode-json-rejects'
   /** The parsed value agrees with `encodeJson` but does not carry the application value back. */
-  | 'lossy-round-trip';
+  | 'lossy-round-trip'
+  /** The codec writes other text for a row than the text its data type declares it stores. */
+  | 'stored-text-mismatch';
 
 export interface ProjectionFailure {
   readonly kind: ProjectionFailureKind;
@@ -256,10 +262,11 @@ export async function runSqliteCodecProjection(
     `CREATE TABLE "${STORAGE_TABLE}" ("${VALUE_COLUMN}" ${conformanceCase.storageType})`,
   );
 
+  let wire: unknown;
   if (conformanceCase.nullValue === true) {
     await connection.query(`INSERT INTO "${STORAGE_TABLE}" ("${VALUE_COLUMN}") VALUES (NULL)`);
   } else {
-    const wire = await codec.encode(conformanceCase.value, {});
+    wire = await codec.encode(conformanceCase.value, {});
     await connection.query(`INSERT INTO "${STORAGE_TABLE}" ("${VALUE_COLUMN}") VALUES (?)`, [wire]);
   }
 
@@ -323,9 +330,10 @@ export async function runSqliteCodecProjection(
 
   const base = { sql, rawJson, projected, expected } as const;
 
+  const dataType = dataTypes.get(descriptor.dataType);
   let canonical: JsonValue;
   try {
-    const toCanonicalForm = dataTypes.get(descriptor.dataType)?.toCanonicalForm;
+    const toCanonicalForm = dataType?.toCanonicalForm;
     canonical = toCanonicalForm === undefined ? projected : toCanonicalForm(projected);
   } catch (error) {
     return {
@@ -365,6 +373,17 @@ export async function runSqliteCodecProjection(
       failure: {
         kind: 'lossy-round-trip',
         detail: `the projection loses information: decodeJson returned ${String(roundTripped)} for an application value of ${String(conformanceCase.value)}`,
+      },
+    };
+  }
+
+  const storedText = dataType?.toStoredText?.(expected);
+  if (storedText !== undefined && wire !== storedText) {
+    return {
+      ...base,
+      failure: {
+        kind: 'stored-text-mismatch',
+        detail: `the codec writes ${JSON.stringify(wire)} for a row, but its data type ${descriptor.dataType} stores ${JSON.stringify(storedText)}`,
       },
     };
   }

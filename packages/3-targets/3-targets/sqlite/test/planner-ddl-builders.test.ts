@@ -1,3 +1,4 @@
+import type { JsonValue } from '@internal/contract/types';
 import type { StorageColumn, StorageTable } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
 import {
@@ -71,6 +72,20 @@ describe('renderDefaultLiteral', () => {
 
   it('renders JSON objects', () => {
     expect(renderDefaultLiteral({ key: 'val' })).toBe('\'{"key":"val"}\'');
+  });
+
+  const storedText = (value: JsonValue) => `${String(value)}#stored`;
+
+  it('writes a string as the text its data type stores', () => {
+    expect(renderDefaultLiteral('a', storedText)).toBe("'a#stored'");
+  });
+
+  it('writes each string element of a list as the text its data type stores', () => {
+    expect(renderDefaultLiteral(['a', 'b'], storedText)).toBe('\'["a#stored","b#stored"]\'');
+  });
+
+  it('writes a string as it is when its data type declares no stored text', () => {
+    expect(renderDefaultLiteral('2024-01-01T00:00:00Z')).toBe("'2024-01-01T00:00:00Z'");
   });
 });
 
