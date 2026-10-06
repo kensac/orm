@@ -6,7 +6,7 @@ changes:
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
-        - '\.plan\(\s*\{(?![^}]*(?<![\w$])statements\s*[:,])[^}]*(?<![\w$])fromContract\s*[:,]'
+        - '\.plan\(\s*\{(?!(?:[^{}]|\{[^{}]*\})*?(?<![\w$])statements\s*[:,])(?:[^{}]|\{[^{}]*\})*?(?<![\w$])fromContract\s*[:,]'
   - id: planner-success-applied-statements
     summary: |
       A migration planner's success result gains a required `appliedStatements` list; a planner, or a test double of one, that returns `{ kind: 'success', plan }` adds `appliedStatements`, empty when it applied no statements.
@@ -37,7 +37,7 @@ changes:
 
 ## `planner-plan-statements`
 
-The options of `MigrationPlanner.plan` (from `@prisma/orm-framework/components/control`), of the SQL family's `SqlMigrationPlannerPlanOptions`, of the Postgres and SQLite planners, and of `MongoMigrationPlanner` (from `@prisma/orm-target-mongo/target/control`) gain a required `statements: readonly ResolvedStatement[]`: the `--rename` statements the user gave, resolved into namespace, model and field names. For each `plan({ ... })` call, add `statements: []` beside `fromContract`. A planner that forwards its options to another planner forwards `statements` too. `MongoMigrationPlanner` refuses a non-empty `statements` with a `statementRejected` conflict in this release.
+The options of `MigrationPlanner.plan` (from `@prisma/orm-framework/components/control`), of the SQL family's `SqlMigrationPlannerPlanOptions`, of the Postgres and SQLite planners, and of `MongoMigrationPlanner` (from `@prisma/orm-target-mongo/target/control`) gain a required `statements: readonly ResolvedStatement[]`: the `--rename` statements the user gave, resolved into namespace, model and field names. For each `plan({ ... })` call, add `statements: []` beside `fromContract`. A planner that forwards its options to another planner forwards `statements` too. Detection finds the calls that write their options inline in `plan({ ... })`; a call that builds its options object elsewhere and passes it in, such as `plan(options)`, is not detected, so check those calls by hand. `MongoMigrationPlanner` refuses a non-empty `statements` with a `statementRejected` conflict in this release.
 
 ## `planner-success-applied-statements`
 
