@@ -9,6 +9,7 @@ import { isInternalError } from '@internal/utils/internal-error';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { type DataTypeId, type DataTypeLookup, dataTypeId } from './data-type';
 import type { DataTypeAuthoringEntry } from './framework-authoring';
+import { printedTaggedLiteralReadsBack, printTaggedLiteral } from './tagged-literal';
 
 /** One written value, in the syntax a contract source wrote it in. The framework defines the list shape, and the family's default reader is the only reader of it. ADR 254. */
 export type WrittenValue =
@@ -52,12 +53,26 @@ export interface RefusalDescription {
   readonly message: string;
 }
 
+/** A syntax a value is written in, with the phrase a diagnostic names it by. */
+export type WrittenForm =
+  | { readonly kind: 'tag'; readonly tag: string; readonly phrase: string }
+  | { readonly kind: 'string' | 'boolean' | 'number'; readonly phrase: string };
+
+/** What a refusal tells the author to write: the forms the position admits, and an exact rewrite of the written value when there is one. */
+export interface RefusalGuidance {
+  /** Each form the position admits, as {@link admittedForms} lists them. */
+  readonly forms: readonly WrittenForm[];
+  /** The written value rewritten in an admitted form, as in ``sql`8` ``. */
+  readonly rewrite: string | undefined;
+}
+
 /**
- * Words a refusal of the cast rule. `guidance` is what follows `write ` in the message: the admitted forms, as in `a number`, or a rewrite, as in ``it as sql`8` ``.
+ * Words a refusal of the cast rule. The message leads with what to write; the types are named only when the value has a form the position admits and its type is still refused, such as a number too large for the receiving type.
  */
 export function describeRefusal(
   refusal: ReadRefusal | CastRefusal,
-  guidance: string,
+  support: DataTypeSupport,
+  guidance: RefusalGuidance,
 ): RefusalDescription {
   switch (refusal.kind) {
     case 'unknown-tag':
@@ -68,16 +83,57 @@ export function describeRefusal(
     case 'unwritable':
       return {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: `This target has no data type for a ${refusal.syntax} value; write ${guidance}`,
+        message: `${describeExpected(guidance.forms)}; this target has no data type for a ${refusal.syntax} value`,
       };
     case 'unreadable':
       return { code: 'PSL_INVALID_LITERAL', message: refusal.message };
     case 'no-cast':
       return {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: `${refusal.receivingType} has no cast from ${refusal.valueType}; write ${guidance}`,
+        message: describeRefusedValueType(refusal, support, guidance),
       };
   }
+}
+
+/** `Expected <forms>`, the forms joined with `or`: the start of every refusal that says what to write. */
+export function describeExpected(forms: readonly WrittenForm[]): string {
+  return `Expected ${joinForms(forms)}`;
+}
+
+/**
+ * Words a value of type `valueType` that `receivingType` refuses, where `guidance.forms` may be written. The types are named only when the value has one of those forms.
+ */
+export function describeRefusedValueType(
+  refused: { readonly receivingType: DataTypeId; readonly valueType: DataTypeId },
+  support: DataTypeSupport,
+  guidance: RefusalGuidance,
+): string {
+  const expected = describeExpected(guidance.forms);
+  const valueForm = writtenForm(support, refused.valueType);
+  if (valueForm !== undefined && guidance.forms.some((form) => isSameForm(form, valueForm))) {
+    return `${expected} that ${refused.receivingType} can hold; got ${refused.valueType}`;
+  }
+  return guidance.rewrite === undefined ? expected : `${expected}; write ${guidance.rewrite}`;
+}
+
+function isSameForm(a: WrittenForm, b: WrittenForm): boolean {
+  return a.kind === 'tag' && b.kind === 'tag' ? a.tag === b.tag : a.kind === b.kind;
+}
+
+/**
+ * The literal to write in place of a quoted string that `receivingType` refuses: the string as a literal of the first tag the type admits. `undefined` when the value is not a quoted string, the type admits no tag, the literal would not read back as the same text, or the type would refuse the literal too.
+ */
+export function exactRewrite(
+  support: DataTypeSupport,
+  receivingType: DataTypeId,
+  written: WrittenScalar,
+): string | undefined {
+  const [tag] = admittedTags(support, receivingType);
+  if (written.kind !== 'string' || tag === undefined) return undefined;
+  if (!printedTaggedLiteralReadsBack(written.text)) return undefined;
+  const read = readWrittenValue(support, { kind: 'tag', tag, text: written.text });
+  if (!read.ok || !castTypedValue(support, receivingType, read.value).ok) return undefined;
+  return printTaggedLiteral(tag, written.text);
 }
 
 interface FoundEntry {
@@ -196,29 +252,53 @@ export function admittedTags(support: DataTypeSupport, dataType: DataTypeId): re
   return [...new Set(tags)];
 }
 
-function writtenFormPhrase(support: DataTypeSupport, type: string): string | undefined {
+/** The form a value of a tagged literal's type is written in. */
+export function tagForm(tag: string): WrittenForm {
+  return { kind: 'tag', tag, phrase: `${tag}\`...\`` };
+}
+
+const PLAIN_PHRASES = {
+  string: 'a quoted string',
+  boolean: 'true or false',
+  number: 'a number',
+} as const;
+
+function writtenForm(support: DataTypeSupport, type: string): WrittenForm | undefined {
   const written = support.entries[type]?.written;
-  if (written?.kind === 'tag') return `${written.tag}\`...\``;
-  if (written?.kind === 'plain' && written.syntax === 'string') return 'a quoted string';
-  if (written?.kind === 'plain' && written.syntax === 'boolean') return 'true or false';
+  if (written?.kind === 'tag') return tagForm(written.tag);
+  if (written?.kind === 'plain' && written.syntax !== 'number') {
+    return { kind: written.syntax, phrase: PLAIN_PHRASES[written.syntax] };
+  }
   const isNumber = Object.entries(support.entries).some(
     ([key, entry]) =>
       entry.written.kind === 'plain' &&
       entry.written.syntax === 'number' &&
       (key === type || entry.written.types.some((listed) => listed === type)),
   );
-  return isNumber ? 'a number' : undefined;
+  return isNumber ? { kind: 'number', phrase: PLAIN_PHRASES.number } : undefined;
 }
 
 /** What {@link describeAdmittedForms} returns for a type that nothing writes. */
-export const NO_WRITTEN_FORM = 'no written form';
+const NO_WRITTEN_FORM = 'no written form';
+
+/** Each form a position receiving every one of `receivingTypes` admits, once, in order: ``sql`...` ``, `true or false`. */
+export function admittedForms(
+  support: DataTypeSupport,
+  receivingTypes: readonly DataTypeId[],
+): readonly WrittenForm[] {
+  const forms: WrittenForm[] = [];
+  for (const type of receivingTypes.flatMap((receiving) => admittedTypes(support, receiving))) {
+    const form = writtenForm(support, type);
+    if (form !== undefined && !forms.some((listed) => isSameForm(listed, form))) forms.push(form);
+  }
+  return forms;
+}
+
+function joinForms(forms: readonly WrittenForm[]): string {
+  return forms.length === 0 ? NO_WRITTEN_FORM : forms.map((form) => form.phrase).join(' or ');
+}
 
 /** How a position of `dataType` can be written, for a diagnostic: ``sql`...` ``, `true or false`. */
 export function describeAdmittedForms(support: DataTypeSupport, dataType: DataTypeId): string {
-  const phrases = admittedTypes(support, dataType).flatMap((type) => {
-    const phrase = writtenFormPhrase(support, type);
-    return phrase === undefined ? [] : [phrase];
-  });
-  const unique = [...new Set(phrases)];
-  return unique.length === 0 ? NO_WRITTEN_FORM : unique.join(' or ');
+  return joinForms(admittedForms(support, [dataType]));
 }

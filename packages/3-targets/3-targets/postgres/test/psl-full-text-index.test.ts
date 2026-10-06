@@ -207,9 +207,9 @@ model Message {
   });
 
   it.each([
-    ['"id > 0"', 'sql/expression has no cast from pg/text; write it as sql`id > 0`'],
-    ['42', 'sql/expression has no cast from pg/int2; write sql`...`'],
-    ['true', 'sql/expression has no cast from pg/bool; write sql`...`'],
+    ['"id > 0"', 'Expected sql`...`; write sql`id > 0`'],
+    ['42', 'Expected sql`...`'],
+    ['true', 'Expected sql`...`'],
   ])('refuses the where value %s at the value', (value, message) => {
     const source = model(
       `  @@fullTextIndex([text], where: ${value}, name: "message_text_search_live")`,

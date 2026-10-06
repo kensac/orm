@@ -151,26 +151,10 @@ describe('policy predicates', () => {
   });
 
   it.each([
-    [
-      '"owner_id = 1"',
-      'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'sql/expression has no cast from pg/text; write it as sql`owner_id = 1`',
-    ],
-    [
-      "'x'",
-      'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'sql/expression has no cast from pg/text; write it as sql`x`',
-    ],
-    [
-      '42',
-      'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'sql/expression has no cast from pg/int2; write sql`...`',
-    ],
-    [
-      'true',
-      'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'sql/expression has no cast from pg/bool; write sql`...`',
-    ],
+    ['"owner_id = 1"', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`; write sql`owner_id = 1`'],
+    ["'x'", 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`; write sql`x`'],
+    ['42', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`'],
+    ['true', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`'],
     [
       'pg.sql`x`',
       'PSL_UNKNOWN_LITERAL_TAG',

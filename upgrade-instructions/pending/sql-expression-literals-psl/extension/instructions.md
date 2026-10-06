@@ -28,7 +28,7 @@ changes:
         - 'sqlAttributeSpecs\.(model|field)\.\w+\(\)'
   - id: tagged-literal-text-helpers
     summary: |
-      `canonicalizeTaggedLiteralBody` and `TaggedLiteralCanonicalization` are exported from `@internal/framework-components/authoring` only, beside the new `taggedLiteralTextReadsBack`. `printSqlExpressionLiteral` throws for a text that would read back as different text; check with `sqlTextsReadBack` first.
+      `canonicalizeTaggedLiteralBody` and `TaggedLiteralCanonicalization` are exported from `@internal/framework-components/authoring` only, beside the new `printedTaggedLiteralReadsBack`. `printSqlExpressionLiteral` throws for a text that would read back as different text; check with `sqlTextsReadBack` first.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -68,7 +68,7 @@ node <this-directory>/scripts/rewrite-sql-strings.mjs '**/*.prisma'
 
 It skips `//` and `///` comments, decodes each quoted string's escapes, and writes the same text as a `sql` literal, in the double-quote form `sql"..."` when the text holds a backtick. It prints each changed file and its number of rewrites. It does not see PSL written inline in TypeScript, such as a schema string in a test; rewrite those by hand the same way.
 
-A place left as a quoted string is refused when the schema is interpreted: ``sql/expression has no cast from pg/text; write it as sql`(archived_at IS NULL)` ``, or `... write it as a sql literal` when the text would read back from a `sql` literal as different text. A test that asserts the old acceptance, or the text of these messages, needs the new form.
+A place left as a quoted string is refused when the schema is interpreted: ``Expected sql`...`; write sql`(archived_at IS NULL)` ``, or ``Expected sql`...` `` alone when the text would read back from a `sql` literal as different text. A test that asserts the old acceptance, or the text of these messages, needs the new form.
 
 `contract infer` writes these places as `sql` literals. It writes the canonical text of an index with a Prisma-generated name, which keeps the name, and skips an object named with `map:` whose SQL would read back as different text, with a comment such as `// prisma: skipped check "c": its SQL cannot be written as a sql literal that reads back unchanged. It is not in this schema, so migration plan will drop it. A sql literal written by hand holds different text, so migration plan then stops with a conflict for an index or check, or drops and recreates a policy. Either change the SQL in the database to the text of the literal, or add the object without map: or @@map so Prisma names it.` `contract print` refuses such an object with `CONTRACT.PRINT_UNSUPPORTED`. A test that snapshots printed PSL expects `sql` literals.
 
@@ -123,4 +123,4 @@ A pack that ships a PSL contract, such as the Supabase pack's `src/contract/cont
 
 `canonicalizeTaggedLiteralBody` now drops every blank line at the start and end of the body, not only the first and the last, so its result is always its own canonical text.
 
-The same entry exports `taggedLiteralTextReadsBack(text)`, which says whether a tagged literal printed with `text` reads back as the same text. `printSqlExpressionLiteral` from `@internal/sql-contract/sql-expression` now throws an internal error for a text that would read back as different text. Check the texts first with `sqlTextsReadBack(texts)` from the same module. When it returns `false`, `contract infer` skips an object named with `map:`, prints a wire-named index with `canonicalSqlText(text)` (whose result always reads back), and `contract print` refuses the object. Default expressions are not checked: they print with `printTaggedLiteral`, because defaults are compared with case and whitespace ignored.
+The same entry exports `printedTaggedLiteralReadsBack(text)`, which says whether a tagged literal printed with `text` reads back as the same text. `printSqlExpressionLiteral` from `@internal/sql-contract/sql-expression` now throws an internal error for a text that would read back as different text. Check the texts first with `sqlTextsReadBack(texts)` from the same module. When it returns `false`, `contract infer` skips an object named with `map:`, prints a wire-named index with `canonicalSqlText(text)` (whose result always reads back), and `contract print` refuses the object. Default expressions are not checked: they print with `printTaggedLiteral`, because defaults are compared with case and whitespace ignored.

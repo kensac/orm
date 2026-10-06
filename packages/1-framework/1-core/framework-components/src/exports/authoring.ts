@@ -74,8 +74,8 @@ export type {
 export type { TaggedLiteralCanonicalization } from '../shared/tagged-literal';
 export {
   canonicalizeTaggedLiteralBody,
+  printedTaggedLiteralReadsBack,
   printTaggedLiteral,
-  taggedLiteralTextReadsBack,
 } from '../shared/tagged-literal';
 export type { PresetStorageTemplate } from '../shared/temporal-presets';
 export {
@@ -91,18 +91,24 @@ export type {
   DataTypeSupport,
   ReadRefusal,
   RefusalDescription,
+  RefusalGuidance,
   TypedValue,
+  WrittenForm,
   WrittenScalar,
   WrittenValue,
 } from '../shared/written-value';
 export {
+  admittedForms,
   admittedTags,
   castTypedValue,
   describeAdmittedForms,
+  describeExpected,
   describeRefusal,
+  describeRefusedValueType,
   entryForPlain,
   entryForTag,
+  exactRewrite,
   knownTags,
-  NO_WRITTEN_FORM,
   readWrittenValue,
+  tagForm,
 } from '../shared/written-value';

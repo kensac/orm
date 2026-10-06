@@ -242,6 +242,21 @@ Verification, logs in `wip/2b-round-2-fixes/`: `build`, `typecheck`, `lint`, `li
 
 Built in the linked worktree `wip/wt-1` from `main`, since it depends on no other slice. Briefs: `dispatches/1-implementer-brief.md`, `dispatches/1-review-fixes-brief.md`. Reviews: `slice-reviews/1/` and `slice-reviews/1-round-2/`. Round 1 found a real bug: the SQLite migration-file renderer passed the `OpaqueSql` object to the JSON printer. Round 2 corrected the app fragment: only the wire name changes, not a policy's stored body, and the plan drops and recreates the object. PR https://github.com/prisma/orm/pull/30546.
 
+### Slice 2t wording: refusals lead with what to write, 2026-10-06
+
+Brief: `dispatches/2t-wording-brief.md`. Serhii's review of #30539 found `pg/int4 has no cast from pg/text; write a number` worse than `Expected a number`; Will agreed. Design notes item 15 records it.
+
+- `describeRefusal(refusal, support, guidance)` takes `RefusalGuidance`, `{ forms, rewrite }`. `forms` are the phrases of the new `admittedFormPhrases`; `describeAdmittedForms` joins them.
+- Messages: `Expected <forms>`; `Expected <forms>; write <literal>` for a quoted string on a type with a tag; `Expected <forms> that <type> can hold; got <value type>` when the value's written form is one of the forms; `Expected <forms>; this target has no data type for a <syntax> value`.
+- `lowerDataTypeDefault`: `no-list-cast` is `Expected <forms>; got a list`; `no-element-cast` goes through the `no-cast` rule of `describeRefusal`.
+- The brief named `taggedLiteralTextReadsBack`, which did not exist. It is new in `tagged-literal.ts`, beside `printTaggedLiteral`: it holds when the printed literal's canonical text equals the text. A string with leading indentation, for example, now gets no rewrite. The `it as a sql literal` fallback the brief mentions did not exist in the code either, so nothing was removed for it.
+- `NO_WRITTEN_FORM` is no longer exported.
+- Docs: ADR 231, ADR 254, `error-reference.md`, the contract-psl README, the pending `arguments-typed-by-data-type` and `sql-is-a-data-type` fragments, and design sections 4, 6 and 7. The `default-refusals-say-what-to-write` detection pattern for `this target has no data type` now requires `: ` or a quote before it, so it no longer matches the new messages.
+
+Review fixes (brief `dispatches/2t-wording-fixes-brief.md`, reviews in `slice-reviews/2t-wording/`): the framework's `exactRewrite` decides the exact rewrite for `dataTypeValue` and `@default` alike, so `meta Jsonb @default("{}")` says ``Expected json`...`; write json`{}` ``; it is offered only when the receiving type takes the rewritten literal. `RefusalGuidance.forms` holds `WrittenForm` values (kind, tag, phrase), and the range rule compares kinds, not phrases. `describeExpected` builds every `Expected <forms>` sentence, and `describeRefusedValueType` words the `no-cast` rule for both callers and the list-element arm, which no longer invents a refusal. The not-a-literal refusal reads ``Expected sql`...`; got an identifier``. `dataTypeValue` throws an `InternalError` for a registered type nothing writes. `taggedLiteralTextReadsBack` is now `printedTaggedLiteralReadsBack`. New tests: the round trip of the offered rewrite through the PSL parser, a narrow list cast that reaches the range rule, the value type on each assembled stack, and one message for the same refusal as `@default` and as an argument. B07 accepted as is. Logs in `wip/2t-wording-fixes/`.
+
+Round two (`slice-reviews/2t-wording-round-2/code-review.md`) confirmed every finding fixed and raised four small ones (H01 to H04), fixed the same day: ADR 231 names the "receiving type takes it" condition and the no-written-form internal error; the `dataTypeValue` label uses `tagForm`; `printedTaggedLiteralReadsBack` is no longer exported; the extension fragment lists `WrittenForm`, `RefusalGuidance` and `tagForm`. The deferred items in that review (codec check of a rewrite, newlines in a multi-line rewrite, one tag per type) are accepted costs. `main` (`45c3b5b076`) was merged in the same day.
+
 ## Slice order and tickets
 
 | Order | Plan slice | Ticket | State |

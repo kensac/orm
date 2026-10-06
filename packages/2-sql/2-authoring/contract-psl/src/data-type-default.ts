@@ -9,15 +9,20 @@
 
 import type { JsonValue } from '@internal/contract/types';
 import {
+  admittedForms,
   type CastRefusal,
   castTypedValue,
   type DataTypeSupport,
-  describeAdmittedForms,
+  describeExpected,
   describeRefusal,
-  NO_WRITTEN_FORM,
+  describeRefusedValueType,
+  exactRewrite,
   type ReadRefusal,
+  type RefusalGuidance,
   readWrittenValue,
   type TypedValue,
+  tagForm,
+  type WrittenForm,
   type WrittenScalar,
   type WrittenValue,
 } from '@internal/framework-components/authoring';
@@ -327,14 +332,28 @@ function location(fieldPath: string, elementIndex: number | undefined): string {
 }
 
 /**
- * What may be written where every one of `types` is received, for a message: `a number`. A column
+ * What may be written where every one of `types` is received, each form once: `a number`. A column
  * whose type nothing writes still takes a `sql` literal, which `@default` stores as a SQL expression.
  */
-function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): string {
-  const forms = [...new Set(types.map((type) => describeAdmittedForms(dataTypes, type)))].filter(
-    (form) => form !== NO_WRITTEN_FORM,
-  );
-  return forms.length === 0 ? `${SQL_EXPRESSION_TAG}\`...\`` : forms.join(' or ');
+function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): readonly WrittenForm[] {
+  const forms = admittedForms(dataTypes, types);
+  return forms.length === 0 ? [tagForm(SQL_EXPRESSION_TAG)] : forms;
+}
+
+/** The exact rewrite of the written value a `no-cast` refusal is about, before list elements are renumbered to the source list. */
+function rewriteOf(
+  refusal: DefaultRefusal,
+  written: WrittenValue,
+  dataTypes: DataTypeSupport,
+): string | undefined {
+  if (refusal.kind !== 'no-cast') return undefined;
+  const refused =
+    refusal.elementIndex === undefined || written.kind !== 'list'
+      ? written
+      : written.elements[refusal.elementIndex];
+  return refused === undefined || refused.kind === 'list'
+    ? undefined
+    : exactRewrite(dataTypes, refusal.receivingType, refused);
 }
 
 /**
@@ -359,7 +378,11 @@ export function lowerDataTypeDefault(input: {
     : refusalDiagnostic(
         atSourceElement(read.refusal, input.sourceElementIndexes),
         input.fieldPath,
-        formsOf(input.dataTypes, read.suggestedTypes),
+        input.dataTypes,
+        {
+          forms: formsOf(input.dataTypes, read.suggestedTypes),
+          rewrite: rewriteOf(read.refusal, input.written, input.dataTypes),
+        },
         input.spans,
       );
 }
@@ -385,11 +408,12 @@ function codecRefusalMessage(
   };
 }
 
-/** A refusal worded as a PSL diagnostic's code, message and span; `forms` says what to write instead. */
+/** A refusal worded as a PSL diagnostic's code, message and span; `guidance` says what to write instead. */
 function refusalDiagnostic(
   refusal: DefaultRefusal,
   fieldPath: string,
-  forms: string,
+  dataTypes: DataTypeSupport,
+  guidance: RefusalGuidance,
   spans: DefaultSpans,
 ): DefaultDiagnostic {
   const where = location(fieldPath, refusal.elementIndex);
@@ -408,18 +432,18 @@ function refusalDiagnostic(
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: ${refusal.receivingType} has no cast from a list; write ${forms}`,
+        message: `${where}: ${describeExpected(guidance.forms)}; got a list`,
         span: atWrittenValue,
       };
     case 'no-element-cast':
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: ${refusal.receivingType} has no cast from a list holding ${refusal.valueType}; write ${forms}`,
+        message: `${where}: ${describeRefusedValueType(refusal, dataTypes, guidance)}`,
         span: atWrittenValue,
       };
     default: {
-      const { code, message } = describeRefusal(refusal, forms);
+      const { code, message } = describeRefusal(refusal, dataTypes, guidance);
       return { ok: false, code, message: `${where}: ${message}`, span: atWrittenValue };
     }
   }

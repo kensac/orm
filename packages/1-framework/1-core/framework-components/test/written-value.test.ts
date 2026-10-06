@@ -4,15 +4,21 @@ import { describe, expect, it } from 'vitest';
 import { createDataTypeLookup, dataType, dataTypeId } from '../src/shared/data-type';
 import type { DataTypeAuthoringEntry } from '../src/shared/framework-authoring';
 import {
+  admittedForms,
   admittedTags,
   castTypedValue,
   type DataTypeSupport,
   describeAdmittedForms,
+  describeExpected,
   describeRefusal,
+  describeRefusedValueType,
   entryForPlain,
   entryForTag,
+  exactRewrite,
   knownTags,
   readWrittenValue,
+  tagForm,
+  type WrittenForm,
 } from '../src/shared/written-value';
 
 const unchanged = (value: JsonValue) => value;
@@ -274,38 +280,193 @@ describe('describeAdmittedForms', () => {
   });
 });
 
+const NUMBER: WrittenForm = { kind: 'number', phrase: 'a number' };
+const QUOTED_STRING: WrittenForm = { kind: 'string', phrase: 'a quoted string' };
+const SQL: WrittenForm = { kind: 'tag', tag: 'sql', phrase: 'sql`...`' };
+const JSON_FORM: WrittenForm = { kind: 'tag', tag: 'json', phrase: 'json`...`' };
+
+describe('admittedForms', () => {
+  it('lists each form a position admits once, with its kind and phrase', () => {
+    expect(admittedForms(support, [geometry.id])).toEqual([QUOTED_STRING, JSON_FORM]);
+    expect(admittedForms(support, [big.id])).toEqual([NUMBER]);
+    expect(admittedForms(support, [bool.id])).toEqual([
+      { kind: 'boolean', phrase: 'true or false' },
+    ]);
+  });
+
+  it('lists each form once across several receiving types', () => {
+    expect(admittedForms(support, [small.id, big.id, jsonb.id])).toEqual([NUMBER, JSON_FORM]);
+  });
+
+  it('lists nothing for a type nothing writes', () => {
+    expect(admittedForms(support, [dataTypeId('x/missing')])).toEqual([]);
+  });
+});
+
+describe('tagForm', () => {
+  it('is the form of a tag', () => {
+    expect(tagForm('sql')).toEqual(SQL);
+  });
+});
+
+describe('describeExpected', () => {
+  it('leads with the forms to write, joined with or', () => {
+    expect(describeExpected([NUMBER])).toBe('Expected a number');
+    expect(describeExpected([QUOTED_STRING, JSON_FORM])).toBe(
+      'Expected a quoted string or json`...`',
+    );
+  });
+});
+
+describe('describeRefusedValueType', () => {
+  it('words a value of another form by the forms to write', () => {
+    expect(
+      describeRefusedValueType({ receivingType: big.id, valueType: text.id }, support, {
+        forms: [NUMBER],
+        rewrite: undefined,
+      }),
+    ).toBe('Expected a number');
+  });
+
+  it('names both types when the value has a form the position admits', () => {
+    expect(
+      describeRefusedValueType({ receivingType: small.id, valueType: big.id }, support, {
+        forms: [NUMBER],
+        rewrite: undefined,
+      }),
+    ).toBe('Expected a number that t/small can hold; got t/big');
+  });
+
+  it('compares the kind of form, not its phrase', () => {
+    expect(
+      describeRefusedValueType({ receivingType: small.id, valueType: big.id }, support, {
+        forms: [{ kind: 'number', phrase: 'a whole number' }],
+        rewrite: undefined,
+      }),
+    ).toBe('Expected a whole number that t/small can hold; got t/big');
+  });
+
+  it('tells two tags apart', () => {
+    expect(
+      describeRefusedValueType({ receivingType: sqlExpression.id, valueType: json.id }, support, {
+        forms: [SQL],
+        rewrite: undefined,
+      }),
+    ).toBe('Expected sql`...`');
+  });
+});
+
+describe('exactRewrite', () => {
+  it('rewrites a quoted string as a literal of the first tag the receiving type admits', () => {
+    expect(exactRewrite(support, sqlExpression.id, { kind: 'string', text: 'now()' })).toBe(
+      'sql`now()`',
+    );
+    expect(exactRewrite(support, jsonb.id, { kind: 'string', text: '{}' })).toBe('json`{}`');
+  });
+
+  it('offers nothing for a value that is not a quoted string', () => {
+    expect(exactRewrite(support, sqlExpression.id, { kind: 'number', text: '8' })).toBeUndefined();
+    expect(
+      exactRewrite(support, sqlExpression.id, { kind: 'boolean', value: true }),
+    ).toBeUndefined();
+  });
+
+  it('offers nothing for a receiving type without a tag', () => {
+    expect(exactRewrite(support, big.id, { kind: 'string', text: '8' })).toBeUndefined();
+  });
+
+  it('offers nothing when the printed literal would not read back as the same text', () => {
+    expect(
+      exactRewrite(support, sqlExpression.id, { kind: 'string', text: '  now()' }),
+    ).toBeUndefined();
+  });
+
+  it('offers nothing when the receiving type would refuse the rewrite too', () => {
+    expect(exactRewrite(support, jsonb.id, { kind: 'string', text: 'plan' })).toBeUndefined();
+  });
+});
+
 describe('describeRefusal', () => {
+  const forms = (...admitted: WrittenForm[]) => ({ forms: admitted, rewrite: undefined });
+
   it('words an unknown tag with the known tags', () => {
     expect(
-      describeRefusal({ kind: 'unknown-tag', tag: 'pg.sql', known: ['sql', 'json'] }, 'a number'),
+      describeRefusal(
+        { kind: 'unknown-tag', tag: 'pg.sql', known: ['sql', 'json'] },
+        support,
+        forms(NUMBER),
+      ),
     ).toEqual({
       code: 'PSL_UNKNOWN_LITERAL_TAG',
       message: 'Unknown literal tag "pg.sql". Known tags: sql, json.',
     });
   });
 
-  it('words a syntax the target has no data type for, with the forms to write', () => {
-    expect(describeRefusal({ kind: 'unwritable', syntax: 'boolean' }, 'a number')).toEqual({
+  it('words a syntax the target has no data type for, leading with the forms to write', () => {
+    expect(
+      describeRefusal({ kind: 'unwritable', syntax: 'boolean' }, support, forms(NUMBER)),
+    ).toEqual({
       code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-      message: 'This target has no data type for a boolean value; write a number',
+      message: 'Expected a number; this target has no data type for a boolean value',
     });
   });
 
   it('words an unreadable value by its message', () => {
     expect(
-      describeRefusal({ kind: 'unreadable', message: '"a" is not a UUID.' }, 'a number'),
+      describeRefusal(
+        { kind: 'unreadable', message: '"a" is not a UUID.' },
+        support,
+        forms(NUMBER),
+      ),
     ).toEqual({ code: 'PSL_INVALID_LITERAL', message: '"a" is not a UUID.' });
   });
 
-  it('words a missing cast with the forms to write', () => {
+  it('words a value of another form by the forms to write', () => {
     expect(
       describeRefusal(
         { kind: 'no-cast', receivingType: big.id, valueType: text.id, casts: [small.id] },
-        'a number',
+        support,
+        forms(NUMBER),
+      ),
+    ).toEqual({ code: 'PSL_VALUE_TYPE_INCOMPATIBLE', message: 'Expected a number' });
+  });
+
+  it('joins several forms with or', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: geometry.id, valueType: bool.id, casts: [] },
+        support,
+        forms(QUOTED_STRING, JSON_FORM),
       ),
     ).toEqual({
       code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-      message: 't/big has no cast from t/text; write a number',
+      message: 'Expected a quoted string or json`...`',
+    });
+  });
+
+  it('adds the exact rewrite when there is one', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: sqlExpression.id, valueType: text.id, casts: [] },
+        support,
+        { forms: [SQL], rewrite: 'sql`(archived_at IS NULL)`' },
+      ),
+    ).toEqual({
+      code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
+      message: 'Expected sql`...`; write sql`(archived_at IS NULL)`',
+    });
+  });
+
+  it('names both types when the value has a form the position admits', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: small.id, valueType: big.id, casts: [] },
+        support,
+        forms(NUMBER),
+      ),
+    ).toEqual({
+      code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
+      message: 'Expected a number that t/small can hold; got t/big',
     });
   });
 });

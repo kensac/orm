@@ -32,9 +32,9 @@ Two combinators take a tagged literal:
 The diagnostics:
 
 - An unregistered tag, including `pg.sql`, is `PSL_UNKNOWN_LITERAL_TAG`, listing the known tags.
-- A value the receiving type does not take is `PSL_VALUE_TYPE_INCOMPATIBLE`. At a raw-SQL place a plain string gets the rewrite, for example ``sql/expression has no cast from pg/text; write it as sql`(archived IS NULL)` ``.
+- A value the receiving type does not take is `PSL_VALUE_TYPE_INCOMPATIBLE`. At a raw-SQL place a plain string gets the rewrite, for example ``Expected sql`...`; write sql`(archived IS NULL)` ``.
 - A text the tag's parse or a cast refuses, such as a `json` text that is not a JSON document, is `PSL_INVALID_LITERAL`.
-- An argument that is not a literal at a raw-SQL place, such as an identifier, is `PSL_INVALID_ATTRIBUTE_SYNTAX`, ``Expected sql`...`, got an identifier``.
+- An argument that is not a literal at a raw-SQL place, such as an identifier, is `PSL_INVALID_ATTRIBUTE_SYNTAX`, ``Expected sql`...`; got an identifier``.
 - A `@default` `sql` text that is exactly `now()` or `autoincrement()`, or that fails the default SQL check, is `PSL_INVALID_DEFAULT_SQL`. A single value on a list column is `PSL_DEFAULT_LIST_EXPECTED`; a value the column's codec refuses is `PSL_INVALID_DEFAULT_LITERAL`.
 
 `PSL_DEFAULT_LIST_EXPECTED` and `PSL_INVALID_DEFAULT_LITERAL` are declared in `packages/2-sql/2-authoring/contract-psl/src/data-type-default.ts`, and `PSL_INVALID_DEFAULT_SQL` in `psl-column-resolution.ts`. The others are declared in `framework-components/src/shared/psl-extension-block.ts`.

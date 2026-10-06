@@ -272,7 +272,7 @@ describe('interpretPslDocumentToSqlContract tagged literal defaults', () => {
       expect(diagnostics('v Int @default(json`1`)')).toEqual([
         {
           code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-          message: 'Field "Lit.v": pg/int4 has no cast from pg/json; write a number',
+          message: 'Field "Lit.v": Expected a number',
           sourceId: 'schema.prisma',
           span: lineThreeSpan(18, 'json`1`'.length),
         },
@@ -284,8 +284,7 @@ describe('interpretPslDocumentToSqlContract tagged literal defaults', () => {
     expect(diagnostics('tags String[] @default([sql`md5(x)`])')).toEqual([
       {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message:
-          'Field "Lit.tags" at element 1: pg/text has no cast from sql/expression; write a quoted string',
+        message: 'Field "Lit.tags" at element 1: Expected a quoted string',
         sourceId: 'schema.prisma',
         span: lineThreeSpan(27, 'sql`md5(x)`'.length),
       },
@@ -296,7 +295,7 @@ describe('interpretPslDocumentToSqlContract tagged literal defaults', () => {
     expect(diagnostics('v Int @default("x")')).toEqual([
       {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: 'Field "Lit.v": pg/int4 has no cast from pg/text; write a number',
+        message: 'Field "Lit.v": Expected a number',
         sourceId: 'schema.prisma',
         span: lineThreeSpan(18, '"x"'.length),
       },
@@ -307,7 +306,7 @@ describe('interpretPslDocumentToSqlContract tagged literal defaults', () => {
     expect(diagnostics('tags Int[] @default([1, "x"])')).toEqual([
       {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: 'Field "Lit.tags" at element 2: pg/int4 has no cast from pg/text; write a number',
+        message: 'Field "Lit.tags" at element 2: Expected a number',
         sourceId: 'schema.prisma',
         span: lineThreeSpan(27, '"x"'.length),
       },
@@ -318,7 +317,7 @@ describe('interpretPslDocumentToSqlContract tagged literal defaults', () => {
     expect(diagnostics('tags Int?[] @default([null, 1, "x"])')).toEqual([
       {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: 'Field "Lit.tags" at element 3: pg/int4 has no cast from pg/text; write a number',
+        message: 'Field "Lit.tags" at element 3: Expected a number',
         sourceId: 'schema.prisma',
         span: lineThreeSpan(34, '"x"'.length),
       },

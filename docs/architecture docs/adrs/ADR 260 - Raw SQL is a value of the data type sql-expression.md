@@ -38,7 +38,7 @@ policy_update post_owner_write {
 The places are `@default`, `@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)`, and a policy's `using` and `withCheck`. A plain string in any of them is refused, and the message says what to write:
 
 ```text
-PSL_VALUE_TYPE_INCOMPATIBLE: sql/expression has no cast from pg/text; write it as sql`"archived" IS NULL`
+PSL_VALUE_TYPE_INCOMPATIBLE: Expected sql`...`; write sql`"archived" IS NULL`
 ```
 
 The TypeScript builder follows the same rule. As planned, the `sql` tag returns a `SqlExpression`, every builder field that takes raw SQL accepts only that value, and one `sql` value may be interpolated in another:
