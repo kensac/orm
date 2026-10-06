@@ -1,17 +1,22 @@
 import type { Contract } from '@internal/contract/types';
-import type { MigrationOperationPolicy, ResolvedTableRename } from '@internal/family-sql/control';
+import type {
+  MigrationOperationPolicy,
+  ResolvedColumnRename,
+  ResolvedTableRename,
+} from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { assertDefined } from '@internal/utils/assertions';
 import type { PostgresDatabaseSchemaNode } from '../schema-ir/postgres-database-schema-node';
 import type { PostgresTableSchemaNode } from '../schema-ir/postgres-table-schema-node';
+import { constraintRenamesForColumnRename } from './column-rename-constraint-renames';
 import { buildPostgresPlanDiff } from './diff-database-schema';
 import { pairCheckRenames, pairIndexRenames } from './index-and-check-renames';
-import { RenameTableCall } from './op-factory-call';
+import { RenameColumnCall, RenameTableCall } from './op-factory-call';
 import { resolveDdlSchemaForNamespaceStorage } from './resolve-ddl-schema';
 import { constraintRenamesForTableRename } from './table-rename-constraint-renames';
-import { renameTableInPostgresSchema } from './working-schema';
+import { renameColumnInPostgresSchema, renameTableInPostgresSchema } from './working-schema';
 
 const RENAME_POLICY: MigrationOperationPolicy = { allowedOperationClasses: ['widening'] };
 
@@ -71,5 +76,57 @@ export function postgresTableRenameCall(input: {
     }),
     ...pairIndexRenames(pairing, issues).calls.filter(onRenamedTable),
     ...pairCheckRenames(pairing, issues).calls.filter(onRenamedTable),
+  ]);
+}
+
+/**
+ * The call that renames a column, carrying as companions the renames of the objects on its table
+ * whose names derive from the column name: each unique constraint and foreign key on the column
+ * the destination keeps, named as the destination names it, and each index on the column renamed
+ * to the destination's wire name. `previous` is the schema before the rename; the renamed copy is
+ * diffed against the destination built from `contract`. A check on the column keeps its name: its
+ * expression names the column, so the diff replaces it.
+ */
+export function postgresColumnRenameCall(input: {
+  readonly previous: PostgresDatabaseSchemaNode;
+  readonly contract: Contract<SqlStorage>;
+  readonly rename: ResolvedColumnRename;
+  readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
+}): RenameColumnCall {
+  const { contract, rename } = input;
+  const schemaName = emissionSchemaForNamespace(contract, rename.namespaceId);
+  const ddlSchema = resolveDdlSchemaForNamespaceStorage(contract.storage, rename.namespaceId);
+  const renamed = renameColumnInPostgresSchema(input.previous, {
+    schemaName: ddlSchema,
+    table: rename.table,
+    from: rename.from,
+    to: rename.to,
+  });
+  const { expected, issues } = buildPostgresPlanDiff({
+    contract,
+    actualSchema: renamed,
+    frameworkComponents: input.frameworkComponents,
+  });
+  const table = tableNode(renamed, ddlSchema, rename.table);
+  const destination = expected.namespaces[ddlSchema]?.tables[rename.table];
+  const indexesOnColumn = new Set(
+    table.indexes.filter((index) => index.columns?.includes(rename.to)).map((index) => index.name),
+  );
+  const indexRenames = pairIndexRenames({ contract, policy: RENAME_POLICY }, issues).calls.filter(
+    (call) =>
+      call.schemaName === schemaName &&
+      call.tableName === rename.table &&
+      indexesOnColumn.has(call.oldIndexName),
+  );
+  return new RenameColumnCall(schemaName, rename.table, rename.from, rename.to, [
+    ...(destination === undefined
+      ? []
+      : constraintRenamesForColumnRename({
+          schemaName,
+          column: rename.to,
+          previous: table,
+          next: destination,
+        })),
+    ...indexRenames,
   ]);
 }

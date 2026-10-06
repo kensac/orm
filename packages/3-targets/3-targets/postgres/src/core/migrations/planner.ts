@@ -69,6 +69,7 @@ import {
   DropPostgresRlsPolicyCall,
   DropTableCall,
   RawSqlCall,
+  type RenameColumnCall,
   RenamePostgresRlsPolicyCall,
   RenameTableCall,
 } from './op-factory-call';
@@ -77,7 +78,11 @@ import { TypeScriptRenderablePostgresMigration } from './planner-produced-postgr
 import { postgresPlannerStrategies } from './planner-strategies';
 import { resolveDdlSchemaForNamespaceStorage } from './resolve-ddl-schema';
 import { postgresSchemaTables } from './schema-tables';
-import { emissionSchemaForNamespace, postgresTableRenameCall } from './table-rename-calls';
+import {
+  emissionSchemaForNamespace,
+  postgresColumnRenameCall,
+  postgresTableRenameCall,
+} from './table-rename-calls';
 import { verifyPostgresNamespacePresence } from './verify-postgres-namespaces';
 import { createWorkingSchema } from './working-schema';
 
@@ -403,6 +408,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       newContract: options.contract,
       codecHooks,
       renames: statements.value.renames,
+      columnRenames: statements.value.columnRenames,
     });
     // Codec hook ops are target-agnostic `OpFactoryCall`; Postgres planning
     // lifts them at this integration boundary (see field-event-planner JSDoc).
@@ -693,11 +699,13 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     options: SqlMigrationPlannerPlanOptions,
     schema: PostgresDatabaseSchemaNode,
   ): Result<
-    PlannedStatements<RenameTableCall> & { readonly schema: PostgresDatabaseSchemaNode },
+    PlannedStatements<RenameTableCall | RenameColumnCall> & {
+      readonly schema: PostgresDatabaseSchemaNode;
+    },
     SqlPlannerConflict
   > {
     const working = createWorkingSchema(schema);
-    const planned = planStatements({
+    const planned = planStatements<RenameTableCall | RenameColumnCall>({
       statements: options.statements,
       fromContract: options.fromContract,
       contract: options.contract,
@@ -706,6 +714,13 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
         tables: () => postgresSchemaTables(working.current, options.contract),
         renameCall: (rename) =>
           postgresTableRenameCall({
+            previous: working.current,
+            contract: options.contract,
+            rename,
+            frameworkComponents: options.frameworkComponents,
+          }),
+        renameColumnCall: (rename) =>
+          postgresColumnRenameCall({
             previous: working.current,
             contract: options.contract,
             rename,

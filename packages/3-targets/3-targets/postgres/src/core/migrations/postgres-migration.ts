@@ -1,9 +1,12 @@
 import type { Contract } from '@internal/contract/types';
 import { errorMigrationOperationOptionRemoved } from '@internal/errors/migration';
 import {
+  type ColumnRename,
+  resolveColumnRenameAgainst,
   resolveTableRenameAgainst,
   type SqlMigrationPlanOperation,
   type TableRename,
+  unmatchedColumnRename,
   unmatchedTableRename,
 } from '@internal/family-sql/control';
 import type { SqlControlAdapter } from '@internal/family-sql/control-adapter';
@@ -58,7 +61,7 @@ import type { ForeignKeySpec } from './operations/shared';
 import type { PostgresPlanTargetDetails } from './planner-target-details';
 import { postgresContractToSchema } from './postgres-contract-to-schema';
 import { postgresSchemaTables } from './schema-tables';
-import { postgresTableRenameCall } from './table-rename-calls';
+import { postgresColumnRenameCall, postgresTableRenameCall } from './table-rename-calls';
 import { createWorkingSchema, type WorkingSchemaCall } from './working-schema';
 
 /**
@@ -409,6 +412,54 @@ export abstract class PostgresMigration<
       throw resolved.failure;
     }
     const call = postgresTableRenameCall({
+      previous: current,
+      contract: endContract,
+      rename: resolved.value,
+      frameworkComponents: this.frameworkComponents(),
+    });
+    this.#renames.push(call);
+    return call.toOps(adapter).map(async (op) => op);
+  }
+
+  /**
+   * Emit the operations that rename a column: the column rename, then a rename of each unique
+   * constraint, foreign key and index on the column whose name was derived from the old column
+   * name, to the name the end contract gives it. The column is resolved against the schema as this
+   * migration's earlier rename calls leave it, so a column of a table an earlier `renameTable`
+   * renamed is named on the table's new name. Spread the result into `operations`:
+   * `...this.renameColumn({ table: 'User', column: 'name', to: 'fullName' })`. `schema` names the
+   * table's namespace when more than one declares the table. Throws
+   * `MIGRATION.COLUMN_RENAME_UNMATCHED` when the table or column does not exist at that point of
+   * the migration, the table already has the new column, or the end contract lacks it.
+   */
+  protected renameColumn(options: {
+    readonly schema?: string;
+    readonly table: string;
+    readonly column: string;
+    readonly to: string;
+  }): readonly Promise<SqlMigrationPlanOperation<PostgresPlanTargetDetails>>[] {
+    const adapter = this.controlAdapterFor('renameColumn');
+    const rename: ColumnRename = {
+      namespaceId: options.schema,
+      table: options.table,
+      from: options.column,
+      to: options.to,
+    };
+    const startContract = this.startContract;
+    if (startContract === null) {
+      throw unmatchedColumnRename(rename, 'the migration has no start contract');
+    }
+    const current = this.schemaAfterRenames(startContract);
+    const endContract = this.endContract;
+    const resolved = resolveColumnRenameAgainst(
+      postgresSchemaTables(current, startContract),
+      endContract,
+      rename,
+    );
+    if (!resolved.ok) {
+      throw resolved.failure;
+    }
+    const call = postgresColumnRenameCall({
       previous: current,
       contract: endContract,
       rename: resolved.value,

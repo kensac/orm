@@ -35,6 +35,23 @@ export interface TableRenameConstraintInput {
 export function constraintRenamesForTableRename(
   input: TableRenameConstraintInput,
 ): readonly RenameConstraintCall[] {
+  return pairedConstraintRenames(input, { primaryKey: true, onColumns: () => true });
+}
+
+/** Which of the renamed table's constraints a rename can have renamed. */
+export interface ConstraintRenameScope {
+  readonly primaryKey: boolean;
+  readonly onColumns: (columns: readonly string[]) => boolean;
+}
+
+/**
+ * The renames of the constraints in `scope` that pair with a destination constraint of the same
+ * kind on the same columns, to the destination's explicit name or else the derived one.
+ */
+export function pairedConstraintRenames(
+  input: TableRenameConstraintInput,
+  scope: ConstraintRenameScope,
+): readonly RenameConstraintCall[] {
   const { schemaName, previous, next } = input;
   const table = next.name;
   const rename = (
@@ -44,7 +61,7 @@ export function constraintRenamesForTableRename(
   ): readonly RenameConstraintCall[] => {
     assertDefined(
       actualName,
-      `the renamed table "${previous.name}" has a ${kind} that has no name; the working schema names every primary key, unique and foreign key when it renames a table`,
+      `the table "${previous.name}" has a ${kind} that has no name; the working schema names every primary key, unique and foreign key a rename can change`,
     );
     return target === undefined || target === actualName
       ? []
@@ -53,7 +70,7 @@ export function constraintRenamesForTableRename(
 
   const nextPrimaryKey = next.primaryKey;
   const primaryKey =
-    previous.primaryKey === undefined
+    previous.primaryKey === undefined || !scope.primaryKey
       ? []
       : rename(
           'primaryKey',
@@ -65,21 +82,26 @@ export function constraintRenamesForTableRename(
         );
 
   const pairedUniques = new Set<PostgresTableSchemaNode['uniques'][number]>();
-  const uniques = previous.uniques.flatMap((unique) => {
-    const paired = next.uniques.find(
-      (candidate) =>
-        !pairedUniques.has(candidate) && isArrayEqual(candidate.columns, unique.columns),
-    );
-    if (paired !== undefined) pairedUniques.add(paired);
-    return rename(
-      'unique',
-      unique.name,
-      paired === undefined ? undefined : (paired.name ?? defaultUniqueName(table, paired.columns)),
-    );
-  });
+  const uniques = previous.uniques
+    .filter((unique) => scope.onColumns(unique.columns))
+    .flatMap((unique) => {
+      const paired = next.uniques.find(
+        (candidate) =>
+          !pairedUniques.has(candidate) && isArrayEqual(candidate.columns, unique.columns),
+      );
+      if (paired !== undefined) pairedUniques.add(paired);
+      return rename(
+        'unique',
+        unique.name,
+        paired === undefined
+          ? undefined
+          : (paired.name ?? defaultUniqueName(table, paired.columns)),
+      );
+    });
 
-  const pairing = pairForeignKeys(previous.foreignKeys, next.foreignKeys);
-  const foreignKeys = previous.foreignKeys.flatMap((fk) => {
+  const previousForeignKeys = previous.foreignKeys.filter((fk) => scope.onColumns(fk.columns));
+  const pairing = pairForeignKeys(previousForeignKeys, next.foreignKeys);
+  const foreignKeys = previousForeignKeys.flatMap((fk) => {
     const paired = pairing.get(fk);
     return rename(
       'foreignKey',

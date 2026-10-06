@@ -41,6 +41,7 @@ import {
   DropTableCall,
   EnableRowLevelSecurityCall,
   RawSqlCall,
+  RenameColumnCall,
   RenameConstraintCall,
   RenameIndexCall,
   RenamePostgresRlsPolicyCall,
@@ -202,6 +203,7 @@ describe('renderCallsToTypeScript (postgres) — facade import surface', () => {
     ),
     new DropTableCall('public', 'stale'),
     new RenameTableCall('public', 'stale', 'archived', []),
+    new RenameColumnCall('public', 'archived', 'title', 'heading', []),
     new AddColumnCall('public', 'note', col('nickname', 'text')),
     new DropColumnCall('public', 'note', 'nickname'),
     new AlterColumnTypeCall('public', 'note', 'kind', {

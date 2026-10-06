@@ -71,6 +71,7 @@ import {
   dropColumn,
   dropDefault,
   dropNotNull,
+  renameColumn,
   setDefault,
   setNotNull,
 } from './operations/columns';
@@ -502,6 +503,78 @@ export class AddColumnCall extends PostgresOpFactoryCallNode {
       req.push({ moduleSpecifier: POSTGRES_MIGRATION_FACADE, symbol: sym });
     }
     return req;
+  }
+}
+
+export type RenameColumnCompanionCall = RenameConstraintCall | RenameIndexCall;
+
+export class RenameColumnCall extends PostgresOpFactoryCallNode {
+  readonly factoryName = 'renameColumn' as const;
+  // `widening` for the same reason as `RenameTableCall`.
+  readonly operationClass = 'widening' as const;
+  readonly schemaName: string;
+  readonly tableName: string;
+  readonly oldColumnName: string;
+  /** The new name: the column's contract-side identity after the rename. */
+  readonly columnName: string;
+  readonly label: string;
+  /**
+   * The renames of objects whose names derive from the column name. They run after the column
+   * rename and are never rendered on their own.
+   */
+  readonly companions: readonly RenameColumnCompanionCall[];
+
+  constructor(
+    schemaName: string,
+    tableName: string,
+    oldColumnName: string,
+    columnName: string,
+    companions: readonly RenameColumnCompanionCall[],
+  ) {
+    super();
+    this.schemaName = schemaName;
+    this.tableName = tableName;
+    this.oldColumnName = oldColumnName;
+    this.columnName = columnName;
+    this.label = `Rename column "${tableName}"."${oldColumnName}" to "${columnName}"`;
+    this.companions = Object.freeze([...companions]);
+    this.freeze();
+  }
+
+  toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
+    return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
+  }
+
+  async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {
+    if (lowerer === undefined) {
+      throw postgresError(
+        'MIGRATION.POSTGRES_CONTROL_STACK_MISSING',
+        `RenameColumnCall.toOp: a lowerer is required on the Postgres planner path (column "${this.oldColumnName}" on table "${this.tableName}"). Pass the control adapter to createPostgresMigrationPlanner.`,
+        { meta: { factory: 'RenameColumnCall' } },
+      );
+    }
+    return renameColumn(
+      this.schemaName,
+      this.tableName,
+      this.oldColumnName,
+      this.columnName,
+      lowerer,
+    );
+  }
+
+  renderTypeScript(): string {
+    const opts: string[] = [];
+    if (this.schemaName !== UNBOUND_NAMESPACE_ID) {
+      opts.push(`schema: ${jsonToTsSource(this.schemaName)}`);
+    }
+    opts.push(`table: ${jsonToTsSource(this.tableName)}`);
+    opts.push(`column: ${jsonToTsSource(this.oldColumnName)}`);
+    opts.push(`to: ${jsonToTsSource(this.columnName)}`);
+    return `...this.renameColumn({ ${opts.join(', ')} })`;
+  }
+
+  override importRequirements(): readonly ImportRequirement[] {
+    return [];
   }
 }
 
@@ -2047,6 +2120,7 @@ export type PostgresOpFactoryCall =
   | DropTableCall
   | RenameTableCall
   | AddColumnCall
+  | RenameColumnCall
   | DropColumnCall
   | AlterColumnTypeCall
   | SetNotNullCall

@@ -177,6 +177,7 @@ function classifyCall(call: PostgresOpFactoryCall): CallCategory {
     case 'dropRlsPolicy':
       return 'drop';
     case 'addColumn':
+    case 'renameColumn':
       return 'column';
     case 'alterColumnType':
     case 'setNotNull':

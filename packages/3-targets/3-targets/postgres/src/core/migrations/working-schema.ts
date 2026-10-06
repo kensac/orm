@@ -5,6 +5,7 @@ import {
   PrimaryKey,
   RelationalSchemaNodeKind,
   SqlCheckConstraintIR,
+  SqlColumnIR,
   SqlForeignKeyIR,
   SqlIndexIR,
   SqlUniqueIR,
@@ -22,6 +23,7 @@ import {
   defaultUniqueName,
 } from './default-constraint-names';
 import {
+  RenameColumnCall,
   RenameConstraintCall,
   RenameIndexCall,
   type RenamePostgresRlsPolicyCall,
@@ -40,6 +42,7 @@ export interface SchemaTableRename {
 
 export type WorkingSchemaCall =
   | RenameTableCall
+  | RenameColumnCall
   | RenameConstraintCall
   | RenameIndexCall
   | RenamePostgresRlsPolicyCall;
@@ -87,13 +90,34 @@ function stepRewrite(
   };
 }
 
+type ColumnMap = (column: string) => string;
+
+function withColumnName(column: SqlColumnIR, name: string): SqlColumnIR {
+  return new SqlColumnIR({
+    name,
+    nativeType: column.nativeType,
+    nullable: column.nullable,
+    ...ifDefined('default', column.default),
+    ...ifDefined('annotations', column.annotations),
+    ...ifDefined('many', column.many),
+    ...ifDefined('resolvedNativeType', column.resolvedNativeType),
+    ...ifDefined('resolvedDefault', column.resolvedDefault),
+    ...ifDefined('authoredDefault', column.authoredDefault),
+    ...ifDefined('codecRef', column.codecRef),
+    ...ifDefined('codecBaseNativeType', column.codecBaseNativeType),
+    ...ifDefined('codecNamedType', column.codecNamedType),
+    ...ifDefined('dataType', column.dataType),
+  });
+}
+
 function withPrimaryKey(
   primaryKey: PrimaryKey,
   name: string | undefined,
   rewrite: RefRewrite,
+  columnName: ColumnMap,
 ): PrimaryKey {
   return new PrimaryKey({
-    columns: primaryKey.columns,
+    columns: primaryKey.columns.map(columnName),
     ...ifDefined('name', name),
     ...ifDefined('dependsOn', rewriteRefs(primaryKey.dependsOn, rewrite)),
   });
@@ -103,9 +127,10 @@ function withUnique(
   unique: SqlUniqueIR,
   name: string | undefined,
   rewrite: RefRewrite,
+  columnName: ColumnMap,
 ): SqlUniqueIR {
   return new SqlUniqueIR({
-    columns: unique.columns,
+    columns: unique.columns.map(columnName),
     ...ifDefined('name', name),
     ...ifDefined('annotations', unique.annotations),
     ...ifDefined('dependsOn', rewriteRefs(unique.dependsOn, rewrite)),
@@ -114,13 +139,18 @@ function withUnique(
 
 function withForeignKey(
   fk: SqlForeignKeyIR,
-  overrides: { readonly name: string | undefined; readonly referencedTable: string },
+  overrides: {
+    readonly name: string | undefined;
+    readonly referencedTable: string;
+    readonly referencedColumns?: readonly string[];
+  },
   rewrite: RefRewrite,
+  columnName: ColumnMap,
 ): SqlForeignKeyIR {
   return new SqlForeignKeyIR({
-    columns: fk.columns,
+    columns: fk.columns.map(columnName),
     referencedTable: overrides.referencedTable,
-    referencedColumns: fk.referencedColumns,
+    referencedColumns: overrides.referencedColumns ?? fk.referencedColumns,
     ...ifDefined('referencedSchema', fk.referencedSchema),
     ...ifDefined('name', overrides.name),
     ...ifDefined('onDelete', fk.onDelete),
@@ -131,7 +161,17 @@ function withForeignKey(
   });
 }
 
-function withIndex(index: SqlIndexIR, naming: SqlObjectNaming, rewrite: RefRewrite): SqlIndexIR {
+/**
+ * An index whose definition carries SQL text, an expression or a predicate, keeps its columns as
+ * they are: a column named inside the text cannot be renamed here, so the diff plans the index.
+ */
+function withIndex(
+  index: SqlIndexIR,
+  naming: SqlObjectNaming,
+  rewrite: RefRewrite,
+  columnName: ColumnMap,
+): SqlIndexIR {
+  const columnsFollow = index.expression === undefined && index.where === undefined;
   const base = {
     naming,
     where: index.where,
@@ -145,7 +185,7 @@ function withIndex(index: SqlIndexIR, naming: SqlObjectNaming, rewrite: RefRewri
   return new SqlIndexIR(
     index.expression !== undefined
       ? { ...base, expression: index.expression }
-      : { ...base, columns: index.columns ?? [] },
+      : { ...base, columns: (index.columns ?? []).map(columnsFollow ? columnName : (c) => c) },
   );
 }
 
@@ -190,7 +230,10 @@ interface TableEdit {
   readonly foreignKey: (fk: SqlForeignKeyIR) => {
     readonly name: string | undefined;
     readonly referencedTable: string;
+    readonly referencedColumns?: readonly string[];
   };
+  /** The name each of the table's own columns gets. */
+  readonly columnName: ColumnMap;
   readonly indexNaming: (index: SqlIndexIR) => SqlObjectNaming;
   readonly checkNaming: (check: SqlCheckConstraintIR) => SqlObjectNaming;
   readonly policy: (policy: PostgresPolicySchemaNode) => {
@@ -205,6 +248,7 @@ function unchangedEdit(table: PostgresTableSchemaNode): TableEdit {
     primaryKeyName: (primaryKey) => primaryKey.name,
     uniqueName: (unique) => unique.name,
     foreignKey: (fk) => ({ name: fk.name, referencedTable: fk.referencedTable }),
+    columnName: (column) => column,
     indexNaming: (index) => namingOf(index.name, index.prefix),
     checkNaming: (check) => namingOf(check.name, check.prefix),
     policy: (policy) => ({
@@ -219,18 +263,35 @@ function rebuildTable(
   edit: TableEdit,
   rewrite: RefRewrite,
 ): PostgresTableSchemaNode {
+  const { columnName } = edit;
   return new PostgresTableSchemaNode({
     name: edit.name,
-    columns: table.columns,
+    columns: Object.fromEntries(
+      Object.values(table.columns).map((column) => {
+        const name = columnName(column.name);
+        return [name, name === column.name ? column : withColumnName(column, name)];
+      }),
+    ),
     ...ifDefined(
       'primaryKey',
       table.primaryKey === undefined
         ? undefined
-        : withPrimaryKey(table.primaryKey, edit.primaryKeyName(table.primaryKey), rewrite),
+        : withPrimaryKey(
+            table.primaryKey,
+            edit.primaryKeyName(table.primaryKey),
+            rewrite,
+            columnName,
+          ),
     ),
-    uniques: table.uniques.map((unique) => withUnique(unique, edit.uniqueName(unique), rewrite)),
-    foreignKeys: table.foreignKeys.map((fk) => withForeignKey(fk, edit.foreignKey(fk), rewrite)),
-    indexes: table.indexes.map((index) => withIndex(index, edit.indexNaming(index), rewrite)),
+    uniques: table.uniques.map((unique) =>
+      withUnique(unique, edit.uniqueName(unique), rewrite, columnName),
+    ),
+    foreignKeys: table.foreignKeys.map((fk) =>
+      withForeignKey(fk, edit.foreignKey(fk), rewrite, columnName),
+    ),
+    indexes: table.indexes.map((index) =>
+      withIndex(index, edit.indexNaming(index), rewrite, columnName),
+    ),
     ...ifDefined(
       'checks',
       table.checks?.map((check) => withCheck(check, edit.checkNaming(check), rewrite)),
@@ -307,6 +368,66 @@ export function renameTableInPostgresSchema(
         name: fk.name ?? defaultForeignKeyName(from, fk.columns),
       }),
       policy: (policy) => ({ ...unchanged.policy(policy), tableName: to }),
+    };
+  });
+}
+
+/** A column rename inside one live schema: `schemaName` is the DDL schema name. */
+export interface SchemaColumnRename {
+  readonly schemaName: string;
+  readonly table: string;
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * The schema with one column under its new name. The table's primary key, unique constraints,
+ * foreign keys and plain column indexes name it under the new name, foreign keys anywhere that
+ * reference it follow it, and every dependency that names it moves with it. An index with an
+ * expression or a predicate, and a check, keep their SQL text. Constraint and index names do not
+ * change: a unique constraint or foreign key on the column whose name was derived from the old
+ * column name gets that name spelled out.
+ */
+export function renameColumnInPostgresSchema(
+  schema: PostgresDatabaseSchemaNode,
+  rename: SchemaColumnRename,
+): PostgresDatabaseSchemaNode {
+  const { schemaName, table: tableName, from, to } = rename;
+  const rewrite = stepRewrite(
+    schemaName,
+    tableName,
+    RelationalSchemaNodeKind.column,
+    `column:${from}`,
+    `column:${to}`,
+  );
+  const renamed = (column: string) => (column === from ? to : column);
+  const referencesTable = (ownSchema: string, fk: SqlForeignKeyIR): boolean =>
+    (fk.resolvedReferencedNamespace ?? ownSchema) === schemaName &&
+    fk.referencedTable === tableName;
+  return mapTables(schema, rewrite, (tableSchema, table) => {
+    const unchanged = unchangedEdit(table);
+    const followReference = (fk: SqlForeignKeyIR) => ({
+      name: fk.name,
+      referencedTable: fk.referencedTable,
+      referencedColumns: referencesTable(tableSchema, fk)
+        ? fk.referencedColumns.map(renamed)
+        : fk.referencedColumns,
+    });
+    if (tableSchema !== schemaName || table.name !== tableName) {
+      return { ...unchanged, foreignKey: followReference };
+    }
+    return {
+      ...unchanged,
+      columnName: renamed,
+      uniqueName: (unique) =>
+        unique.name ??
+        (unique.columns.includes(from) ? defaultUniqueName(tableName, unique.columns) : undefined),
+      foreignKey: (fk) => ({
+        ...followReference(fk),
+        name:
+          fk.name ??
+          (fk.columns.includes(from) ? defaultForeignKeyName(tableName, fk.columns) : undefined),
+      }),
     };
   });
 }
@@ -427,6 +548,15 @@ function applied(
       schemaName: ddlSchemaOf(call.schemaName),
       from: call.oldTableName,
       to: call.tableName,
+    });
+    return call.companions.reduce<PostgresDatabaseSchemaNode>(applied, renamed);
+  }
+  if (call instanceof RenameColumnCall) {
+    const renamed = renameColumnInPostgresSchema(schema, {
+      schemaName: ddlSchemaOf(call.schemaName),
+      table: call.tableName,
+      from: call.oldColumnName,
+      to: call.columnName,
     });
     return call.companions.reduce<PostgresDatabaseSchemaNode>(applied, renamed);
   }

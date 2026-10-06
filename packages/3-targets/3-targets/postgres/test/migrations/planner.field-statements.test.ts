@@ -1,0 +1,202 @@
+import { asNamespaceId, type Contract } from '@internal/contract/types';
+import {
+  APP_SPACE_ID,
+  type ResolvedFieldRename,
+  type ResolvedModelRename,
+  type ResolvedStatement,
+} from '@internal/framework-components/control';
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
+import type { SqlStorage } from '@internal/sql-contract/types';
+import { describe, expect, it } from 'vitest';
+import { RenameColumnCall } from '../../src/core/migrations/op-factory-call';
+import { createPostgresMigrationPlanner } from '../../src/core/migrations/planner';
+import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
+import type { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
+import { ORIGINAL_COLUMNS, type ProfileObjects, profileContract } from './rename-column-fixtures';
+import { stubLowerer } from './rename-table-fixtures';
+
+const ALL_CLASSES = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
+const NS = asNamespaceId(UNBOUND_NAMESPACE_ID);
+const EMAIL_RENAMED = { ...ORIGINAL_COLUMNS, email: 'emailAddress' };
+
+function renameField(
+  model: string,
+  from: string,
+  to: string,
+  newModel = model,
+): ResolvedFieldRename {
+  return {
+    kind: 'rename',
+    entity: 'field',
+    from: { namespace: NS, model, field: from },
+    to: { namespace: NS, model: newModel, field: to },
+  };
+}
+
+function renameModel(from: string, to: string): ResolvedModelRename {
+  return {
+    kind: 'rename',
+    entity: 'model',
+    from: { namespace: NS, model: from },
+    to: { namespace: NS, model: to },
+  };
+}
+
+function plan(
+  from: Contract<SqlStorage>,
+  to: Contract<SqlStorage>,
+  statements: readonly ResolvedStatement[],
+  schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, []),
+) {
+  return createPostgresMigrationPlanner(stubLowerer).plan({
+    contract: to,
+    schema,
+    policy: ALL_CLASSES,
+    fromContract: from,
+    statements,
+    frameworkComponents: [],
+    spaceId: APP_SPACE_ID,
+    snapshotsImportPath: '../../snapshots',
+  });
+}
+
+function success(result: ReturnType<typeof plan>) {
+  if (result.kind !== 'success') {
+    throw new Error(`expected a plan, got ${JSON.stringify(result.conflicts)}`);
+  }
+  return result;
+}
+
+async function labelsOf(result: ReturnType<typeof plan>): Promise<readonly string[]> {
+  const ops = await Promise.all(success(result).plan.operations);
+  return ops.map((op) => op.label);
+}
+
+function contracts(objects: ProfileObjects = {}) {
+  return {
+    from: profileContract('from', { objects }),
+    to: profileContract('to', { columns: EMAIL_RENAMED, objects }),
+  };
+}
+
+const renameEmail = renameField('Profile', 'email', 'emailAddress');
+
+describe('Postgres planner, field statements', () => {
+  it('plans the column rename and its companions in place of a drop and add', async () => {
+    const { from, to } = contracts({ emailUnique: {} });
+    expect(await labelsOf(plan(from, to, [renameEmail]))).toEqual([
+      'Rename column "Profile"."email" to "emailAddress"',
+      'Rename unique constraint "Profile_email_key" to "Profile_emailAddress_key" on "Profile"',
+    ]);
+  });
+
+  it('drops and adds the column without a statement', async () => {
+    const { from, to } = contracts();
+    const labels = await labelsOf(plan(from, to, []));
+    expect(labels).toEqual([
+      'Drop column "email" from "Profile"',
+      'Add column emailAddress to Profile',
+    ]);
+  });
+
+  it('reports the statement with its description and operation count', () => {
+    const { from, to } = contracts({ emailUnique: {} });
+    expect(success(plan(from, to, [renameEmail])).appliedStatements).toEqual([
+      {
+        statement: renameEmail,
+        description: 'rename field "Profile.email" to "Profile.emailAddress"',
+        operationCount: 2,
+      },
+    ]);
+  });
+
+  it('applies a statement whose column does not change with no operations', async () => {
+    const from = profileContract('from');
+    const to = profileContract('to', { fields: EMAIL_RENAMED });
+    const result = plan(from, to, [renameEmail]);
+    expect(await labelsOf(result)).toEqual([]);
+    expect(success(result).appliedStatements).toEqual([
+      expect.objectContaining({ operationCount: 0 }),
+    ]);
+  });
+
+  it('applies a relation field statement with no operations', async () => {
+    const from = profileContract('from');
+    const result = plan(from, profileContract('from'), [renameField('Profile', 'posts', 'posts')]);
+    expect(await labelsOf(result)).toEqual([]);
+    expect(success(result).appliedStatements).toEqual([
+      expect.objectContaining({ operationCount: 0 }),
+    ]);
+  });
+
+  it('renames the column on the table an earlier model statement renamed', async () => {
+    const objects = { emailUnique: {} };
+    const from = profileContract('from', { objects });
+    const to = profileContract('to', { table: 'User', columns: EMAIL_RENAMED, objects });
+    const result = plan(from, to, [
+      renameModel('Profile', 'User'),
+      renameField('Profile', 'email', 'emailAddress', 'User'),
+    ]);
+    expect(await labelsOf(result)).toEqual([
+      'Rename table "Profile" to "User"',
+      'Rename primary key "Profile_pkey" to "User_pkey" on "User"',
+      'Rename column "User"."email" to "emailAddress"',
+      'Rename unique constraint "Profile_email_key" to "User_emailAddress_key" on "User"',
+    ]);
+    expect(success(result).appliedStatements.map((applied) => applied.operationCount)).toEqual([
+      2, 2,
+    ]);
+  });
+
+  it('replaces a check on the column after the rename', async () => {
+    const { from, to } = contracts({ emailCheck: true });
+    const labels = await labelsOf(plan(from, to, [renameEmail]));
+    expect(labels[0]).toBe('Rename column "Profile"."email" to "emailAddress"');
+    expect(labels.slice(1).some((label) => label.startsWith('Drop check constraint'))).toBe(true);
+    expect(labels.slice(1).some((label) => label.startsWith('Add check constraint'))).toBe(true);
+  });
+
+  it('replaces an index with a predicate on the column after the rename', async () => {
+    const { from, to } = contracts({ emailPartialIndex: true });
+    const labels = await labelsOf(plan(from, to, [renameEmail]));
+    expect(labels[0]).toBe('Rename column "Profile"."email" to "emailAddress"');
+    expect(labels.slice(1).some((label) => label.startsWith('Drop index'))).toBe(true);
+    expect(labels.slice(1).some((label) => label.startsWith('Create index'))).toBe(true);
+  });
+
+  it('refuses a rename whose column the schema being planned from does not have', () => {
+    const { from, to } = contracts();
+    const otherSchema = postgresContractToSchema(
+      profileContract('other', { columns: EMAIL_RENAMED }),
+      [],
+    );
+    const result = plan(from, to, [renameEmail], otherSchema);
+    expect(result.kind === 'failure' && result.conflicts).toEqual([
+      expect.objectContaining({
+        kind: 'statementRejected',
+        statement: renameEmail,
+        summary: expect.stringContaining('has no column "email"'),
+      }),
+    ]);
+  });
+
+  it('plans the call the facade call it renders would emit', async () => {
+    const objects = { emailUnique: {}, emailIndex: true };
+    const from = profileContract('a'.repeat(64), { objects });
+    const to = profileContract('b'.repeat(64), { columns: EMAIL_RENAMED, objects });
+    const result = success(plan(from, to, [renameEmail]));
+    const ops = await Promise.all(result.plan.operations);
+    const call = new RenameColumnCall(UNBOUND_NAMESPACE_ID, 'Profile', 'email', 'emailAddress', []);
+    expect(call.renderTypeScript()).toBe(
+      '...this.renameColumn({ table: "Profile", column: "email", to: "emailAddress" })',
+    );
+    expect(result.plan.renderTypeScript((specifier) => specifier)).toContain(
+      call.renderTypeScript(),
+    );
+    expect(ops.map((op) => op.id)).toEqual([
+      'renameColumn.Profile.email',
+      expect.stringContaining('Profile_email_key'),
+      expect.stringContaining('Profile_email_idx'),
+    ]);
+  });
+});
