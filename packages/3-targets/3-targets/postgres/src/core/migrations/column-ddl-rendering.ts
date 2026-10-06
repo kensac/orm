@@ -1,5 +1,5 @@
 import type { ColumnDefault } from '@internal/contract/types';
-import type { CodecControlHooks } from '@internal/family-sql/control';
+import { type CodecControlHooks, refuseContractDefault } from '@internal/family-sql/control';
 import type { DataType } from '@internal/framework-components/codec';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
@@ -14,7 +14,6 @@ import {
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
-import { postgresError } from '../errors';
 import { postgresDefaultToDdlColumnDefault } from './op-factory-call';
 import { buildColumnTypeSql } from './planner-ddl-builders';
 import { resolveIdentityValue } from './planner-identity-values';
@@ -81,11 +80,7 @@ function inCanonicalForm(
 ): ColumnDefault | undefined {
   if (columnDefault?.kind !== 'literal') return columnDefault;
   const refusal = contractDefaultRefusal(columnDefault, dataType?.toCanonicalForm, many);
-  if (refusal !== undefined) {
-    throw postgresError('CONTRACT.DEFAULT_INVALID', `Column "${columnName}": ${refusal}`, {
-      meta: { reason: 'default-not-canonical', column: columnName },
-    });
-  }
+  if (refusal !== undefined) refuseContractDefault(columnName, refusal);
   return {
     kind: 'literal',
     value: defaultInCanonicalForm(columnDefault.value, dataType?.toCanonicalForm, many).value,

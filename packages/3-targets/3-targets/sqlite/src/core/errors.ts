@@ -5,7 +5,6 @@ import { structuredError } from '@internal/utils/structured-error';
 export type SqliteTargetErrorCode =
   | 'CONTRACT.ARGUMENT_INVALID'
   | 'CONTRACT.CONSTRAINT_INVALID'
-  | 'CONTRACT.DEFAULT_INVALID'
   | 'CONTRACT.IDENTIFIER_INVALID'
   | 'CONTRACT.NAMESPACE_INVALID'
   | 'CONTRACT.TARGET_MISMATCH'

@@ -101,6 +101,7 @@ export type {
   SqlPlanTargetDetails,
   StorageTypePlanResult,
 } from '../core/migrations/types';
+export { refuseContractDefault } from '../core/refused-contract-default';
 export {
   temporalCodecPresetWithPrecision,
   temporalStringAuthoringPresets,

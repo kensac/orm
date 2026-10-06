@@ -1,3 +1,4 @@
+import { refuseContractDefault } from '@internal/family-sql/control';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import {
@@ -68,11 +69,7 @@ function plannableDefault(column: SqlColumnIR): StorageColumn['default'] {
     column.dataType?.toCanonicalForm,
     (column.many ?? column.codecRef?.many) === true,
   );
-  if (refusal !== undefined) {
-    throw sqliteError('CONTRACT.DEFAULT_INVALID', `Column "${column.name}": ${refusal}`, {
-      meta: { reason: 'default-not-canonical', column: column.name },
-    });
-  }
+  if (refusal !== undefined) refuseContractDefault(column.name, refusal);
   return columnDefault;
 }
 
