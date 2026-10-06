@@ -1,3 +1,4 @@
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import {
   fieldRenameStorageEffect,
@@ -10,6 +11,7 @@ import {
   planned,
   rejection,
   renameField,
+  renameFieldIn,
   renameModel,
 } from './statement-fixtures';
 
@@ -198,8 +200,31 @@ describe('planStatements, field renames', () => {
         'Cannot rename column "users"."name": the model\'s table changes from "users" to "app_users", and no statement renames the table',
     });
     expect(conflict.why).toContain(
-      'rename the table by hand first, with ...this.renameTable({ table: "users", to: "app_users" }) in its own migration.ts',
+      'rename the table by hand first, with ...this.renameTable({ schema: "app", table: "users", to: "app_users" }) in its own migration.ts',
     );
+  });
+
+  it('names no schema in the hand-written rename for a table in the unbound namespace', () => {
+    const conflict = rejection(
+      planStatements({
+        policy: ALL_CLASSES,
+        statements: [renameFieldIn(UNBOUND_NAMESPACE_ID, 'User', 'name', 'fullName')],
+        fromContract: contractOf({
+          User: { table: 'users', namespace: UNBOUND_NAMESPACE_ID, fields: { name: 'name' } },
+        }),
+        contract: contractOf({
+          User: {
+            table: 'app_users',
+            namespace: UNBOUND_NAMESPACE_ID,
+            fields: { fullName: 'fullName' },
+          },
+        }),
+        target: fakeTarget([`${UNBOUND_NAMESPACE_ID}.users`], {
+          [`${UNBOUND_NAMESPACE_ID}.users`]: ['name'],
+        }),
+      }),
+    );
+    expect(conflict.why).toContain('...this.renameTable({ table: "users", to: "app_users" })');
   });
 
   it('rejects a field that has a column on one side only', () => {

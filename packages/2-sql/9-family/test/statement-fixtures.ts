@@ -144,6 +144,20 @@ export function renameField(
   };
 }
 
+export function renameFieldIn(
+  namespace: string,
+  model: string,
+  from: string,
+  to: string,
+): ResolvedFieldRename {
+  return {
+    kind: 'rename',
+    entity: 'field',
+    from: { namespace: asNamespaceId(namespace), model, field: from },
+    to: { namespace: asNamespaceId(namespace), model, field: to },
+  };
+}
+
 /**
  * A target whose calls are strings and whose working schema maps each qualified table name to its
  * columns.

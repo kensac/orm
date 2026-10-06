@@ -9,6 +9,7 @@ import type {
   ResolvedModelRename,
   ResolvedStatement,
 } from '@internal/framework-components/control';
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { type SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { controlPolicyForCall } from './control-policy';
@@ -374,7 +375,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Cannot rename column "${table}"."${effect.from}": the model's table changes from "${table}" to "${destinationTable.table}", and no statement renames the table`,
-          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Instead, rename the table by hand first, with ...this.renameTable({ table: "${table}", to: "${destinationTable.table}" }) in its own migration.ts, then plan the field rename on top of it.`,
+          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Instead, rename the table by hand first, with ...this.renameTable({ ${effect.table.namespaceId === UNBOUND_NAMESPACE_ID ? '' : `schema: "${effect.table.namespaceId}", `}table: "${table}", to: "${destinationTable.table}" }) in its own migration.ts, then plan the field rename on top of it.`,
           { namespaceId: effect.table.namespaceId, table, column: effect.from },
         ),
       );
