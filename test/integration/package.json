@@ -82,7 +82,7 @@
     "@internal/middleware-cache": "workspace:8.0.0-rc.14",
     "@internal/mongo-lowering": "workspace:8.0.0-rc.14",
     "@internal/publish-surface": "workspace:8.0.0-rc.14",
-    "@prisma/cli-engine": "0.6.2",
+    "@prisma/cli-engine": "0.6.3",
     "@repo/test-utils": "workspace:8.0.0-rc.14",
     "@repo/tsconfig": "workspace:8.0.0-rc.14",
     "@repo/tsdown": "workspace:8.0.0-rc.14",

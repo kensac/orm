@@ -33,7 +33,7 @@
     "@internal/psl-printer": "workspace:8.0.0-rc.14",
     "@internal/publish-surface": "workspace:8.0.0-rc.14",
     "@internal/utils": "workspace:8.0.0-rc.14",
-    "arktype": "^2.2.2",
+    "arktype": "^2.2.7",
     "ci-info": "^4.3.1",
     "clipanion": "4.0.0-rc.4",
     "closest-match": "^1.3.3",
@@ -52,7 +52,7 @@
     "@internal/sql-contract-ts": "workspace:8.0.0-rc.14",
     "@internal/sql-operations": "workspace:8.0.0-rc.14",
     "@internal/sql-runtime": "workspace:8.0.0-rc.14",
-    "@prisma/cli-engine": "0.6.2",
+    "@prisma/cli-engine": "0.6.3",
     "@repo/test-utils": "workspace:8.0.0-rc.14",
     "@repo/tsconfig": "workspace:8.0.0-rc.14",
     "@repo/tsdown": "workspace:8.0.0-rc.14",
@@ -62,7 +62,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@prisma/cli-engine": "0.6.2",
+    "@prisma/cli-engine": "0.6.3",
     "typescript": ">=5.9"
   },
   "peerDependenciesMeta": {

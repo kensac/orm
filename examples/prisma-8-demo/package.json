@@ -25,14 +25,14 @@
     "@prisma/orm-extension-middleware-cache": "workspace:8.0.0-rc.14",
     "@prisma/orm-extension-pgvector": "workspace:8.0.0-rc.14",
     "@prisma/orm-postgres": "workspace:8.0.0-rc.14",
-    "arktype": "^2.2.2",
+    "arktype": "^2.2.7",
     "dotenv": "^17.4.2",
     "pg": "catalog:",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@prisma/cli-engine": "0.6.2",
+    "@prisma/cli-engine": "0.6.3",
     "@prisma/dev": "catalog:",
     "@repo/test-utils": "workspace:8.0.0-rc.14",
     "@repo/tsconfig": "workspace:8.0.0-rc.14",

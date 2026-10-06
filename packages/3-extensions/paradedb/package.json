@@ -26,7 +26,7 @@
     "@internal/sql-relational-core": "workspace:8.0.0-rc.14",
     "@internal/sql-runtime": "workspace:8.0.0-rc.14",
     "@internal/utils": "workspace:8.0.0-rc.14",
-    "arktype": "^2.2.2"
+    "arktype": "^2.2.7"
   },
   "devDependencies": {
     "@internal/adapter-postgres": "workspace:8.0.0-rc.14",
@@ -34,7 +34,7 @@
     "@internal/operations": "workspace:8.0.0-rc.14",
     "@internal/sql-contract-ts": "workspace:8.0.0-rc.14",
     "@internal/target-postgres": "workspace:8.0.0-rc.14",
-    "@prisma/cli-engine": "0.6.2",
+    "@prisma/cli-engine": "0.6.3",
     "@repo/test-utils": "workspace:8.0.0-rc.14",
     "@repo/tsconfig": "workspace:8.0.0-rc.14",
     "@repo/tsdown": "workspace:8.0.0-rc.14",

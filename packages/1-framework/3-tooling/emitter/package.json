@@ -20,7 +20,7 @@
     "@internal/operations": "workspace:8.0.0-rc.14",
     "@internal/ts-render": "workspace:8.0.0-rc.14",
     "@internal/utils": "workspace:8.0.0-rc.14",
-    "arktype": "^2.2.2",
+    "arktype": "^2.2.7",
     "prettier": "^3.9.6"
   },
   "devDependencies": {
