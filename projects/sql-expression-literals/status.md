@@ -142,6 +142,8 @@ Brief: `dispatches/2t-wording-brief.md`. Serhii's review of #30539 found `pg/int
 - `NO_WRITTEN_FORM` is no longer exported.
 - Docs: ADR 231, ADR 254, `error-reference.md`, the contract-psl README, the pending `arguments-typed-by-data-type` and `sql-is-a-data-type` fragments, and design sections 4, 6 and 7. The `default-refusals-say-what-to-write` detection pattern for `this target has no data type` now requires `: ` or a quote before it, so it no longer matches the new messages.
 
+Review fixes (brief `dispatches/2t-wording-fixes-brief.md`, reviews in `slice-reviews/2t-wording/`): the framework's `exactRewrite` decides the exact rewrite for `dataTypeValue` and `@default` alike, so `meta Jsonb @default("{}")` says ``Expected json`...`; write json`{}` ``; it is offered only when the receiving type takes the rewritten literal. `RefusalGuidance.forms` holds `WrittenForm` values (kind, tag, phrase), and the range rule compares kinds, not phrases. `describeExpected` builds every `Expected <forms>` sentence, and `describeRefusedValueType` words the `no-cast` rule for both callers and the list-element arm, which no longer invents a refusal. The not-a-literal refusal reads ``Expected sql`...`; got an identifier``. `dataTypeValue` throws an `InternalError` for a registered type nothing writes. `taggedLiteralTextReadsBack` is now `printedTaggedLiteralReadsBack`. New tests: the round trip of the offered rewrite through the PSL parser, a narrow list cast that reaches the range rule, the value type on each assembled stack, and one message for the same refusal as `@default` and as an argument. B07 accepted as is. Logs in `wip/2t-wording-fixes/`.
+
 ## Slice order and tickets
 
 | Order | Plan slice | Ticket | State |
