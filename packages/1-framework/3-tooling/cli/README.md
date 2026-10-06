@@ -1032,11 +1032,14 @@ Update your database schema to match the currently emitted contract.
 
 **Command:**
 ```bash
-prisma db update [--db <url>] [--config <path>] [--dry-run] [-y|--yes] [--interactive|--no-interactive] [--json] [-v] [-q] [--color/--no-color]
+prisma db update [--db <url>] [--config <path>] [--dry-run] [--rename <old:new>]... [-y|--yes] [--interactive|--no-interactive] [--json] [-v] [-q] [--color/--no-color]
 ```
+
+**Rename statements (`--rename <old>:<new>`, repeatable):** tell `db update` that a model or field was renamed, so it renames the table or column instead of dropping and creating it. The statements work exactly as they do for `migration plan` (see below), and produce the same operations. The origin contract they resolve against is the contract the database's marker names, read from the local snapshot store (`migrations/snapshots/<hash>/`). `db update` keeps a snapshot of the contract it applies whenever it advances a ref: the `db` ref by default, or with `--db <url>` only the ref you name with `--advance-ref <name>`. So to use renames against a database you update with `--db <url>`, give that earlier run `--advance-ref <name>`. Without the snapshot, a run with statements fails with `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`, naming the hash and the directory it looked in; a run without statements is unaffected. Running the same statements a second time fails with `MIGRATION.STATEMENT_UNRESOLVED`, because the database is now at a contract that no longer has the old names. The statements the plan applied are listed under `Statements applied` after the operations (dry run and apply), and as `appliedStatements` in `--json` output.
 
 **Error codes (additional to shared CLI/runtime codes):**
 - `RUNNER_FAILED`: runner rejected apply (origin mismatch, failed checks, policy failures, or execution errors)
+- `MIGRATION.STATEMENT_INVALID`, `MIGRATION.STATEMENT_UNRESOLVED`, `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`: a `--rename` statement is malformed, does not resolve in the contracts, or has no origin contract to resolve against
 
 **Config File (`prisma.config.ts`):**
 
@@ -1084,7 +1087,7 @@ The `contract.output` field specifies the path to `contract.json`. This is the c
 Plan a migration from contract changes. Compares a starting contract against a destination contract and produces a new migration package with the required operations. No database connection is needed — fully offline.
 
 ```bash
-prisma migration plan [--config <path>] [--name <slug>] [--from <contract>] [--to <contract>] [--json] [-v] [-q] [--color/--no-color]
+prisma migration plan [--config <path>] [--name <slug>] [--from <contract>] [--to <contract>] [--rename <old:new>]... [--json] [-v] [-q] [--color/--no-color]
 ```
 
 **Options:**
@@ -1092,6 +1095,7 @@ prisma migration plan [--config <path>] [--name <slug>] [--from <contract>] [--t
 - `--name <slug>`: Name slug for the migration directory (default: `migration`)
 - `--from <contract>`: Starting contract reference (hash, prefix, ref name, migration directory, `<dir>^`, `@empty`, or filesystem path). `@empty` names the empty-database origin deliberately. Defaults to the `db` ref; when the ref is absent, greenfield only on an empty graph — over existing migrations the command refuses (`MIGRATION.PLAN_ORIGIN_UNKNOWN`) unless `--from @empty` is passed.
 - `--to <contract>`: Destination contract reference (same grammar as `--from`). Defaults to the emitted `contract.json`. Use `--to <migration-dir>^` to plan a rollback toward a predecessor state.
+- `--rename <old>:<new>`: Rename a model or a field instead of dropping and creating it. Repeat the flag for several statements; they apply in the order given. See **Rename statements** below.
 - `--json`: Output as JSON object
 - `-q, --quiet`: Quiet mode (errors only)
 - `-v, --verbose`: Verbose output (debug info, timings)
@@ -1109,6 +1113,8 @@ prisma migration plan [--config <path>] [--name <slug>] [--from <contract>] [--t
 - `migrations/<dir>/migration.json` — fully attested metadata (`migrationHash: string`, never null)
 - `migrations/<dir>/ops.json` — planned operations (empty list `[]` if placeholders blocked the planner)
 - `migrations/snapshots/<hex>/contract.{json,d.ts}` — bookend contracts, written write-if-absent, keyed by each contract's storage hash (one entry for `from` when applicable, one for `to`)
+
+**Rename statements:** each `--rename` names the old and the new name in contract vocabulary, never a table or a column. Each side is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`; both sides name a model, or both name a field of the same model. Names match exactly, including case. A name without a namespace resolves when exactly one namespace declares the model. A field's model is named as the destination contract names it, so a model rename followed by a field rename on it is `--rename Profile:User --rename User.name:User.fullName`. The old name must exist in the starting contract and not in the destination; the new name must exist in the destination and not in the starting contract. Statements resolve before anything is written; a statement that is malformed fails with `MIGRATION.STATEMENT_INVALID`, and one that does not resolve fails with `MIGRATION.STATEMENT_UNRESOLVED`, naming what it searched and what it found. A plan from an empty database (`--from @empty`, or greenfield) has no models to rename, so every statement is unresolved. Moving a model to another namespace and renaming value objects are not supported in this release. The planner renames the table or column, and the constraints and indexes named after it, ahead of the rest of the plan; `migration.ts` contains the same `...this.renameTable(...)` and `...this.renameColumn(...)` calls you could have written by hand. The statements are listed under `Statements applied` after the operations, each with its number of operations, and as `appliedStatements` in `--json` output. A statement whose storage does not change, such as a model whose table name is kept with `@@map`, is listed with no operations; when no statement needs an operation and nothing else changed, no migration package is written. A statement the planner cannot carry out, for example on a table whose control policy is not `managed`, fails planning with `MIGRATION.PLANNING_FAILED`, and the refused statement is carried in the error's conflicts.
 
 **Branching with `--from` and `--to`:** Use `--from` to create a migration edge from a specific contract hash instead of the default starting point. Use `--to` to plan toward any resolved contract — including a rollback via `<migration-dir>^` — instead of the emitted contract. This enables branched migration graphs and arbitrary-target (including reverse) edges without editing contract source.
 

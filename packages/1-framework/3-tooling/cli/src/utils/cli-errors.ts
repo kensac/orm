@@ -542,8 +542,12 @@ export function errorStatementOriginUnknown(origin: {
     'Cannot resolve statements: the origin contract is unknown',
     {
       why,
-      fix: 'Statements name things in the origin contract, so the command needs it. Plan a migration with `{bin} migration plan --from <contract>` instead, or run the command without statements.',
+      fix: [
+        'Statements name things in the origin contract, so the command needs it. `db update` keeps a snapshot of the contract it applies when it advances a ref: the `db` ref by default, or with `--db <url>` only the ref named by `--advance-ref <name>`. Give the earlier `db update --db <url>` run `--advance-ref <name>` so its contract is kept for the next one.',
+        'Or plan a migration with `{bin} migration plan --from <contract>`, or run the command without statements.',
+      ].join('\n'),
       nextActions: [
+        chooseAction('Run db update with --advance-ref <name> so its contract snapshot is kept'),
         runCommandAction('Plan from an explicit origin', '{bin} migration plan --from <contract>'),
         chooseAction('Or run the command without statements'),
       ],
