@@ -127,3 +127,23 @@ export function contractOf(
     meta: {},
   };
 }
+
+/** `contract` with one model per entry of `tables`, each stored in the named table. */
+export function withModels(
+  contract: Contract<SqlStorage>,
+  tables: Record<string, string>,
+  namespaceId: string = UNBOUND_NAMESPACE_ID,
+): Contract<SqlStorage> {
+  return {
+    ...contract,
+    domain: applicationDomainOf({
+      namespaceId,
+      models: Object.fromEntries(
+        Object.entries(tables).map(([model, table]) => [
+          model,
+          { fields: {}, relations: {}, storage: { table, namespaceId, fields: {} } },
+        ]),
+      ),
+    }),
+  };
+}

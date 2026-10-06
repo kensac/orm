@@ -1,6 +1,7 @@
 import type { Contract } from '@internal/contract/types';
 import type {
   MigrationOperationPolicy,
+  PlannedStatements,
   SqlMigrationPlannerPlanOptions,
   SqlPlannerConflict,
   SqlPlannerFailureResult,
@@ -14,6 +15,7 @@ import {
   partitionIssuesByControlPolicy,
   planFieldEventOperations,
   plannerFailure,
+  planStatements,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -34,6 +36,7 @@ import { namingOf, parseWireName } from '@internal/sql-schema-ir/naming';
 import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
+import { ok, type Result } from '@internal/utils/result';
 import { DEFAULT_NAMESPACE_ID } from '../namespace-ids';
 import { PostgresRlsPolicy } from '../postgres-rls-policy';
 import { postgresNodeStorageCoordinate } from '../schema-ir/node-storage-coordinate';
@@ -73,8 +76,10 @@ import { renameTableStatement } from './operations/tables';
 import { TypeScriptRenderablePostgresMigration } from './planner-produced-postgres-migration';
 import { postgresPlannerStrategies } from './planner-strategies';
 import { resolveDdlSchemaForNamespaceStorage } from './resolve-ddl-schema';
-import { emissionSchemaForNamespace } from './table-rename-calls';
+import { postgresSchemaTables } from './schema-tables';
+import { emissionSchemaForNamespace, postgresTableRenameCall } from './table-rename-calls';
 import { verifyPostgresNamespacePresence } from './verify-postgres-namespaces';
+import { createWorkingSchema } from './working-schema';
 
 type PlannerFrameworkComponents = SqlMigrationPlannerPlanOptions extends {
   readonly frameworkComponents: infer T;
@@ -225,9 +230,14 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     // (`diffSchema`) over the same schema and rejects on a
     // surviving failure.
     PostgresDatabaseSchemaNode.assert(options.schema);
+    const statements = this.planStatements(options, options.schema);
+    if (!statements.ok) {
+      return plannerFailure([statements.failure]);
+    }
+    const { schema } = statements.value;
     const { issues: rawIssues } = buildPostgresPlanDiff({
       contract: options.contract,
-      actualSchema: options.schema,
+      actualSchema: schema,
       frameworkComponents: options.frameworkComponents,
     });
     const policyDiffIssues = rawIssues.filter((issue) => isPolicyDiffIssue(issue));
@@ -274,7 +284,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     // sibling-space scoping, matching the retired coordinate walk exactly.
     const namespaceIssues = verifyPostgresNamespacePresence({
       contract: options.contract,
-      schema: options.schema,
+      schema,
     });
     const schemaIssues = [...namespaceIssues, ...gated];
 
@@ -299,7 +309,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     // per-schema namespace node — never the whole tree root, and never a flat
     // merge of every namespace (which would collide same-named tables across
     // schemas). Probing more than one namespace at once is future work.
-    const relationalSchema = relationalNamespaceNode(options.schema, schemaName);
+    const relationalSchema = relationalNamespaceNode(schema, schemaName);
 
     // Input-side control-policy partition. `external` / `observed` subjects
     // — and non-creation issues for `tolerated` subjects — are dropped from
@@ -392,7 +402,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       priorContract: options.fromContract,
       newContract: options.contract,
       codecHooks,
-      renames: [],
+      renames: statements.value.renames,
     });
     // Codec hook ops are target-agnostic `OpFactoryCall`; Postgres planning
     // lifts them at this integration boundary (see field-event-planner JSDoc).
@@ -406,6 +416,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     );
     const ordered = movePolicyDropsBeforeBlockedDdl(result.value.calls, schemaDiffPartition.kept);
     const calls = [
+      ...statements.value.calls,
       ...ordered.structural,
       ...indexRenamePartition.kept,
       ...ordered.policyCalls,
@@ -443,7 +454,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
         options.snapshotsImportPath,
         this.#lowerer,
       ),
-      appliedStatements: [],
+      appliedStatements: statements.value.appliedStatements,
       ...(warnings.length > 0 ? { warnings: Object.freeze(warnings) } : {}),
     });
   }
@@ -672,6 +683,39 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     }
 
     return { calls, conflicts, suppressions };
+  }
+
+  /**
+   * Plans the statements against a working copy of `schema`, in order, so each rename's companions
+   * are computed against the schema the earlier statements left. The diff then runs on that schema.
+   */
+  private planStatements(
+    options: SqlMigrationPlannerPlanOptions,
+    schema: PostgresDatabaseSchemaNode,
+  ): Result<
+    PlannedStatements<RenameTableCall> & { readonly schema: PostgresDatabaseSchemaNode },
+    SqlPlannerConflict
+  > {
+    const working = createWorkingSchema(schema);
+    const planned = planStatements({
+      statements: options.statements,
+      fromContract: options.fromContract,
+      contract: options.contract,
+      target: {
+        tables: () => postgresSchemaTables(working.current, options.contract),
+        renameCall: (rename) =>
+          postgresTableRenameCall({
+            previous: working.current,
+            contract: options.contract,
+            rename,
+            frameworkComponents: options.frameworkComponents,
+          }),
+        apply: (call) => working.apply(call),
+        operationCount: (call) => 1 + call.companions.length,
+      },
+    });
+    if (!planned.ok) return planned;
+    return ok({ ...planned.value, schema: working.current });
   }
 
   private ensureAdditivePolicy(policy: MigrationOperationPolicy) {
