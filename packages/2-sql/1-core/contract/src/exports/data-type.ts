@@ -9,7 +9,6 @@ export type {
   SqlTypeLookups,
   SqlTypeParams,
   SqlTypeText,
-  ToDatabaseText,
 } from '../sql-data-type';
 export {
   dataTypeParams,

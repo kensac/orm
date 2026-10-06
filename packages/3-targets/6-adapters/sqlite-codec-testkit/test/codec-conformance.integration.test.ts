@@ -24,15 +24,22 @@ import {
 import type { ProjectionExpr } from '@internal/sql-relational-core/ast';
 import { SqliteCodecDescriptor } from '@internal/target-sqlite/codec-descriptor';
 import { sqliteCodecDescriptorRegistry } from '@internal/target-sqlite/codecs';
-import { sqliteDatetime, sqliteDatetimeCanonical } from '@internal/target-sqlite/data-types';
+import { sqliteText } from '@internal/target-sqlite/data-types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ConformanceConnection } from '../src/index';
 import { runSqliteCodecProjection } from '../src/index';
 import { sqliteConformanceCases } from './codec-conformance/cases';
 
 const EXTENSION_DATETIME_CODEC_ID = 'sqlite-extension/datetime@1';
+const builtinDatetime = sqliteCodecDescriptorRegistry.descriptorFor('sqlite/datetime@1')!;
+function declared<T>(hook: T | undefined, name: string): T {
+  if (hook === undefined) throw new Error(`sqlite/datetime@1 declares ${name}`);
+  return hook;
+}
+const datetimeCanonicalForm = declared(builtinDatetime.toCanonicalForm, 'toCanonicalForm');
+const datetimeDatabaseText = declared(builtinDatetime.toDatabaseText, 'toDatabaseText');
 
-/** A codec of `sqlite/datetime` from outside the target, which writes `rowText` for a row. */
+/** A datetime codec of `sqlite/text` from outside the target, which writes `rowText` for a row. */
 class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
   constructor(private readonly rowText: (value: Date) => string) {
     super();
@@ -40,7 +47,9 @@ class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
   protected override jsonProjection(expression: ProjectionExpr): ProjectionExpr {
     return expression;
   }
-  override readonly dataType = sqliteDatetime.id;
+  override readonly dataType = sqliteText.id;
+  override readonly toCanonicalForm = datetimeCanonicalForm;
+  override readonly toDatabaseText = datetimeDatabaseText;
   override readonly codecId = EXTENSION_DATETIME_CODEC_ID;
   override readonly traits = ['equality'] as const;
   override readonly paramsSchema = undefined;
@@ -57,7 +66,7 @@ class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
           return new Date(wire);
         }
         encodeJson(value: Date): JsonValue {
-          return sqliteDatetimeCanonical(value.toISOString());
+          return builtinDatetime.factory(undefined)({ name: 'value' }).encodeJson(value);
         }
         decodeJson(json: JsonValue): Date {
           return new Date(decodeJsonString(EXTENSION_DATETIME_CODEC_ID, json));
@@ -138,7 +147,7 @@ describe('SQLite codec JSON-projection conformance', { concurrent: false }, () =
     expect(outcome.failure).toBeUndefined();
   });
 
-  it('fails a codec whose text for a row differs from the text its data type declares the database holds', async () => {
+  it('fails a codec whose text for a row differs from the text its descriptor declares the database holds', async () => {
     const outcome = await runSqliteCodecProjection(connection!, {
       codecId: EXTENSION_DATETIME_CODEC_ID,
       descriptor: new ExtensionDatetimeDescriptor((value) =>
@@ -152,11 +161,11 @@ describe('SQLite codec JSON-projection conformance', { concurrent: false }, () =
     expect(outcome.failure).toEqual({
       kind: 'database-text-mismatch',
       detail:
-        'the codec writes "2024-01-01T00:00:00Z" for a row, but its data type sqlite/datetime declares the database holds "2024-01-01T00:00:00.000Z"',
+        'the codec writes "2024-01-01T00:00:00Z" for a row, but its descriptor declares the database holds "2024-01-01T00:00:00.000Z"',
     });
   });
 
-  it('passes a codec of the type whose text for a row is the text its data type declares the database holds', async () => {
+  it('passes a codec whose text for a row is the text its descriptor declares the database holds', async () => {
     const outcome = await runSqliteCodecProjection(connection!, {
       codecId: EXTENSION_DATETIME_CODEC_ID,
       descriptor: new ExtensionDatetimeDescriptor((value) => value.toISOString()),

@@ -3,7 +3,7 @@ import {
   assertContractDefaultStorable,
   type CodecControlHooks,
 } from '@internal/family-sql/control';
-import type { DataType } from '@internal/framework-components/codec';
+import type { ToCanonicalForm } from '@internal/framework-components/codec';
 import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import type { DdlColumn } from '@internal/sql-relational-core/ast';
@@ -31,7 +31,7 @@ import { buildExpectedFormatType } from './planner-sql-checks';
  */
 function columnLike(
   column: SqlColumnIR,
-): Pick<StorageColumn, 'nativeType' | 'codecId' | 'nullable' | 'many' | 'typeParams' | 'default'> {
+): Pick<StorageColumn, 'codecId' | 'nullable' | 'many' | 'typeParams' | 'default'> {
   return {
     ...columnTypeLike(`column "${column.name}"`, column),
     nullable: column.nullable,
@@ -44,17 +44,16 @@ type ColumnCodecIdentity = Pick<SqlColumnIR, 'codecRef' | 'codecBaseNativeType' 
 function columnTypeLike(
   owner: string,
   identity: ColumnCodecIdentity,
-): Pick<StorageColumn, 'nativeType' | 'codecId' | 'many' | 'typeParams'> {
+): Pick<StorageColumn, 'codecId' | 'many' | 'typeParams'> {
   if (identity.codecRef === undefined || identity.codecBaseNativeType === undefined) {
     throw new InternalError(
       `columnTypeLike: expected ${owner} carries no codec identity — the expected tree must be derived via contractToSchemaIR for planning`,
     );
   }
   return {
-    nativeType: identity.codecBaseNativeType,
     codecId: identity.codecRef.codecId,
     // `column.many` is unset on contract-derived columns (array-ness rides
-    // on the `nativeType` `[]` suffix there instead) — `codecRef.many`
+    // on the type text's `[]` suffix there instead) — `codecRef.many`
     // carries it. Hand-built/introspected columns set `column.many` directly.
     many: (identity.many ?? identity.codecRef.many) ? { elementNullable: false } : false,
     ...ifDefined(
@@ -70,21 +69,21 @@ function columnTypeLike(
 }
 
 /**
- * A literal default in the canonical form of the column's data type, which DDL writes (ADR 254). A
- * default the type refuses, which a contract emitted by an earlier version can hold, is refused
+ * A literal default in the canonical form of the column's values, which DDL writes (ADR 254). A
+ * default the form refuses, which a contract emitted by an earlier version can hold, is refused
  * here rather than written, since the database would never hold the text the contract states.
  */
 function inCanonicalForm(
   columnName: string,
   columnDefault: ColumnDefault | undefined,
-  dataType: DataType | undefined,
+  toCanonicalForm: ToCanonicalForm | undefined,
   many: boolean,
 ): ColumnDefault | undefined {
   if (columnDefault?.kind !== 'literal') return columnDefault;
-  assertContractDefaultStorable(columnName, columnDefault, dataType?.toCanonicalForm, many);
+  assertContractDefaultStorable(columnName, columnDefault, toCanonicalForm, many);
   return {
     kind: 'literal',
-    value: defaultInCanonicalForm(columnDefault.value, dataType?.toCanonicalForm, many).value,
+    value: defaultInCanonicalForm(columnDefault.value, toCanonicalForm, many).value,
   };
 }
 
@@ -100,7 +99,7 @@ export function renderColumnDdl(
   const like = columnLike(column);
   const typeSql = buildColumnTypeSql(like, types);
   const ddlDefault = postgresDefaultToDdlColumnDefault(
-    inCanonicalForm(name, like.default, column.dataType, like.many !== false),
+    inCanonicalForm(name, like.default, column.toCanonicalForm, like.many !== false),
   );
   return contractFree.col(name, typeSql, {
     ...(!column.nullable ? { notNull: true } : {}),
@@ -150,7 +149,7 @@ export function buildSetDefaultColumn(
   if (authored === undefined) return undefined;
   const typeLike = columnTypeLike('column default', defaultNode);
   const ddlDefault = postgresDefaultToDdlColumnDefault(
-    inCanonicalForm(columnName, authored, defaultNode.dataType, typeLike.many !== false),
+    inCanonicalForm(columnName, authored, defaultNode.toCanonicalForm, typeLike.many !== false),
   );
   if (ddlDefault === undefined) return undefined;
   return contractFree.col(columnName, buildColumnTypeSql(typeLike, types, {}, false), {

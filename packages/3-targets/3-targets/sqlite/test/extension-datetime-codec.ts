@@ -8,7 +8,8 @@ import {
 } from '@internal/framework-components/codec';
 import type { ProjectionExpr } from '@internal/sql-relational-core/ast';
 import { SqliteCodecDescriptor } from '../src/core/codec-descriptor';
-import { sqliteDatetime, sqliteDatetimeCanonical } from '../src/core/data-types';
+import { sqliteDatetimeCanonical, sqliteDatetimeDescriptor } from '../src/core/codecs';
+import { sqliteText } from '../src/core/data-types';
 
 export const EXTENSION_DATETIME_CODEC_ID = 'sqlite-extension/datetime@1';
 
@@ -33,7 +34,7 @@ class ExtensionDatetimeCodec extends CodecImpl<string, readonly ['equality'], st
   }
 }
 
-/** A codec of `sqlite/datetime` from outside the target, which writes `rowText` for a row. */
+/** A datetime codec of `sqlite/text` from outside the target, which writes `rowText` for a row. */
 export class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
   constructor(private readonly rowText: (value: Date) => string) {
     super();
@@ -41,7 +42,9 @@ export class ExtensionDatetimeDescriptor extends SqliteCodecDescriptor<void> {
   protected override jsonProjection(expression: ProjectionExpr): ProjectionExpr {
     return expression;
   }
-  override readonly dataType = sqliteDatetime.id;
+  override readonly dataType = sqliteText.id;
+  override readonly toCanonicalForm = sqliteDatetimeDescriptor.toCanonicalForm;
+  override readonly toDatabaseText = sqliteDatetimeDescriptor.toDatabaseText;
   override readonly codecId = EXTENSION_DATETIME_CODEC_ID;
   override readonly traits = ['equality'] as const;
   override readonly paramsSchema = undefined;

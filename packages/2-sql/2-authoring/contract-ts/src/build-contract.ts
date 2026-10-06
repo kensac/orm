@@ -37,9 +37,11 @@ import {
   type Codec,
   type CodecLookupWithDescriptors,
   type ColumnTypeDescriptor,
+  canonicalFormOf,
   codecForRef,
   type DataType,
   type DataTypeLookup,
+  type ToCanonicalForm,
 } from '@internal/framework-components/codec';
 import { mergeCapabilityMatrices } from '@internal/framework-components/components';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -49,8 +51,6 @@ import {
   dataTypeParams,
   type SqlDataType,
   sqlDataTypeOfCodec,
-  unquotedSqlBaseName,
-  unquotedSqlBaseNameOfCodec,
   validateSqlTypeParams,
 } from '@internal/sql-contract/data-type';
 import { tableEntityKind, valueSetEntityKind } from '@internal/sql-contract/entity-kinds';
@@ -66,6 +66,7 @@ import {
   type IndexTypeRegistration,
 } from '@internal/sql-contract/index-types';
 import {
+  type AuthoredStorageTypeInstance,
   applyFkDefaults,
   CheckConstraint,
   Index,
@@ -236,24 +237,30 @@ function buildCodecForDefault(
   }
 }
 
-/** A default the codec wrote, in the canonical form of the column's data type (ADR 254), whatever form the codec writes. */
+/** The canonical form of a column's values: its codec's when the codec declares one, else its data type's. */
+interface ColumnCanonicalForm {
+  readonly dataType: string;
+  readonly toCanonicalForm: ToCanonicalForm | undefined;
+}
+
+/** A default the codec wrote, in the canonical form of the column's values (ADR 254), whatever form the codec writes. */
 function inCanonicalForm(
   value: JsonValue,
-  dataType: DataType,
+  form: ColumnCanonicalForm,
   site: ColumnDefaultSite,
   many: boolean,
 ): ColumnDefault {
-  const canonical = defaultInCanonicalForm(value, dataType.toCanonicalForm, many);
+  const canonical = defaultInCanonicalForm(value, form.toCanonicalForm, many);
   if (canonical.refusal !== undefined) {
     throw contractError(
       'CONTRACT.DEFAULT_INVALID',
-      `Field "${site.modelName}.${site.fieldName}" has a default that its data type ${dataType.id} does not hold: ${canonical.refusal}`,
+      `Field "${site.modelName}.${site.fieldName}" has a default that the canonical form of its values refuses: ${canonical.refusal}`,
       {
         meta: {
           modelName: site.modelName,
           fieldName: site.fieldName,
           codecId: site.codecId,
-          dataType: dataType.id,
+          dataType: form.dataType,
           reason: 'default-not-canonical',
         },
       },
@@ -267,7 +274,7 @@ function encodeColumnDefault(
   codecLookup: CodecLookupWithDescriptors,
   resolveCodec: (codecLookup: CodecLookupWithDescriptors) => Codec | undefined,
   site: ColumnDefaultSite,
-  dataType: DataType,
+  canonicalForm: ColumnCanonicalForm,
   many = false,
   elementNullable = false,
 ): ColumnDefault {
@@ -306,11 +313,11 @@ function encodeColumnDefault(
         'Literal default on a strict list column cannot contain null elements.',
       );
     });
-    return inCanonicalForm(elements, dataType, site, true);
+    return inCanonicalForm(elements, canonicalForm, site, true);
   }
   return inCanonicalForm(
     encodeDefaultValue(defaultInput.value, codecForDefault(codecLookup, resolveCodec, site), site),
-    dataType,
+    canonicalForm,
     site,
     false,
   );
@@ -961,11 +968,22 @@ interface TypeLookups {
   readonly dataTypeLookup: DataTypeLookup;
 }
 
+function columnCanonicalForm(
+  codecId: string,
+  dataType: DataType,
+  lookups: TypeLookups,
+): ToCanonicalForm | undefined {
+  const codec = lookups.codecLookup.descriptorFor(codecId);
+  return codec === undefined
+    ? dataType.toCanonicalForm
+    : canonicalFormOf(codec, lookups.dataTypeLookup);
+}
+
 function buildStorageColumn(
   field: FieldNode | ValueObjectFieldNode,
   enumRefs: EnumValueSetRefs | undefined,
   modelName: string,
-  storageTypes: Record<string, StorageTypeInstance>,
+  storageTypes: Record<string, AuthoredStorageTypeInstance>,
   lookups: TypeLookups,
 ): StorageColumn {
   const { codecLookup } = lookups;
@@ -986,7 +1004,10 @@ function buildStorageColumn(
           codecLookup,
           (lookup) => columnCodec(codecId, typeParams, lookup),
           { modelName, fieldName: field.fieldName, codecId },
-          dataType,
+          {
+            dataType: dataType.id,
+            toCanonicalForm: columnCanonicalForm(codecId, dataType, lookups),
+          },
           isListColumn,
           field.elementNullable === true,
         )
@@ -999,7 +1020,7 @@ function buildStorageColumn(
   const valueSet = enumRefs?.storage ?? descriptor.valueSet;
 
   return {
-    nativeType: unquotedSqlBaseName(dataType, dataTypeParams(dataType, typeParams)),
+    dataType: dataType.id,
     codecId,
     nullable: field.nullable,
     many: isListColumn ? { elementNullable: field.elementNullable === true } : false,
@@ -1034,7 +1055,7 @@ function enumValueSetRefs(
 function buildDomainField(
   field: ScalarMemberNode | ValueObjectMemberNode,
   defaultNamespaceId: string,
-  storageTypes: Record<string, StorageTypeInstance>,
+  storageTypes: Record<string, AuthoredStorageTypeInstance>,
 ): ContractField {
   if (isValueObjectMember(field)) {
     return {
@@ -1746,21 +1767,18 @@ export function buildSqlContractFromDefinition(
   // Normalise raw codec-triple inputs to the `kind: 'codec-instance'`
   // discriminator shape before hashing so the storageHash matches the
   // persisted JSON envelope produced from the SqlStorage class instance
-  // (which always carries the discriminator). Each entry's type name is its
-  // codec's data type's.
+  // (which always carries the discriminator). Each entry stores the data type
+  // its codec represents.
   const rawStorageTypes = definition.storageTypes ?? {};
   const documentTypes: Record<string, StorageTypeInstance> = Object.fromEntries(
-    Object.entries(rawStorageTypes).map(([name, entry]) => {
-      const typeParams = ('typeParams' in entry ? entry.typeParams : undefined) ?? {};
-      return [
-        name,
-        toStorageTypeInstance({
-          codecId: entry.codecId,
-          nativeType: unquotedSqlBaseNameOfCodec(entry.codecId, typeParams, lookups),
-          typeParams,
-        }),
-      ];
-    }),
+    Object.entries(rawStorageTypes).map(([name, entry]) => [
+      name,
+      toStorageTypeInstance({
+        codecId: entry.codecId,
+        dataType: sqlDataTypeOfCodec(entry.codecId, lookups).id,
+        typeParams: entry.typeParams,
+      }),
+    ]),
   );
   const namespaceCoordinateIds = collectStorageNamespaceCoordinateIds(definition);
 

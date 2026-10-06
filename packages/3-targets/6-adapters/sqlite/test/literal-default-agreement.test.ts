@@ -87,7 +87,7 @@ describe('a literal datetime default', () => {
         'event',
       );
       const fromPlanner = plannerDefault({
-        nativeType: 'text',
+        dataType: 'sqlite/text',
         codecId,
         nullable: false,
         many: false,

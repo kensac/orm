@@ -9,18 +9,19 @@
  */
 
 import type { JsonValue } from '@internal/contract/types';
+import type { ToDatabaseText } from '@internal/framework-components/codec';
 import {
   dataTypeParams,
   renderSqlTypeName,
   type SqlTypeLookups,
   sqlDataTypeOfCodec,
-  type ToDatabaseText,
 } from '@internal/sql-contract/data-type';
 import type {
   StorageColumn,
   StorageTable,
   StorageTypeInstance,
 } from '@internal/sql-contract/types';
+import { sqliteInteger } from '../data-types';
 import { sqliteError } from '../errors';
 import { escapeLiteral, quoteIdentifier } from '../sql-utils';
 
@@ -29,7 +30,7 @@ import { escapeLiteral, quoteIdentifier } from '../sql-utils';
  * codec is written with, in upper case. Resolves `typeRef` against `storageTypes`.
  */
 export function buildColumnTypeSql(
-  column: StorageColumn,
+  column: Pick<StorageColumn, 'codecId' | 'typeParams' | 'typeRef'>,
   types: SqlTypeLookups,
   storageTypes: Record<string, StorageTypeInstance> = {},
 ): string {
@@ -38,12 +39,32 @@ export function buildColumnTypeSql(
   return renderSqlTypeName(dataType, dataTypeParams(dataType, resolved.typeParams)).toUpperCase();
 }
 
+const DIGIT_TEXT = /^-?\d+$/;
+
 /**
- * A literal default in canonical form as SQL. A string, or each string element of a list, is
- * written as the text the database holds when its data type declares one: SQLite compares text
- * byte by byte, so a default must be the text every row holds.
+ * The column a literal default is written for: the data type its codec represents, and the text its
+ * codec declares the database holds for a canonical value.
  */
-export function renderDefaultLiteral(value: JsonValue, toDatabaseText?: ToDatabaseText): string {
+export interface DefaultLiteralColumn {
+  readonly dataType: string;
+  readonly toDatabaseText: ToDatabaseText | undefined;
+}
+
+/**
+ * A literal default in canonical form as SQL. An `integer` column stores digit text in the
+ * contract, which is written as the integer it names. A string, or each string element of a list,
+ * is written as the text the column's codec declares the database holds, when it declares one:
+ * SQLite compares text byte by byte, so a default must be the text every row holds.
+ */
+export function renderDefaultLiteral(value: JsonValue, column?: DefaultLiteralColumn): string {
+  if (
+    column?.dataType === sqliteInteger.id &&
+    typeof value === 'string' &&
+    DIGIT_TEXT.test(value)
+  ) {
+    return value;
+  }
+  const toDatabaseText = column?.toDatabaseText;
   if (typeof value === 'string') {
     return `'${escapeLiteral(toDatabaseText === undefined ? value : toDatabaseText(value))}'`;
   }
@@ -93,10 +114,10 @@ export function isInlineAutoincrementPrimaryKey(table: StorageTable, columnName:
   return column?.default?.kind === 'function' && column.default.expression === 'autoincrement()';
 }
 
-type ResolvedColumnTypeMetadata = Pick<StorageColumn, 'nativeType' | 'codecId' | 'typeParams'>;
+type ResolvedColumnTypeMetadata = Pick<StorageColumn, 'codecId' | 'typeParams'>;
 
 export function resolveColumnTypeMetadata(
-  column: StorageColumn,
+  column: Pick<StorageColumn, 'codecId' | 'typeParams' | 'typeRef'>,
   storageTypes: Record<string, StorageTypeInstance>,
 ): ResolvedColumnTypeMetadata {
   if (!column.typeRef) {
@@ -112,7 +133,6 @@ export function resolveColumnTypeMetadata(
   }
   return {
     codecId: referencedType.codecId,
-    nativeType: referencedType.nativeType,
     typeParams: referencedType.typeParams,
   };
 }

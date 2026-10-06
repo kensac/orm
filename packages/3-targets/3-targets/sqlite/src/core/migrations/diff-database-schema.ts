@@ -5,7 +5,7 @@ import type {
   ControlPolicy,
   JsonValue,
 } from '@internal/contract/types';
-import type { SqlSchemaDiffResult } from '@internal/family-sql/control';
+import type { DefaultRenderer, SqlSchemaDiffResult } from '@internal/family-sql/control';
 import { contractToSchemaIR, sqlTypeLookupsOf } from '@internal/family-sql/control';
 import { verifySqlSchemaByDiff } from '@internal/family-sql/diff';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -15,7 +15,7 @@ import type {
 } from '@internal/framework-components/control';
 import { diffSchemas } from '@internal/framework-components/control';
 import { entityAt } from '@internal/framework-components/ir';
-import type { SqlDataType, SqlTypeLookups } from '@internal/sql-contract/data-type';
+import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { SqlStorage, StorageColumn, StorageTable } from '@internal/sql-contract/types';
 import type {
   SqlColumnIRInput,
@@ -42,14 +42,15 @@ interface SqliteDiffDatabaseSchemaInput {
 }
 
 /**
- * Renders a column default for the SQLite dialect. A literal the column's data type holds is written
- * in canonical form, as the text the type declares the database holds. One the type refuses is
- * written as the contract has it, so the planner refuses it and verify explains it.
+ * Renders a column default for the SQLite dialect. A literal the column's canonical form holds is
+ * written in that form, as the text the column's codec declares the database holds. One the
+ * canonical form refuses is written as the contract has it, so the planner refuses it and verify
+ * explains it.
  */
 export function sqliteRenderDefault(
   def: ColumnDefault,
   column: StorageColumn,
-  dataType: SqlDataType,
+  type: Parameters<DefaultRenderer>[2],
 ): string {
   if (def.kind === 'function') {
     if (def.expression === 'now()') {
@@ -58,11 +59,11 @@ export function sqliteRenderDefault(
     return def.expression;
   }
   const many = column.many !== undefined && column.many !== false;
-  const canonical = defaultInCanonicalForm(def.value, dataType.toCanonicalForm, many);
-  return renderDefaultLiteral(
-    contractJson(canonical.value),
-    canonical.refusal === undefined ? dataType.sql.toDatabaseText : undefined,
-  );
+  const canonical = defaultInCanonicalForm(def.value, type.toCanonicalForm, many);
+  return renderDefaultLiteral(contractJson(canonical.value), {
+    dataType: type.dataType,
+    toDatabaseText: canonical.refusal === undefined ? type.toDatabaseText : undefined,
+  });
 }
 
 function contractJson(value: ColumnDefaultLiteralInputValue): JsonValue {
@@ -156,10 +157,8 @@ export function diffSqliteSchema(input: {
   readonly schema: SqlSchemaIRNode;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): SqlSchemaDiffResult {
-  const expected = sqliteContractToSchema(
-    input.contract,
-    sqlTypeLookupsOf(input.frameworkComponents),
-  );
+  const types = sqlTypeLookupsOf(input.frameworkComponents);
+  const expected = sqliteContractToSchema(input.contract, types);
   const actual =
     input.schema instanceof SqlSchemaIR
       ? input.schema
@@ -198,10 +197,8 @@ export function buildSqlitePlanDiff(input: {
   readonly actualSchema: SqlSchemaIRNode;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): SqlitePlanDiff {
-  const expected = sqliteContractToSchema(
-    input.contract,
-    sqlTypeLookupsOf(input.frameworkComponents),
-  );
+  const types = sqlTypeLookupsOf(input.frameworkComponents);
+  const expected = sqliteContractToSchema(input.contract, types);
   // The differ dispatches polymorphically (`.isEqualTo()` / `.children()`), so
   // the actual tree must be genuine `SqlSchemaIR`/`SqlTableIR`/`SqlColumnIR`
   // instances, not plain data shaped like them. `new SqlSchemaIR(...)`

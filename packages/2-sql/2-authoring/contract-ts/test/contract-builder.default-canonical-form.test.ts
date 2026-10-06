@@ -99,14 +99,14 @@ function buildWithDefault(
               many: false,
               fieldName: 'id',
               columnName: 'id',
-              descriptor: { codecId: 'test/int4@1', nativeType: 'int4' },
+              descriptor: { codecId: 'test/int4@1' },
               nullable: false,
             },
             {
               many: false,
               fieldName: 'at',
               columnName: 'at',
-              descriptor: { codecId: 'test/instant@1', nativeType: 'timestamptz' },
+              descriptor: { codecId: 'test/instant@1' },
               nullable: false,
               default: { kind: 'literal', value },
               ...(many ? { many: true, elementNullable: false } : {}),
@@ -157,7 +157,7 @@ describe('a literal default in a TypeScript contract', () => {
       expect.objectContaining({
         code: 'CONTRACT.DEFAULT_INVALID',
         message:
-          'Field "Event.at" has a default that its data type test/instant does not hold: "2024-01-01T00:00:00" has no UTC offset.',
+          'Field "Event.at" has a default that the canonical form of its values refuses: "2024-01-01T00:00:00" has no UTC offset.',
         meta: {
           modelName: 'Event',
           fieldName: 'at',
@@ -176,7 +176,7 @@ describe('a literal default in a TypeScript contract', () => {
       expect.objectContaining({
         code: 'CONTRACT.DEFAULT_INVALID',
         message:
-          'Field "Event.at" has a default that its data type test/instant does not hold: "2024-01-01T00:00:00" has no UTC offset.',
+          'Field "Event.at" has a default that the canonical form of its values refuses: "2024-01-01T00:00:00" has no UTC offset.',
         meta: {
           modelName: 'Event',
           fieldName: 'at',

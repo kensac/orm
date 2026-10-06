@@ -16,10 +16,10 @@
  * 2. `codec.decodeJson` turns the parsed value back into the application value
  *    the case started from.
  *
- * A codec whose data type declares the text the database holds (ADR 254) must
- * also write that text for a row: `codec.encode(value)` equals the type's
- * `toDatabaseText` of the canonical form of `codec.encodeJson(value)`, because
- * DDL writes a literal default as that text.
+ * A codec whose descriptor declares the text the database holds (ADR 254) must
+ * also write that text for a row: `codec.encode(value)` equals the descriptor's
+ * `toDatabaseText` of the canonical form of the projected value, because DDL
+ * writes a literal default as that text.
  *
  * Both conditions are measured against the codec's methods as they stand.
  * Conformance is therefore agreement with today's `encodeJson` / `decodeJson`,
@@ -52,10 +52,10 @@ import type { JsonValue } from '@internal/contract/types';
 import { UNBOUND_DOMAIN_NAMESPACE_ID } from '@internal/contract/types';
 import type { CodecRef } from '@internal/framework-components/codec';
 import {
+  canonicalFormOf,
   createDataTypeLookup,
   validateCodecTypeParams,
 } from '@internal/framework-components/codec';
-import { isSqlDataType } from '@internal/sql-contract/data-type';
 import { SqlStorage } from '@internal/sql-contract/types';
 import {
   ColumnRef,
@@ -96,7 +96,7 @@ export type ProjectionFailureKind =
   | 'decode-json-rejects'
   /** The parsed value agrees with `encodeJson` but does not carry the application value back. */
   | 'lossy-round-trip'
-  /** The codec writes other text for a row than the text its data type declares the database holds. */
+  /** The codec writes other text for a row than the text its descriptor declares the database holds. */
   | 'database-text-mismatch';
 
 export interface ProjectionFailure {
@@ -332,17 +332,16 @@ export async function runSqliteCodecProjection(
 
   const base = { sql, rawJson, projected, expected } as const;
 
-  const dataType = dataTypes.get(descriptor.dataType);
   let canonical: JsonValue;
   try {
-    const toCanonicalForm = dataType?.toCanonicalForm;
+    const toCanonicalForm = canonicalFormOf(descriptor, dataTypes);
     canonical = toCanonicalForm === undefined ? projected : toCanonicalForm(projected);
   } catch (error) {
     return {
       ...base,
       failure: {
         kind: 'mismatch',
-        detail: `the data type ${descriptor.dataType} refuses the projected ${JSON.stringify(projected)}: ${describeError(error)}`,
+        detail: `the canonical form of ${descriptor.codecId} refuses the projected ${JSON.stringify(projected)}: ${describeError(error)}`,
       },
     };
   }
@@ -379,16 +378,13 @@ export async function runSqliteCodecProjection(
     };
   }
 
-  const databaseText =
-    dataType !== undefined && isSqlDataType(dataType)
-      ? dataType.sql.toDatabaseText?.(canonical)
-      : undefined;
+  const databaseText = descriptor.toDatabaseText?.(canonical);
   if (databaseText !== undefined && wire !== databaseText) {
     return {
       ...base,
       failure: {
         kind: 'database-text-mismatch',
-        detail: `the codec writes ${JSON.stringify(wire)} for a row, but its data type ${descriptor.dataType} declares the database holds ${JSON.stringify(databaseText)}`,
+        detail: `the codec writes ${JSON.stringify(wire)} for a row, but its descriptor declares the database holds ${JSON.stringify(databaseText)}`,
       },
     };
   }

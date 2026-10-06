@@ -1,7 +1,6 @@
 import type { ColumnDefault, Contract } from '@internal/contract/types';
 import { sqlTypeLookupsOf } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
-import type { SqlDataType } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import { blindCast } from '@internal/utils/casts';
 import { postgresResolveDefault } from '../default-normalizer';
@@ -13,12 +12,12 @@ import { renderDefaultLiteral } from './planner-ddl-builders';
 export function postgresRenderDefault(
   def: ColumnDefault,
   column: StorageColumn,
-  dataType: SqlDataType,
+  type: { readonly dataType: string; readonly baseTypeName: string },
 ): string {
   if (def.kind === 'function') {
     return def.expression;
   }
-  return renderDefaultLiteral(def.value, { ...column, dataTypeId: dataType.id });
+  return renderDefaultLiteral(def.value, { many: column.many, ...type });
 }
 
 /**

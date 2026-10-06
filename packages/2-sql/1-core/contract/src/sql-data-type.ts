@@ -8,7 +8,6 @@
  * ADR 254.
  */
 
-import type { JsonValue } from '@internal/contract/types';
 import type {
   CodecLookupWithDescriptors,
   DataType,
@@ -48,9 +47,6 @@ export interface ReportedSqlType {
   readonly name: string | undefined;
 }
 
-/** A pure function from a value in canonical form to the text the database holds for it in a row. */
-export type ToDatabaseText = (value: JsonValue) => string;
-
 export interface SqlDataTypeSpec<Params extends SqlTypeParams = SqlTypeParams>
   extends DataTypeSpec {
   readonly params?: Type<Params>;
@@ -60,12 +56,6 @@ export interface SqlDataTypeSpec<Params extends SqlTypeParams = SqlTypeParams>
   readonly normalize?: (params: Params) => Params;
   readonly render?: (params: Params) => string;
   readonly fromReported?: (reported: ReportedSqlType) => Params;
-  /**
-   * The text the database holds in a row for a value in canonical form. A type declares it only
-   * where the database compares that text byte by byte and it differs from the canonical form, so
-   * that DDL writes a default as the text every row holds.
-   */
-  readonly toDatabaseText?: ToDatabaseText;
 }
 
 export interface SqlDataTypeFacts<Params extends SqlTypeParams = SqlTypeParams> {
@@ -74,7 +64,6 @@ export interface SqlDataTypeFacts<Params extends SqlTypeParams = SqlTypeParams> 
   readonly normalize: (params: Params) => Params;
   readonly render: ((params: Params) => string) | undefined;
   readonly fromReported: ((reported: ReportedSqlType) => Params) | undefined;
-  readonly toDatabaseText: ToDatabaseText | undefined;
 }
 
 export interface SqlDataType<Params extends SqlTypeParams = SqlTypeParams> extends DataType {
@@ -239,7 +228,6 @@ export function sqlDataType<Params extends SqlTypeParams = SqlTypeParams>(
       normalize: spec.normalize ?? identity,
       render: spec.render,
       fromReported: spec.fromReported,
-      toDatabaseText: spec.toDatabaseText,
     },
   };
   checkNormalFormsWritten(type);

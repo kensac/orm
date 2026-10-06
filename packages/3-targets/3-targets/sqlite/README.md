@@ -17,7 +17,7 @@ Provides the SQLite target descriptor for runtime use and pack refs for contract
 - **Runtime Target Descriptor**: Exports `SqlRuntimeTargetDescriptor<'sqlite'>` with codec registry and factory
 - **Pack Ref Export**: Exports `TargetPackRef<'sql', 'sqlite'>` for `defineContract().target(sqlitePack)` contract authoring
 - **Descriptor Metadata**: Defines target identity (`familyId: 'sql'`, `targetId: 'sqlite'`, `id: 'sqlite'`) and version
-- **Datetime canonical form**: `sqlite/datetime` declares its canonical form ([ADR 254](../../../../docs/architecture%20docs/adrs/ADR%20254%20-%20Data%20types%20and%20casts.md#date-and-time-types)) with `sqliteDatetimeCanonical` in `src/core/data-types.ts`. It also declares its database text there, `toDatabaseText`, the text every codec of the type writes for a row. DDL writes a datetime default as that text, so a default compares equal to an application-written value for the same instant.
+- **Datetime canonical form**: the codec `sqlite/datetime@1` declares its canonical form ([ADR 254](../../../../docs/architecture%20docs/adrs/ADR%20254%20-%20Data%20types%20and%20casts.md#date-and-time-types)) with `sqliteDatetimeCanonical` in `src/core/codecs.ts`, because its data type, `sqlite/text`, declares none. The codec also declares `toDatabaseText` on its descriptor, the text every row holds for an instant. DDL writes a datetime default as that text, so a default compares equal to an application-written value for the same instant.
 
 **Non-goals:**
 - Migration planner/runner (future milestone)

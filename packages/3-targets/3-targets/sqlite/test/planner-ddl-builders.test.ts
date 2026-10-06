@@ -13,7 +13,7 @@ import { sqliteTestTypes } from './sqlite-test-types';
 function makeColumn(overrides: Partial<StorageColumn> = {}): StorageColumn {
   return {
     many: false,
-    nativeType: 'text',
+    dataType: 'sqlite/text',
     nullable: true,
     codecId: 'sqlite/text@1',
     ...overrides,
@@ -48,7 +48,6 @@ describe('buildColumnTypeSql', () => {
 
   it('resolves typeRef against storageTypes', () => {
     const column = makeColumn({
-      nativeType: 'unused',
       codecId: 'unused/codec@1',
       typeRef: 'my_type',
     });
@@ -56,7 +55,7 @@ describe('buildColumnTypeSql', () => {
       my_type: {
         kind: 'codec-instance',
         codecId: 'sqlite/text@1',
-        nativeType: 'text',
+        dataType: 'sqlite/text',
         typeParams: {},
       },
     });
@@ -65,22 +64,41 @@ describe('buildColumnTypeSql', () => {
 });
 
 describe('renderDefaultLiteral', () => {
+  const textColumn = {
+    dataType: 'sqlite/text',
+    toDatabaseText: (value: JsonValue) => `${String(value)}#database`,
+  };
+
+  it('writes a string as the text its codec declares the database holds', () => {
+    expect(renderDefaultLiteral('a', textColumn)).toBe("'a#database'");
+  });
+
+  it('writes each string element of a list as the text its codec declares the database holds', () => {
+    expect(renderDefaultLiteral(['a', 'b'], textColumn)).toBe('\'["a#database","b#database"]\'');
+  });
+
+  it('writes a string as it is when its codec declares no database text', () => {
+    expect(renderDefaultLiteral('2024-01-01T00:00:00Z')).toBe("'2024-01-01T00:00:00Z'");
+  });
+
   it('renders JSON objects', () => {
     expect(renderDefaultLiteral({ key: 'val' })).toBe('\'{"key":"val"}\'');
   });
 
-  const databaseText = (value: JsonValue) => `${String(value)}#database`;
-
-  it('writes a string as the text its data type declares the database holds', () => {
-    expect(renderDefaultLiteral('a', databaseText)).toBe("'a#database'");
+  it.each([
+    ['digit text', '7', '7'],
+    ['negative digit text', '-42', '-42'],
+    ['digit text past the safe range', '9007199254740993', '9007199254740993'],
+  ])('renders an integer column’s %s as an integer', (_name, value, sql) => {
+    expect(
+      renderDefaultLiteral(value, { dataType: 'sqlite/integer', toDatabaseText: undefined }),
+    ).toBe(sql);
   });
 
-  it('writes each string element of a list as the text its data type declares the database holds', () => {
-    expect(renderDefaultLiteral(['a', 'b'], databaseText)).toBe('\'["a#database","b#database"]\'');
-  });
-
-  it('writes a string as it is when its data type declares no stored text', () => {
-    expect(renderDefaultLiteral('2024-01-01T00:00:00Z')).toBe("'2024-01-01T00:00:00Z'");
+  it('renders digit text on a text column as text', () => {
+    expect(renderDefaultLiteral('7', { dataType: 'sqlite/text', toDatabaseText: undefined })).toBe(
+      "'7'",
+    );
   });
 });
 
@@ -115,7 +133,8 @@ describe('isInlineAutoincrementPrimaryKey', () => {
     const table = makeTable({
       columns: {
         id: makeColumn({
-          nativeType: 'integer',
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
           nullable: false,
           default: { kind: 'function', expression: 'autoincrement()' },
         }),
@@ -128,9 +147,14 @@ describe('isInlineAutoincrementPrimaryKey', () => {
   it('is false when the column is not in the primary key', () => {
     const table = makeTable({
       columns: {
-        id: makeColumn({ nativeType: 'integer', nullable: false }),
+        id: makeColumn({
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
+          nullable: false,
+        }),
         seq: makeColumn({
-          nativeType: 'integer',
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
           nullable: false,
           default: { kind: 'function', expression: 'autoincrement()' },
         }),
@@ -144,11 +168,16 @@ describe('isInlineAutoincrementPrimaryKey', () => {
     const table = makeTable({
       columns: {
         a: makeColumn({
-          nativeType: 'integer',
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
           nullable: false,
           default: { kind: 'function', expression: 'autoincrement()' },
         }),
-        b: makeColumn({ nativeType: 'integer', nullable: false }),
+        b: makeColumn({
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
+          nullable: false,
+        }),
       },
       primaryKey: { columns: ['a', 'b'] },
     });
@@ -158,7 +187,11 @@ describe('isInlineAutoincrementPrimaryKey', () => {
   it('is false when default is not autoincrement()', () => {
     const table = makeTable({
       columns: {
-        id: makeColumn({ nativeType: 'integer', nullable: false }),
+        id: makeColumn({
+          dataType: 'sqlite/integer',
+          codecId: 'sqlite/integer@1',
+          nullable: false,
+        }),
       },
       primaryKey: { columns: ['id'] },
     });
