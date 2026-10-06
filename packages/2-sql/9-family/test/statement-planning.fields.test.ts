@@ -180,6 +180,25 @@ describe('planStatements, field renames', () => {
     ).toEqual(['column app.User.name -> Name']);
   });
 
+  it('rejects a rename on a table the destination stores the model in under another name', () => {
+    const statement = renameField('User', 'name', 'fullName');
+    const conflict = rejection(
+      planStatements({
+        policy: ALL_CLASSES,
+        statements: [statement],
+        fromContract: contractOf({ User: { table: 'users', fields: { name: 'name' } } }),
+        contract: contractOf({ User: { table: 'app_users', fields: { fullName: 'fullName' } } }),
+        target: fakeTarget(['app.users'], { 'app.users': ['name'] }),
+      }),
+    );
+    expect(conflict).toMatchObject({
+      kind: 'statementRejected',
+      statement,
+      summary:
+        'Cannot rename column "users"."name": the model\'s table changes from "users" to "app_users", and no statement renames the table',
+    });
+  });
+
   it('rejects a field that has a column on one side only', () => {
     const before = contractOf({ User: { table: 'User', fields: { posts: null } } });
     const after = contractOf({ User: { table: 'User', fields: { title: 'title' } } });

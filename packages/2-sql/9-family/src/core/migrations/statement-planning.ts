@@ -364,6 +364,21 @@ class StatementPlanner<TCall> {
       );
     }
     const table = this.#renamedTables.get(tableKey(effect.table)) ?? effect.table.table;
+    const destinationTable = modelTable(this.#contract, statement.to);
+    if (
+      destinationTable !== undefined &&
+      (destinationTable.namespaceId !== effect.table.namespaceId ||
+        destinationTable.table !== table)
+    ) {
+      return notOk(
+        rejected(
+          statement,
+          `Cannot rename column "${table}"."${effect.from}": the model's table changes from "${table}" to "${destinationTable.table}", and no statement renames the table`,
+          'The column would be renamed on a table the plan then drops and creates under the new name. Make the change of table name and the field rename two separate migrations.',
+          { namespaceId: effect.table.namespaceId, table, column: effect.from },
+        ),
+      );
+    }
     const rename: ResolvedColumnRename = {
       namespaceId: effect.table.namespaceId,
       table,
