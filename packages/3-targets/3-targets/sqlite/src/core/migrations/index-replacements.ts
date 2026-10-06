@@ -2,6 +2,7 @@ import type { SchemaDiffIssue } from '@internal/framework-components/control';
 import { issueOutcome } from '@internal/framework-components/control';
 import { parseWireName } from '@internal/sql-schema-ir/naming';
 import { SqlIndexIR } from '@internal/sql-schema-ir/types';
+import { isArrayEqual } from '@internal/utils/array-equal';
 import { sqliteIdentifiersCollide } from './identifier-case';
 import { issueNode } from './issue-planner';
 import {
@@ -48,6 +49,22 @@ export function renamedTableIndex(renamedTables: ReadonlySet<string>): IndexRepl
       old.index.name !== replacement.index.name
     );
   };
+}
+
+/**
+ * An index on the renamed column whose wire name derives from the column name: after the rename
+ * the old and the new index cover the same columns on the same table and differ in name.
+ */
+export function renamedColumnIndex(table: string, column: string): IndexReplacementMatch {
+  return (old, replacement) =>
+    old.tableName === table &&
+    replacement.tableName === table &&
+    old.index.name !== replacement.index.name &&
+    old.index.expression === undefined &&
+    old.index.where === undefined &&
+    (old.index.columns ?? []).includes(column) &&
+    old.index.unique === replacement.index.unique &&
+    isArrayEqual(old.index.columns ?? [], replacement.index.columns ?? []);
 }
 
 /**

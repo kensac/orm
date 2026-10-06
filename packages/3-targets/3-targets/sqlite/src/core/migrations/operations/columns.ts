@@ -80,3 +80,63 @@ export async function dropColumn(
     ],
   };
 }
+
+export function renameColumnExecuteSql(
+  tableName: string,
+  fromName: string,
+  toName: string,
+): string {
+  return `ALTER TABLE ${quoteIdentifier(tableName)} RENAME COLUMN ${quoteIdentifier(fromName)} TO ${quoteIdentifier(toName)}`;
+}
+
+/**
+ * Renames a column. SQLite updates the indexes, foreign keys and triggers that name it, and keeps
+ * index names. Column name checks compare exactly, so a rename that only changes case needs no
+ * temporary name.
+ */
+export async function renameColumn(
+  tableName: string,
+  fromName: string,
+  toName: string,
+  lowerer: ExecuteRequestLowerer,
+): Promise<Op> {
+  const fromChecks = columnExistsAst(tableName, fromName);
+  const toChecks = columnExistsAst(tableName, toName);
+  const fromPresent = await lowerer.lowerToExecuteRequest(fromChecks.columnPresent());
+  const toAbsent = await lowerer.lowerToExecuteRequest(toChecks.columnAbsent());
+  const toPresent = await lowerer.lowerToExecuteRequest(toChecks.columnPresent());
+  const fromAbsent = await lowerer.lowerToExecuteRequest(fromChecks.columnAbsent());
+  return {
+    id: `renameColumn.${tableName}.${fromName}`,
+    label: `Rename column ${fromName} on ${tableName} to ${toName}`,
+    summary: `Renames column ${fromName} on ${tableName} to ${toName}, keeping its values`,
+    operationClass: 'widening',
+    target: { id: 'sqlite', details: buildTargetDetails('column', toName, tableName) },
+    precheck: [
+      step(
+        `ensure column "${fromName}" exists on "${tableName}"`,
+        fromPresent.sql,
+        fromPresent.params,
+      ),
+      step(
+        `ensure column "${toName}" does not exist on "${tableName}"`,
+        toAbsent.sql,
+        toAbsent.params,
+      ),
+    ],
+    execute: [
+      step(
+        `rename column "${fromName}" on "${tableName}" to "${toName}"`,
+        renameColumnExecuteSql(tableName, fromName, toName),
+      ),
+    ],
+    postcheck: [
+      step(`verify column "${toName}" exists on "${tableName}"`, toPresent.sql, toPresent.params),
+      step(
+        `verify column "${fromName}" no longer exists on "${tableName}"`,
+        fromAbsent.sql,
+        fromAbsent.params,
+      ),
+    ],
+  };
+}

@@ -1,13 +1,13 @@
 import type { Contract } from '@internal/contract/types';
-import type { ResolvedTableRename } from '@internal/family-sql/control';
+import type { ResolvedColumnRename, ResolvedTableRename } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { buildSqlitePlanDiff } from './diff-database-schema';
-import { pairIndexReplacements, renamedTableIndex } from './index-replacements';
+import { pairIndexReplacements, renamedColumnIndex, renamedTableIndex } from './index-replacements';
 import { coalesceSubtreeIssues } from './issue-planner';
-import { RenameTableCall } from './op-factory-call';
-import { renameTableInSqliteSchema } from './working-schema';
+import { RenameColumnCall, RenameTableCall } from './op-factory-call';
+import { renameColumnInSqliteSchema, renameTableInSqliteSchema } from './working-schema';
 
 /**
  * The call that renames a table, carrying as companions a drop and a create under the new name of
@@ -33,4 +33,29 @@ export function sqliteTableRenameCall(input: {
     renamedTableIndex(new Set([to])),
   );
   return new RenameTableCall(from, to, replacements);
+}
+
+/**
+ * The call that renames a column, carrying as companions a drop and a create under the new name of
+ * each index on the column whose wire name derives from the column name, since SQLite cannot rename
+ * an index and keeps the old name when it renames the column. `previous` is the schema with the
+ * column under its old name; the renamed copy is diffed against `contract`.
+ */
+export function sqliteColumnRenameCall(input: {
+  readonly previous: SqlSchemaIR;
+  readonly contract: Contract<SqlStorage>;
+  readonly rename: ResolvedColumnRename;
+  readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
+}): RenameColumnCall {
+  const { table, from, to } = input.rename;
+  const { issues } = buildSqlitePlanDiff({
+    contract: input.contract,
+    actualSchema: renameColumnInSqliteSchema(input.previous, { table, from, to }),
+    frameworkComponents: input.frameworkComponents,
+  });
+  const { replacements } = pairIndexReplacements(
+    coalesceSubtreeIssues(issues),
+    renamedColumnIndex(table, to),
+  );
+  return new RenameColumnCall(table, from, to, replacements);
 }

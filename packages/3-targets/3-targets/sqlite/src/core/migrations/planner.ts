@@ -40,7 +40,7 @@ import {
   issueNode,
   planIssues,
 } from './issue-planner';
-import { RenameTableCall } from './op-factory-call';
+import { type RenameColumnCall, RenameTableCall } from './op-factory-call';
 import { renameTableSteps } from './operations/tables';
 import {
   type SqliteMigrationDestinationInfo,
@@ -49,7 +49,7 @@ import {
 import { sqlitePlannerStrategies } from './planner-strategies';
 import type { SqlitePlanTargetDetails } from './planner-target-details';
 import { sqliteSchemaTables } from './schema-tables';
-import { sqliteTableRenameCall } from './table-rename-calls';
+import { sqliteColumnRenameCall, sqliteTableRenameCall } from './table-rename-calls';
 import { createWorkingSchema } from './working-schema';
 
 export function createSqliteMigrationPlanner(
@@ -212,6 +212,7 @@ export class SqliteMigrationPlanner
       newContract: options.contract,
       codecHooks,
       renames: statements.value.renames,
+      columnRenames: statements.value.columnRenames,
     });
     // Codec-emitted calls already conform to `OpFactoryCall` — render +
     // toOp + importRequirements ride directly through the same emit path
@@ -255,11 +256,11 @@ export class SqliteMigrationPlanner
   private planStatements(
     options: SqlMigrationPlannerPlanOptions,
   ): Result<
-    PlannedStatements<RenameTableCall> & { readonly schema: SqlSchemaIR },
+    PlannedStatements<RenameTableCall | RenameColumnCall> & { readonly schema: SqlSchemaIR },
     SqlPlannerConflict
   > {
     const working = createWorkingSchema(sqliteActualSchema(options.schema));
-    const planned = planStatements({
+    const planned = planStatements<RenameTableCall | RenameColumnCall>({
       statements: options.statements,
       fromContract: options.fromContract,
       contract: options.contract,
@@ -268,6 +269,13 @@ export class SqliteMigrationPlanner
         tables: () => sqliteSchemaTables(working.current),
         renameCall: (rename) =>
           sqliteTableRenameCall({
+            previous: working.current,
+            contract: options.contract,
+            rename,
+            frameworkComponents: options.frameworkComponents,
+          }),
+        renameColumnCall: (rename) =>
+          sqliteColumnRenameCall({
             previous: working.current,
             contract: options.contract,
             rename,

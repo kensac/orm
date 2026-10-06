@@ -4,6 +4,7 @@ import {
   PrimaryKey,
   RelationalSchemaNodeKind,
   SqlCheckConstraintIR,
+  SqlColumnIR,
   SqlForeignKeyIR,
   SqlIndexIR,
   SqlSchemaIR,
@@ -11,7 +12,7 @@ import {
   SqlUniqueIR,
 } from '@internal/sql-schema-ir/types';
 import { ifDefined } from '@internal/utils/defined';
-import type { IndexReplacement, RenameTableCall } from './op-factory-call';
+import { type IndexReplacement, RenameColumnCall, type RenameTableCall } from './op-factory-call';
 
 export interface SqliteTableRename {
   readonly from: string;
@@ -45,7 +46,37 @@ function stepRewrite(tableName: string, kind: string, fromId: string, toId: stri
   };
 }
 
-function withIndex(index: SqlIndexIR, name: string, rewrite: RefRewrite): SqlIndexIR {
+type ColumnMap = (column: string) => string;
+
+function withColumnName(column: SqlColumnIR, name: string): SqlColumnIR {
+  return new SqlColumnIR({
+    name,
+    nativeType: column.nativeType,
+    nullable: column.nullable,
+    ...ifDefined('default', column.default),
+    ...ifDefined('annotations', column.annotations),
+    ...ifDefined('many', column.many),
+    ...ifDefined('resolvedNativeType', column.resolvedNativeType),
+    ...ifDefined('resolvedDefault', column.resolvedDefault),
+    ...ifDefined('authoredDefault', column.authoredDefault),
+    ...ifDefined('codecRef', column.codecRef),
+    ...ifDefined('codecBaseNativeType', column.codecBaseNativeType),
+    ...ifDefined('codecNamedType', column.codecNamedType),
+    ...ifDefined('dataType', column.dataType),
+  });
+}
+
+/**
+ * An index whose definition carries SQL text, an expression or a predicate, keeps its columns as
+ * they are: a column named inside the text cannot be renamed here, so the diff plans the index.
+ */
+function withIndex(
+  index: SqlIndexIR,
+  name: string,
+  rewrite: RefRewrite,
+  columnName: ColumnMap,
+): SqlIndexIR {
+  const columnsFollow = index.expression === undefined && index.where === undefined;
   const base = {
     naming: name === index.name ? namingOf(index.name, index.prefix) : namingOfLiveName(name),
     where: index.where,
@@ -59,28 +90,39 @@ function withIndex(index: SqlIndexIR, name: string, rewrite: RefRewrite): SqlInd
   return new SqlIndexIR(
     index.expression !== undefined
       ? { ...base, expression: index.expression }
-      : { ...base, columns: index.columns ?? [] },
+      : { ...base, columns: (index.columns ?? []).map(columnsFollow ? columnName : (c) => c) },
   );
 }
 
-/** How one table is rebuilt: its name, where its foreign keys point, and its index names. */
+/**
+ * How one table is rebuilt: its name and its columns' names, where its foreign keys point, and its
+ * index names.
+ */
 interface TableEdit {
   readonly name: string;
+  readonly columnName: ColumnMap;
   readonly referencedTable: (fk: SqlForeignKeyIR) => string;
+  readonly referencedColumns: (fk: SqlForeignKeyIR) => readonly string[];
   readonly indexName: (index: SqlIndexIR) => string;
 }
 
 function rebuildTable(table: SqlTableIR, edit: TableEdit, rewrite: RefRewrite): SqlTableIR {
   const { primaryKey } = table;
+  const { columnName } = edit;
   return new SqlTableIR({
     name: edit.name,
-    columns: table.columns,
+    columns: Object.fromEntries(
+      Object.values(table.columns).map((column) => {
+        const name = columnName(column.name);
+        return [name, name === column.name ? column : withColumnName(column, name)];
+      }),
+    ),
     ...ifDefined(
       'primaryKey',
       primaryKey === undefined
         ? undefined
         : new PrimaryKey({
-            columns: primaryKey.columns,
+            columns: primaryKey.columns.map(columnName),
             ...ifDefined('name', primaryKey.name),
             ...ifDefined('dependsOn', rewriteRefs(primaryKey.dependsOn, rewrite)),
           }),
@@ -88,7 +130,7 @@ function rebuildTable(table: SqlTableIR, edit: TableEdit, rewrite: RefRewrite): 
     uniques: table.uniques.map(
       (unique) =>
         new SqlUniqueIR({
-          columns: unique.columns,
+          columns: unique.columns.map(columnName),
           ...ifDefined('name', unique.name),
           ...ifDefined('annotations', unique.annotations),
           ...ifDefined('dependsOn', rewriteRefs(unique.dependsOn, rewrite)),
@@ -97,9 +139,9 @@ function rebuildTable(table: SqlTableIR, edit: TableEdit, rewrite: RefRewrite): 
     foreignKeys: table.foreignKeys.map(
       (fk) =>
         new SqlForeignKeyIR({
-          columns: fk.columns,
+          columns: fk.columns.map(columnName),
           referencedTable: edit.referencedTable(fk),
-          referencedColumns: fk.referencedColumns,
+          referencedColumns: edit.referencedColumns(fk),
           ...ifDefined('referencedSchema', fk.referencedSchema),
           ...ifDefined('name', fk.name),
           ...ifDefined('onDelete', fk.onDelete),
@@ -109,7 +151,9 @@ function rebuildTable(table: SqlTableIR, edit: TableEdit, rewrite: RefRewrite): 
           ...ifDefined('dependsOn', rewriteRefs(fk.dependsOn, rewrite)),
         }),
     ),
-    indexes: table.indexes.map((index) => withIndex(index, edit.indexName(index), rewrite)),
+    indexes: table.indexes.map((index) =>
+      withIndex(index, edit.indexName(index), rewrite, columnName),
+    ),
     ...ifDefined(
       'checks',
       table.checks?.map(
@@ -138,7 +182,9 @@ function mapTables(
           table,
           {
             name: table.name,
+            columnName: (column) => column,
             referencedTable: (fk) => fk.referencedTable,
+            referencedColumns: (fk) => fk.referencedColumns,
             indexName: (index) => index.name,
             ...editFor(table),
           },
@@ -170,6 +216,37 @@ export function renameTableInSqliteSchema(
   }));
 }
 
+export interface SqliteColumnRename {
+  readonly table: string;
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * The schema with one column under its new name. The table's primary key, unique constraints,
+ * foreign keys and plain column indexes name it under the new name, foreign keys anywhere that
+ * reference it follow it, and every dependency that names it moves with it. An index with an
+ * expression or a predicate keeps its SQL text, and index names do not change, as in SQLite.
+ */
+export function renameColumnInSqliteSchema(
+  schema: SqlSchemaIR,
+  rename: SqliteColumnRename,
+): SqlSchemaIR {
+  const { table: tableName, from, to } = rename;
+  const rewrite = stepRewrite(
+    tableName,
+    RelationalSchemaNodeKind.column,
+    `column:${from}`,
+    `column:${to}`,
+  );
+  const renamed = (column: string) => (column === from ? to : column);
+  return mapTables(schema, rewrite, (table) => ({
+    ...(table.name === tableName ? { columnName: renamed } : {}),
+    referencedColumns: (fk) =>
+      fk.referencedTable === tableName ? fk.referencedColumns.map(renamed) : fk.referencedColumns,
+  }));
+}
+
 function replaceIndex(schema: SqlSchemaIR, replacement: IndexReplacement): SqlSchemaIR {
   const { tableName, indexName: oldIndexName } = replacement.drop;
   const newIndexName = replacement.create.indexName;
@@ -194,7 +271,7 @@ function replaceIndex(schema: SqlSchemaIR, replacement: IndexReplacement): SqlSc
  */
 export interface WorkingSchema {
   readonly current: SqlSchemaIR;
-  apply(call: RenameTableCall): void;
+  apply(call: RenameTableCall | RenameColumnCall): void;
 }
 
 /** The working schema of a plan or a migration, starting from `initial`. */
@@ -213,11 +290,18 @@ class WorkingSchemaImpl implements WorkingSchema {
     return this.#current;
   }
 
-  apply(call: RenameTableCall): void {
-    const renamed = renameTableInSqliteSchema(this.#current, {
-      from: call.oldTableName,
-      to: call.tableName,
-    });
+  apply(call: RenameTableCall | RenameColumnCall): void {
+    const renamed =
+      call instanceof RenameColumnCall
+        ? renameColumnInSqliteSchema(this.#current, {
+            table: call.tableName,
+            from: call.oldColumnName,
+            to: call.columnName,
+          })
+        : renameTableInSqliteSchema(this.#current, {
+            from: call.oldTableName,
+            to: call.tableName,
+          });
     this.#current = call.indexReplacements.reduce(replaceIndex, renamed);
   }
 }

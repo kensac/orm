@@ -35,7 +35,7 @@ import { columnExistsAst, indexExistsAst, tableExistsAst } from '../../contract-
 import * as contractFreeDdl from '../../contract-free/ddl';
 import { sqliteError } from '../errors';
 import { quoteIdentifier } from '../sql-utils';
-import { addColumn, dropColumnExecuteSql } from './operations/columns';
+import { addColumn, dropColumnExecuteSql, renameColumn } from './operations/columns';
 import type { SqliteColumnSpec, SqliteIndexSpec, SqliteTableSpec } from './operations/shared';
 import { step } from './operations/shared';
 import {
@@ -380,6 +380,63 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
 
   renderTypeScript(): string {
     return `...this.renameTable({ table: ${jsonToTsSource(this.oldTableName)}, to: ${jsonToTsSource(this.tableName)} })`;
+  }
+
+  override importRequirements(): readonly ImportRequirement[] {
+    return [];
+  }
+}
+
+export class RenameColumnCall extends SqliteOpFactoryCallNode {
+  readonly factoryName = 'renameColumn' as const;
+  // `widening` for the same reason as `RenameTableCall`.
+  readonly operationClass = 'widening' as const;
+  readonly tableName: string;
+  readonly oldColumnName: string;
+  /** The new name: the column's contract-side identity after the rename. */
+  readonly columnName: string;
+  readonly label: string;
+  /** The indexes on the column whose wire names change, which SQLite cannot rename. */
+  readonly indexReplacements: readonly IndexReplacement[];
+  /**
+   * The replacements' drops, then their creates. They run after the column rename and are never
+   * rendered on their own.
+   */
+  readonly companions: readonly (DropIndexCall | CreateIndexCall)[];
+
+  constructor(
+    tableName: string,
+    oldColumnName: string,
+    columnName: string,
+    indexReplacements: readonly IndexReplacement[],
+  ) {
+    super();
+    this.tableName = tableName;
+    this.oldColumnName = oldColumnName;
+    this.columnName = columnName;
+    this.label = `Rename column ${oldColumnName} on ${tableName} to ${columnName}`;
+    this.indexReplacements = Object.freeze([...indexReplacements]);
+    this.companions = Object.freeze(indexReplacementCalls(indexReplacements));
+    this.freeze();
+  }
+
+  toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
+    return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
+  }
+
+  async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {
+    if (lowerer === undefined) {
+      throw sqliteError(
+        'MIGRATION.SQLITE_CONTROL_STACK_MISSING',
+        `RenameColumnCall.toOp: a lowerer is required on the SQLite planner path (column "${this.oldColumnName}" on table "${this.tableName}"). Pass the control adapter to createSqliteMigrationPlanner.`,
+        { meta: { factory: this.factoryName, tableName: this.tableName } },
+      );
+    }
+    return renameColumn(this.tableName, this.oldColumnName, this.columnName, lowerer);
+  }
+
+  renderTypeScript(): string {
+    return `...this.renameColumn({ table: ${jsonToTsSource(this.tableName)}, column: ${jsonToTsSource(this.oldColumnName)}, to: ${jsonToTsSource(this.columnName)} })`;
   }
 
   override importRequirements(): readonly ImportRequirement[] {
@@ -797,6 +854,7 @@ export type SqliteOpFactoryCall =
   | DropTableCall
   | RecreateTableCall
   | RenameTableCall
+  | RenameColumnCall
   | AddColumnCall
   | DropColumnCall
   | CreateIndexCall
