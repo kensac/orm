@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalizeTaggedLiteralBody,
   describeTaggedLiteralFailure,
+  printedTaggedLiteralReadsBack,
   printTaggedLiteral,
   resolvePslBacktickEscapes,
   resolveTemplateTagEscapes,
   TAGGED_LITERAL_MAX_BYTES,
-  taggedLiteralTextReadsBack,
 } from '../src/shared/tagged-literal';
 
 const MAX_BYTES = 65536;
@@ -171,14 +171,16 @@ describe('printTaggedLiteral', () => {
   });
 });
 
-describe('taggedLiteralTextReadsBack', () => {
+describe('printedTaggedLiteralReadsBack', () => {
   it.each([
     ['single-line', 'md5(random()::text)'],
     ['multi-line', "(now()\n  + '1 day'::interval)"],
     ['a backtick', 'a `b`'],
     ['an empty line first', '\nselect 1'],
+    ['a backslash', 'a\\b'],
+    ['a dollar-brace sequence', 'a $' + '{x} b'],
   ])('holds for %s text', (_name, text) => {
-    expect(taggedLiteralTextReadsBack(text)).toBe(true);
+    expect(printedTaggedLiteralReadsBack(text)).toBe(true);
   });
 
   it.each([
@@ -188,6 +190,6 @@ describe('taggedLiteralTextReadsBack', () => {
     ['a NUL character', 'a\0b'],
     ['leading indentation in the double-quote form', '  a `b`'],
   ])('fails for text with %s, which the literal canonicalizes away', (_name, text) => {
-    expect(taggedLiteralTextReadsBack(text)).toBe(false);
+    expect(printedTaggedLiteralReadsBack(text)).toBe(false);
   });
 });

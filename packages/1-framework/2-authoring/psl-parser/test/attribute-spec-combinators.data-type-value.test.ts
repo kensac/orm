@@ -239,7 +239,7 @@ describe('dataTypeValue', () => {
     ['an object', '{ a: 1 }'],
   ])('refuses %s as invalid syntax', (found, source) => {
     expect(parse(sqlExpression.id, source)).toEqual(
-      refusal(source, 'PSL_INVALID_ATTRIBUTE_SYNTAX', `Expected sql\`...\`, got ${found}`),
+      refusal(source, 'PSL_INVALID_ATTRIBUTE_SYNTAX', `Expected sql\`...\`; got ${found}`),
     );
   });
 
@@ -256,7 +256,7 @@ describe('dataTypeValue', () => {
       notOk([
         {
           code: 'PSL_INVALID_ATTRIBUTE_SYNTAX',
-          message: 'Expected sql`...`, got an expression',
+          message: 'Expected sql`...`; got an expression',
           filename: 'schema.prisma',
           range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
         },
@@ -384,6 +384,32 @@ describe('dataTypeValue', () => {
       ),
     );
     expect(() => type.parse(expr, ctx)).toThrow(InternalError);
+  });
+
+  it('throws an internal error when parsing for a registered type that nothing writes', () => {
+    const pgBlob = dataType('pg/blob', {});
+    const withBlob: DataTypeSupport = { entries, lookup: createDataTypeLookup([pgBlob]) };
+    const { expr, ctx } = argOf('"x"');
+    expect(() => dataTypeValue(pgBlob.id, withBlob).parse(expr, ctx)).toThrow(
+      new InternalError(
+        'An argument receives data type "pg/blob", which nothing in this stack writes.',
+      ),
+    );
+  });
+
+  it.each([
+    ['a single-line string', '"(archived_at IS NULL)"', '(archived_at IS NULL)'],
+    ['a string holding a backtick', '"a `b`"', 'a `b`'],
+    ['a string holding a backslash', '"a\\\\b"', 'a\\b'],
+    ['a multi-line string', '"(now()\\n  + 1)"', '(now()\n  + 1)'],
+  ])('offers a rewrite of %s that parses back as the same text', (_name, source, text) => {
+    const refused = parse(sqlExpression.id, source);
+    const message = refused.ok ? '' : (refused.failure[0]?.message ?? '');
+    const [, rewrite] = message.split('; write ');
+    expect(rewrite).toBeDefined();
+    expect(parse(sqlExpression.id, rewrite ?? '')).toMatchObject(
+      ok({ type: 'sql/expression', value: text }),
+    );
   });
 
   describe('as a parameter of a function call that is an arm of oneOf', () => {

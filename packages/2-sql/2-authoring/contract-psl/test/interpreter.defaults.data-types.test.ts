@@ -1,7 +1,14 @@
+import { createDataTypeLookup, dataType } from '@internal/framework-components/codec';
 import { InternalError } from '@internal/utils/internal-error';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
-import { fixtureDataTypeSupport } from './fixture-data-types';
+import {
+  fixtureDataTypeSupport,
+  fixtureDataTypes,
+  pgInt2,
+  pgInt4,
+  pgvectorVector,
+} from './fixture-data-types';
 import {
   createBuiltinLikeControlMutationDefaults,
   interpretSqlContract,
@@ -23,12 +30,13 @@ function interpret(
   schema: string,
   codecLookup = postgresCodecLookup,
   dataTypes = fixtureDataTypeSupport.entries,
+  lookup = fixtureDataTypeSupport.lookup,
 ) {
   return interpretSqlContract(schema, {
     target: postgresTarget,
     scalarColumnDescriptors: postgresNativeScalarTypeDescriptors,
     authoringContributions: pgvectorAuthoringContributions,
-    dataTypes: { entries: dataTypes, lookup: fixtureDataTypeSupport.lookup },
+    dataTypes: { entries: dataTypes, lookup },
     composedExtensionContracts: new Map(),
     createNamespace: createTestSqlNamespace,
     capabilities: { sql: { scalarList: true } },
@@ -135,7 +143,19 @@ describe('written defaults a column refuses', () => {
       'a quoted document on a jsonb column',
       'meta Jsonb @default("{}")',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
+      'Field "N.meta": Expected json`...`; write json`{}`',
+    ],
+    [
+      'a quoted string on a jsonb column that json would refuse too',
+      'meta Jsonb @default("plan")',
+      'PSL_VALUE_TYPE_INCOMPATIBLE',
       'Field "N.meta": Expected json`...`',
+    ],
+    [
+      'a quoted string on a list column whose element type has a tag',
+      'docs Jsonb[] @default(["{}"])',
+      'PSL_VALUE_TYPE_INCOMPATIBLE',
+      'Field "N.docs" at element 1: Expected json`...`; write json`{}`',
     ],
     [
       'quoted digits on a numeric column',
@@ -275,6 +295,31 @@ describe('written defaults a column refuses', () => {
           end: { offset: 66, line: 3, column: 44 },
         },
       },
+    ]);
+  });
+
+  it('names both types for an element of an admitted form that the list cast does not take', () => {
+    const narrowVector = dataType(pgvectorVector.id, {
+      listCast: {
+        of: [pgInt2.id, pgInt4.id],
+        cast: (elements) => elements.map(Number),
+      },
+    });
+    const lookup = createDataTypeLookup(
+      fixtureDataTypes.map((type) => (type.id === narrowVector.id ? narrowVector : type)),
+    );
+    const result = interpret(
+      model('  embed pgvector.Vector(3) @default([1, 2, 3000000000])'),
+      postgresCodecLookup,
+      fixtureDataTypeSupport.entries,
+      lookup,
+    );
+    expect(result.ok ? [] : result.failure.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
+        message:
+          'Field "N.embed" at element 3: Expected a number that pgvector/vector can hold; got pg/int8',
+      }),
     ]);
   });
 

@@ -9,14 +9,20 @@
 
 import type { JsonValue } from '@internal/contract/types';
 import {
-  admittedFormPhrases,
+  admittedForms,
   type CastRefusal,
   castTypedValue,
   type DataTypeSupport,
+  describeExpected,
   describeRefusal,
+  describeRefusedValueType,
+  exactRewrite,
   type ReadRefusal,
+  type RefusalGuidance,
   readWrittenValue,
   type TypedValue,
+  tagForm,
+  type WrittenForm,
   type WrittenScalar,
   type WrittenValue,
 } from '@internal/framework-components/authoring';
@@ -326,9 +332,25 @@ function location(fieldPath: string, elementIndex: number | undefined): string {
  * What may be written where every one of `types` is received, each form once: `a number`. A column
  * whose type nothing writes still takes a `sql` literal, which `@default` stores as a SQL expression.
  */
-function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): readonly string[] {
-  const forms = [...new Set(types.flatMap((type) => admittedFormPhrases(dataTypes, type)))];
-  return forms.length === 0 ? [`${SQL_EXPRESSION_TAG}\`...\``] : forms;
+function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): readonly WrittenForm[] {
+  const forms = admittedForms(dataTypes, types);
+  return forms.length === 0 ? [tagForm(SQL_EXPRESSION_TAG)] : forms;
+}
+
+/** The exact rewrite of the written value a `no-cast` refusal is about, before list elements are renumbered to the source list. */
+function rewriteOf(
+  refusal: DefaultRefusal,
+  written: WrittenValue,
+  dataTypes: DataTypeSupport,
+): string | undefined {
+  if (refusal.kind !== 'no-cast') return undefined;
+  const refused =
+    refusal.elementIndex === undefined || written.kind !== 'list'
+      ? written
+      : written.elements[refusal.elementIndex];
+  return refused === undefined || refused.kind === 'list'
+    ? undefined
+    : exactRewrite(dataTypes, refusal.receivingType, refused);
 }
 
 /** {@link readDataTypeDefault} worded as a PSL diagnostic's code and message. */
@@ -349,7 +371,10 @@ export function lowerDataTypeDefault(input: {
         atSourceElement(read.refusal, input.sourceElementIndexes),
         input.fieldPath,
         input.dataTypes,
-        formsOf(input.dataTypes, read.suggestedTypes),
+        {
+          forms: formsOf(input.dataTypes, read.suggestedTypes),
+          rewrite: rewriteOf(read.refusal, input.written, input.dataTypes),
+        },
       );
 }
 
@@ -373,14 +398,13 @@ function codecRefusalDiagnostic(refusal: CodecRefusal, fieldPath: string): Defau
   };
 }
 
-/** A refusal worded as a PSL diagnostic's code, message and place; `forms` says what to write instead. */
+/** A refusal worded as a PSL diagnostic's code, message and place; `guidance` says what to write instead. */
 function refusalDiagnostic(
   refusal: DefaultRefusal,
   fieldPath: string,
   dataTypes: DataTypeSupport,
-  forms: readonly string[],
+  guidance: RefusalGuidance,
 ): DefaultDiagnostic {
-  const guidance = { forms, rewrite: undefined };
   const where = location(fieldPath, refusal.elementIndex);
   const atWrittenValue: DefaultRefusalPlace = {
     kind: 'written-value',
@@ -400,27 +424,16 @@ function refusalDiagnostic(
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: Expected ${forms.join(' or ')}; got a list`,
+        message: `${where}: ${describeExpected(guidance.forms)}; got a list`,
         place: atWrittenValue,
       };
-    case 'no-element-cast': {
-      const { message } = describeRefusal(
-        {
-          kind: 'no-cast',
-          receivingType: refusal.receivingType,
-          valueType: refusal.valueType,
-          casts: refusal.elementTypes,
-        },
-        dataTypes,
-        guidance,
-      );
+    case 'no-element-cast':
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: ${message}`,
+        message: `${where}: ${describeRefusedValueType(refusal, dataTypes, guidance)}`,
         place: atWrittenValue,
       };
-    }
     default: {
       const { code, message } = describeRefusal(refusal, dataTypes, guidance);
       return { ok: false, code, message: `${where}: ${message}`, place: atWrittenValue };

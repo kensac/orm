@@ -150,10 +150,11 @@ function escapeQuotedText(text: string): string {
 }
 
 /**
- * The PSL text of a tagged literal whose canonical text is `text`: the backtick form, or the double-quote form when the
- * text holds a backtick, which reads better than escaping each backtick. A multi-line text starts on the line after
- * the opening backtick, so indentation a printer adds to an enclosing block is common to every line and the
- * canonicalization removes it. ADR 129.
+ * The PSL text of a tagged literal holding `text`: the backtick form, or the double-quote form when the text holds a
+ * backtick, which reads better than escaping each backtick. A multi-line text starts on the line after the opening
+ * backtick, so indentation a printer adds to an enclosing block is common to every line and the canonicalization
+ * removes it. The literal's canonical text is `text` again only when {@link printedTaggedLiteralReadsBack} holds; text
+ * with leading indentation or a carriage return, for example, does not read back. ADR 129.
  */
 export function printTaggedLiteral(tag: string, text: string): string {
   if (text.includes('`')) return `${tag}"${escapeQuotedText(text)}"`;
@@ -165,8 +166,8 @@ function isPrintedOnOwnLines(text: string): boolean {
   return !text.includes('`') && text.includes('\n');
 }
 
-/** Whether {@link printTaggedLiteral} prints `text` as a literal whose canonical text is `text` again. */
-export function taggedLiteralTextReadsBack(text: string): boolean {
+/** Whether the literal {@link printTaggedLiteral} prints for `text` has `text` as its canonical text. */
+export function printedTaggedLiteralReadsBack(text: string): boolean {
   const resolvedBody = isPrintedOnOwnLines(text) ? `\n${text}\n` : text;
   const canonical = canonicalizeTaggedLiteralBody(resolvedBody);
   return canonical.ok && canonical.text === text;

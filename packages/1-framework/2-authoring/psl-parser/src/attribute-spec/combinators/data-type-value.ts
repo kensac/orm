@@ -1,13 +1,14 @@
 import {
-  admittedFormPhrases,
+  admittedForms,
   admittedTags,
   castTypedValue,
   type DataTypeSupport,
   describeAdmittedForms,
+  describeExpected,
   describeRefusal,
-  printTaggedLiteral,
+  exactRewrite,
   readWrittenValue,
-  taggedLiteralTextReadsBack,
+  type WrittenForm,
 } from '@internal/framework-components/authoring';
 import type { DataTypeId } from '@internal/framework-components/codec';
 import { describeTaggedLiteralFailure } from '@internal/framework-components/control';
@@ -25,20 +26,21 @@ const TAGGED_LITERAL_FAILURE_CODES = {
   'too-large': 'PSL_TAGGED_LITERAL_TOO_LARGE',
 } as const;
 
-/** An argument typed by a data type: any literal, admitted by the ADR 254 cast rule. Used as a parameter of a `funcCall`. ADR 231, ADR 254. */
+/** An argument typed by a data type: any literal, admitted by the ADR 254 cast rule. Used as a parameter of an attribute or a `funcCall`. ADR 231, ADR 254. */
 export function dataTypeValue(
   dataType: DataTypeId,
   support: DataTypeSupport,
 ): DataTypeValueArgType<AttributeCtx> {
   const tags = admittedTags(support, dataType);
   const [firstTag] = tags;
+  const forms = admittedForms(support, [dataType]);
   return {
     kind: 'dataTypeValue',
     label: firstTag === undefined ? describeAdmittedForms(support, dataType) : `${firstTag}\`...\``,
     dataType,
     tags,
     documentation: support.entries[dataType]?.documentation ?? '',
-    parse: (arg, ctx) => parseDataTypeValue(arg, ctx, dataType, support, firstTag),
+    parse: (arg, ctx) => parseDataTypeValue(arg, ctx, dataType, support, forms),
   };
 }
 
@@ -47,23 +49,27 @@ function parseDataTypeValue(
   ctx: AttributeCtx,
   dataType: DataTypeId,
   support: DataTypeSupport,
-  firstTag: string | undefined,
+  forms: readonly WrittenForm[],
 ): Result<ParsedTypedValue, readonly PslDiagnostic[]> {
   if (!support.lookup.has(dataType)) {
     throw new InternalError(
       `An argument receives data type "${dataType}", which this stack does not register.`,
     );
   }
+  if (forms.length === 0) {
+    throw new InternalError(
+      `An argument receives data type "${dataType}", which nothing in this stack writes.`,
+    );
+  }
   const refuse = ({ code, message }: { readonly code: string; readonly message: string }) =>
     notOk([leafDiagnostic(ctx, arg, message, code)]);
-  const forms = describeAdmittedForms(support, dataType);
 
   const literal = readWrittenScalar(arg);
   if (!literal.ok) {
     return literal.reason === 'not-a-literal'
       ? refuse({
           code: 'PSL_INVALID_ATTRIBUTE_SYNTAX',
-          message: `Expected ${forms}, got ${literal.found}`,
+          message: `${describeExpected(forms)}; got ${literal.found}`,
         })
       : refuse({
           code: TAGGED_LITERAL_FAILURE_CODES[literal.reason],
@@ -71,21 +77,15 @@ function parseDataTypeValue(
         });
   }
 
-  const admitted = admittedFormPhrases(support, dataType);
   const read = readWrittenValue(support, literal.written);
   if (!read.ok) {
-    return refuse(describeRefusal(read.failure, support, { forms: admitted, rewrite: undefined }));
+    return refuse(describeRefusal(read.failure, support, { forms, rewrite: undefined }));
   }
 
   const cast = castTypedValue(support, dataType, read.value);
   if (!cast.ok) {
-    const rewrite =
-      literal.written.kind === 'string' &&
-      firstTag !== undefined &&
-      taggedLiteralTextReadsBack(literal.written.text)
-        ? printTaggedLiteral(firstTag, literal.written.text)
-        : undefined;
-    return refuse(describeRefusal(cast.failure, support, { forms: admitted, rewrite }));
+    const rewrite = exactRewrite(support, dataType, literal.written);
+    return refuse(describeRefusal(cast.failure, support, { forms, rewrite }));
   }
 
   return ok({
