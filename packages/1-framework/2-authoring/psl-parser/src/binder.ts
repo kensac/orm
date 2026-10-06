@@ -20,7 +20,9 @@ import type {
 } from './attribute-spec/spec-context';
 import type {
   AttributeSpec,
+  BlockAttributeCtx,
   FieldAttributeCtx,
+  FuncCallSig,
   InspectableArgType,
   ModelAttributeCtx,
   Param,
@@ -65,26 +67,50 @@ import type {
 import type { FieldAttributeAst, ModelAttributeAst } from './syntax/ast/attributes';
 import {
   ArrayLiteralAst,
+  BooleanLiteralExprAst,
   type ExpressionAst,
   FunctionCallAst,
+  NumberLiteralExprAst,
   ObjectLiteralExprAst,
+  StringLiteralExprAst,
+  TaggedLiteralExprAst,
 } from './syntax/ast/expressions';
 import { IdentifierAst } from './syntax/ast/identifier';
 import type { QualifiedNameAst } from './syntax/ast/qualified-name';
 import type { SyntaxNode } from './syntax/red';
+import { readWrittenScalar } from './written-scalar';
 
 export const PSL_UNRESOLVED_REFERENCE =
   'PSL_UNRESOLVED_REFERENCE' satisfies ContributedPslDiagnosticCode;
 
 export type BoundSpec =
   | AttributeSpec<never, ModelAttributeCtx>
-  | AttributeSpec<never, FieldAttributeCtx>;
+  | AttributeSpec<never, FieldAttributeCtx>
+  | AttributeSpec<never, BlockAttributeCtx>;
 
 export interface AttributeSymbol {
   readonly kind: 'attribute';
   readonly name: string;
-  readonly level: 'model' | 'field';
+  readonly level: 'model' | 'field' | 'block';
   readonly spec: BoundSpec;
+}
+
+export interface ParameterSymbol {
+  readonly kind: 'parameter';
+  readonly name: string;
+  readonly param: Param<unknown, never>;
+}
+
+export interface FunctionSymbol {
+  readonly kind: 'function';
+  readonly name: string;
+  readonly signature: FuncCallSig;
+}
+
+export interface ConstantSymbol {
+  readonly kind: 'constant';
+  readonly name: string;
+  readonly documentation: string;
 }
 
 export type PslSymbol =
@@ -99,6 +125,9 @@ export type Resolution =
   | ScopeResolution
   | { readonly kind: 'field'; readonly symbol: FieldSymbol }
   | { readonly kind: 'attribute'; readonly symbol: AttributeSymbol }
+  | { readonly kind: 'parameter'; readonly symbol: ParameterSymbol }
+  | { readonly kind: 'function'; readonly symbol: FunctionSymbol }
+  | { readonly kind: 'constant'; readonly symbol: ConstantSymbol }
   | { readonly kind: 'crossSpace' }
   | { readonly kind: 'unresolved'; readonly name: string };
 
@@ -440,12 +469,20 @@ function bindBlock(block: BlockSymbol, ctx: BlockBindContext): void {
   for (const entry of block.node.entries()) {
     const key = entry.key()?.name();
     if (key === undefined) continue;
-    const rule =
-      spec.mode === 'struct'
-        ? Object.hasOwn(spec.parameters, key)
-          ? spec.parameters[key]?.type
-          : undefined
-        : spec.value.type;
+    const parameter =
+      spec.mode === 'struct' && Object.hasOwn(spec.parameters, key)
+        ? spec.parameters[key]
+        : undefined;
+    const rule = spec.mode === 'struct' ? parameter?.type : spec.value.type;
+    if (parameter !== undefined) {
+      const keyNode = entry.key()?.syntax;
+      if (keyNode !== undefined) {
+        ctx.references.set(keyNode, {
+          kind: 'parameter',
+          symbol: { kind: 'parameter', name: key, param: parameter },
+        });
+      }
+    }
     const value = entry.value();
     if (rule === undefined || value === undefined) continue;
     bindExpression(rule, value, ctx);
@@ -460,6 +497,16 @@ function bindBlock(block: BlockSymbol, ctx: BlockBindContext): void {
       BlockAttributeSpecFactory,
       'framework core cannot name AttributeSpec, so block-attribute factories transit the descriptor erased as unknown; the binder restores the factory type the descriptor surface documents'
     >(factory)({ symbols: ctx.symbolTable });
+    const attributeSymbol: AttributeSymbol = {
+      kind: 'attribute',
+      name: attribute.name,
+      level: 'block',
+      spec: attributeSpec,
+    };
+    const nameNode = attribute.node.name()?.syntax;
+    if (nameNode !== undefined) {
+      ctx.references.set(nameNode, { kind: 'attribute', symbol: attributeSymbol });
+    }
     bindArguments(attribute, attributeSpec, ctx);
   }
 }
@@ -528,6 +575,12 @@ function tryBindExpression(
         name.identifier()?.name() !== rule.name
       )
         return { matched: false, references, diagnostics };
+      const functionSymbol: FunctionSymbol = {
+        kind: 'function',
+        name: rule.name,
+        signature: rule.signature,
+      };
+      references.set(name.syntax, { kind: 'function', symbol: functionSymbol });
       let matched = true;
       let positional = 0;
       for (const arg of call.args()) {
@@ -537,8 +590,21 @@ function tryBindExpression(
           key,
           key === undefined ? positional++ : positional,
         );
+        if (parameter === undefined) {
+          matched = false;
+          continue;
+        }
+        if (key !== undefined) {
+          const keyNode = arg.name()?.syntax;
+          if (keyNode !== undefined) {
+            references.set(keyNode, {
+              kind: 'parameter',
+              symbol: { kind: 'parameter', name: key, param: parameter },
+            });
+          }
+        }
         const value = arg.value();
-        if (parameter === undefined || value === undefined) {
+        if (value === undefined) {
           matched = false;
           continue;
         }
@@ -548,6 +614,17 @@ function tryBindExpression(
         for (const [node, diagnostic] of trial.diagnostics) diagnostics.set(node, diagnostic);
       }
       return { matched, references, diagnostics };
+    }
+    case 'identifier': {
+      if (rule.name === undefined) return { matched: true, references, diagnostics };
+      const node = expression.syntax;
+      const value = IdentifierAst.cast(node)?.name();
+      if (value !== rule.name) return { matched: false, references, diagnostics };
+      references.set(node, {
+        kind: 'constant',
+        symbol: { kind: 'constant', name: rule.name, documentation: rule.documentation },
+      });
+      return { matched: true, references, diagnostics };
     }
     case 'entityRef': {
       const node = expression.syntax;
@@ -596,8 +673,35 @@ function tryBindExpression(
         diagnostics,
       };
     }
-    default:
-      return { matched: true, references, diagnostics };
+    case 'str':
+    case 'json': {
+      const matched = StringLiteralExprAst.cast(expression.syntax) !== undefined;
+      return { matched, references, diagnostics };
+    }
+    case 'num':
+    case 'int': {
+      const matched = NumberLiteralExprAst.cast(expression.syntax) !== undefined;
+      return { matched, references, diagnostics };
+    }
+    case 'bool': {
+      const matched = BooleanLiteralExprAst.cast(expression.syntax) !== undefined;
+      return { matched, references, diagnostics };
+    }
+    case 'null': {
+      const matched = IdentifierAst.cast(expression.syntax)?.name() === 'null';
+      return { matched, references, diagnostics };
+    }
+    case 'taggedLiteral': {
+      const matched = TaggedLiteralExprAst.cast(expression.syntax) !== undefined;
+      return { matched, references, diagnostics };
+    }
+    case 'dataTypeValue': {
+      const literal = readWrittenScalar(expression);
+      const matched = literal.ok || literal.reason !== 'not-a-literal';
+      return { matched, references, diagnostics };
+    }
+    case 'rejecting':
+      return { matched: false, references, diagnostics };
   }
 }
 
@@ -642,17 +746,15 @@ function bindAttributes<Factory>(
     }
     const spec = instantiate(factory);
     if (spec === undefined) return;
+    const attributeSymbol: AttributeSymbol = {
+      kind: 'attribute',
+      name: attribute.name,
+      level,
+      spec,
+    };
     const nameNode = nodes[index]?.name()?.syntax;
     if (nameNode !== undefined) {
-      ctx.references.set(nameNode, {
-        kind: 'attribute',
-        symbol: {
-          kind: 'attribute',
-          name: attribute.name,
-          level,
-          spec,
-        },
-      });
+      ctx.references.set(nameNode, { kind: 'attribute', symbol: attributeSymbol });
     }
     bindArguments(attribute, spec, ctx, ctx);
   });
@@ -664,16 +766,27 @@ function bindArguments(
   ctx: ReferenceContext,
   modelContext?: BindContext,
 ): void {
+  const rawArgs = Array.from(attribute.node.argList()?.args() ?? []);
   let positional = 0;
-  for (const arg of attribute.args) {
+  attribute.args.forEach((arg, index) => {
     const parameter = argumentParameter(
       spec,
       arg.name,
       arg.name === undefined ? positional++ : positional,
     );
-    if (parameter === undefined || arg.expression === undefined) continue;
+    if (parameter === undefined) return;
+    if (arg.name !== undefined) {
+      const keyNode = rawArgs[index]?.name()?.syntax;
+      if (keyNode !== undefined) {
+        ctx.references.set(keyNode, {
+          kind: 'parameter',
+          symbol: { kind: 'parameter', name: arg.name, param: parameter },
+        });
+      }
+    }
+    if (arg.expression === undefined) return;
     bindExpression(parameter.type, arg.expression, ctx, modelContext);
-  }
+  });
 }
 
 interface BindingArguments {
