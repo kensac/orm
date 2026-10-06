@@ -50,11 +50,17 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 ## Stretch goal — interactive statements when a human runs the command
 
-Recorded 2026-10-06 at the operator's request. Not a slice; it is picked up only after slices 1 to 4 have merged, or earlier if a slice finishes with budget to spare.
+Recorded 2026-10-06 at the operator's request. This is the eventual direction, and the slices build with it in mind so that it drops in on top of their mechanisms; it is not a slice of its own, and it is built once the mechanisms it needs exist (after slice 2 at the earliest).
 
 When `migration plan` or `db update` detects a destructive operation and no statement covers it, the command today refuses and prints the statements that would resolve it. The stretch goal: when the command is run by a human in a terminal (stdin and stdout are a TTY, and no `--json` or similar non-interactive flag is set), the refusal becomes an interactive prompt that asks, per destructive operation, what the user means: rename it to a name they type, or delete it. Each answer is exactly the statement the refusal would have printed, applied in order, and the plan then proceeds as if the statements had been given on the command line. In a script, an agent, or CI (no TTY) the behaviour stays as it is: refuse and print the statements.
 
 Rules that carry over unchanged: the prompt never guesses or proposes a rename candidate; it asks. The statements are not recorded anywhere; the migration file or the database is the record. The consent model of slice 2 (`--delete` per operation) is what the "delete" answer maps to.
+
+What the slices do now so this drops in later (see the spec's cross-cutting requirement 12):
+
+- The refusal is a structured value first and text second: a list of destructive operations, each with the entity it touches in domain coordinates and the statements that would resolve it, rendered to the error message by the command. The prompt consumes the same list.
+- Statement text is parsed, resolved and applied through one function the command calls, which takes the statement strings and the two contracts and does not care whether the strings came from the command line or from an answer typed at a prompt. Statements can therefore be added after the command has started and the plan re-run.
+- The per-operation consent question that `db update` already asks in a terminal is the seed of this prompt, so slice 2 keeps it as a per-operation question rather than folding it into a yes/no over the whole plan.
 
 ## Sequencing
 
