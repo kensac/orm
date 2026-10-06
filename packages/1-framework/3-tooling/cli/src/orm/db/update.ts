@@ -105,6 +105,7 @@ function updateDocument(inputs: {
           },
         }),
     ...ifDefined('perSpace', value.perSpace),
+    appliedStatements: value.appliedStatements,
     ...ifDefined('warnings', value.warnings),
     advancedRef: inputs.advancedRef,
     plannedAdvanceRef: inputs.plannedAdvanceRef,
@@ -142,6 +143,11 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
         advanceRef: flag.string({
           brief: 'Advance the named ref to the post-command contract hash',
           placeholder: 'name',
+        }),
+        rename: flag.repeated({
+          brief:
+            'Rename a model or field: Model, namespace.Model, Model.field or namespace.Model.field on each side; repeat for several, applied in order',
+          placeholder: 'old:new',
         }),
       },
     },
@@ -207,6 +213,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
             contract: contractJson,
             mode,
             migrationsDir,
+            renames: args.flags.rename,
             ...(consent === undefined ? {} : { consent }),
             onProgress: controlProgressReporter(ctx.report),
           });

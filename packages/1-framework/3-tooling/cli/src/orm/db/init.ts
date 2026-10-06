@@ -63,6 +63,7 @@ function initDocument(inputs: {
   return {
     ok: true,
     mode: value.mode,
+    appliedStatements: [],
     plan: {
       targetId: inputs.targetId,
       destination: {

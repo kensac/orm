@@ -1,4 +1,5 @@
 import type {
+  AppliedStatement,
   MigrationPlannerConflict,
   OperationPreview,
 } from '@internal/framework-components/control';
@@ -81,6 +82,8 @@ export interface MigrationCommandResult {
    * into a single ambiguous list. See {@link PerSpaceExecutionEntry}.
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
+  /** The `--rename` statements the plan applied, in order; empty when none were given. */
+  readonly appliedStatements: readonly AppliedStatement[];
   readonly advancedRef?: { readonly name: string; readonly hash: string } | null;
   readonly plannedAdvanceRef?: { readonly name: string; readonly hash: string } | null;
   readonly summary: string;
