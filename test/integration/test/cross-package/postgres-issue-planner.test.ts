@@ -683,6 +683,7 @@ describe('planIssues', () => {
         schema: actual,
         policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
         fromContract: null,
+        statements: [],
         frameworkComponents: [],
         spaceId: 'app',
         snapshotsImportPath: '../../snapshots',

@@ -119,6 +119,7 @@ async function pushContract(connectionString: string, contractJson: unknown): Pr
       schema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      statements: [],
       frameworkComponents,
       spaceId: APP_SPACE_ID,
       // Execute-only push (no TypeScript scaffold rendered), so this is cosmetic;

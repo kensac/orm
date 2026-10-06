@@ -16,6 +16,7 @@ import type {
   MigrationRunnerResult,
   OperationContext,
   OpFactoryCall,
+  ResolvedStatement,
   SchemaDiffIssue,
   SchemaOwnership,
 } from '@internal/framework-components/control';
@@ -281,7 +282,8 @@ export type SqlPlannerConflictKind =
   | 'missingButNonAdditive'
   | 'unsupportedOperation'
   | 'controlPolicySuppressedCall'
-  | 'tableNameCaseChanged';
+  | 'tableNameCaseChanged'
+  | 'statementRejected';
 
 export interface SqlPlannerConflictLocation {
   readonly namespaceId?: string;
@@ -296,6 +298,8 @@ export interface SqlPlannerConflictLocation {
 export interface SqlPlannerConflict extends MigrationPlannerConflict {
   readonly kind: SqlPlannerConflictKind;
   readonly location?: SqlPlannerConflictLocation;
+  /** The statement the conflict refuses, for a `statementRejected` conflict. */
+  readonly statement?: ResolvedStatement;
   readonly meta?: AnyRecord;
 }
 
@@ -349,6 +353,11 @@ export interface SqlMigrationPlannerPlanOptions {
    * plan's `describe()` as `fromContract?.storage.storageHash ?? null`.
    */
   readonly fromContract: Contract<SqlStorage> | null;
+  /**
+   * Statements the user gave, resolved against `fromContract` and `contract`, in the order
+   * given. Empty when the user gave none.
+   */
+  readonly statements: readonly ResolvedStatement[];
   /**
    * POSIX-relative path from the migration package dir to
    * `migrations/snapshots`, e.g. `'../../snapshots'`. Threaded straight

@@ -251,6 +251,7 @@ async function planOpIds(
     schema,
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract,
+    statements: [],
     frameworkComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',

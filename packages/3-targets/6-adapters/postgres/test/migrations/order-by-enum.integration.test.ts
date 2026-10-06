@@ -97,6 +97,7 @@ async function migrate(driver: PostgresControlDriver, contract: PostgresContract
     schema: emptySchema,
     policy: INIT_ADDITIVE_POLICY,
     fromContract: null,
+    statements: [],
     frameworkComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',

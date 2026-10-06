@@ -61,6 +61,7 @@ function createMockMigrations(overrides?: {
 }) {
   const planResult: MigrationPlannerResult = overrides?.planResult ?? {
     kind: 'success',
+    appliedStatements: [],
     plan: {
       targetId: 'postgres',
       destination: { storageHash: 'new-hash', profileHash: 'new-profile' },
@@ -175,6 +176,7 @@ describe('executeDbUpdate', () => {
     const migrations = createMockMigrations({
       planResult: {
         kind: 'success',
+        appliedStatements: [],
         plan: {
           targetId: 'postgres',
           destination: { storageHash: 'dest', profileHash: 'dest-profile' },
@@ -326,6 +328,7 @@ describe('executeDbUpdate', () => {
       migrations: createMockMigrations({
         planResult: {
           kind: 'success',
+          appliedStatements: [],
           plan: {
             targetId: 'postgres',
             destination: { storageHash: 'current', profileHash: 'current-profile' },
@@ -364,6 +367,7 @@ describe('executeDbUpdate', () => {
     const migrations = createMockMigrations({
       planResult: {
         kind: 'success',
+        appliedStatements: [],
         plan: {
           targetId: 'postgres',
           destination: { storageHash: 'same', profileHash: 'same-profile' },
@@ -463,6 +467,7 @@ describe('executeDbUpdate', () => {
       return createMockMigrations({
         planResult: {
           kind: 'success',
+          appliedStatements: [],
           plan: {
             targetId: 'postgres',
             destination: { storageHash: 'dest' },

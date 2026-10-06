@@ -50,6 +50,7 @@ async function migrateContract(connectionString: string): Promise<void> {
       schema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      statements: [],
       frameworkComponents: postgresFrameworkComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',

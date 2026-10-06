@@ -95,7 +95,7 @@ describe('planMigration', () => {
       app: makeSpace({ spaceId: 'app' }),
     });
     const stubPlan = makeSyntheticPlan('placeholder-target-id-from-stub');
-    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan });
+    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan, appliedStatements: [] });
 
     const result = await planMigration({
       aggregate,
@@ -132,7 +132,7 @@ describe('planMigration', () => {
     });
 
     const stubPlan = makeSyntheticPlan('postgres');
-    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan });
+    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan, appliedStatements: [] });
 
     const result = await planMigration({
       aggregate,
@@ -173,7 +173,11 @@ describe('planMigration', () => {
     // both take the empty-graph path — the strongest proof the family
     // planner is never reached for it.
     const planFn = vi.fn(
-      (): MigrationPlannerResult => ({ kind: 'success', plan: makeSyntheticPlan('postgres') }),
+      (): MigrationPlannerResult => ({
+        kind: 'success',
+        plan: makeSyntheticPlan('postgres'),
+        appliedStatements: [],
+      }),
     );
     const planner: MigrationPlanner<'sql', 'postgres'> = {
       plan: planFn,
@@ -230,6 +234,7 @@ describe('planMigration', () => {
     const planner = makeStubPlanner({
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
+      appliedStatements: [],
     });
 
     const result = await planMigration({
@@ -268,6 +273,7 @@ describe('planMigration', () => {
     const planner = makeStubPlanner({
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
+      appliedStatements: [],
     });
 
     const result = await planMigration({
@@ -322,6 +328,7 @@ describe('planMigration', () => {
     const planner = makeStubPlanner({
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
+      appliedStatements: [],
     });
 
     const result = await planMigration({
@@ -374,6 +381,7 @@ describe('planMigration', () => {
     const planner = makeStubPlanner({
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
+      appliedStatements: [],
     });
 
     const result = await planMigration({

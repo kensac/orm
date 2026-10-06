@@ -159,6 +159,7 @@ function plan(
     schema,
     policy: { allowedOperationClasses: [...policy.allowedOperationClasses] },
     fromContract: null,
+    statements: [],
     frameworkComponents: [],
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',

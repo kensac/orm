@@ -116,6 +116,7 @@ export {
   extractQueryOperationTypeImports,
 } from '../control/control-stack';
 export type {
+  AppliedStatement,
   FieldCoordinate,
   ModelCoordinate,
   ResolvedFieldRename,

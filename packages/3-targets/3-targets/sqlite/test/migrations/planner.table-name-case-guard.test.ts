@@ -117,6 +117,7 @@ function planFromLive(
       schema: liveSchema(previousTables),
       policy: DESTRUCTIVE_POLICY,
       fromContract: null,
+      statements: [],
       frameworkComponents: [],
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',

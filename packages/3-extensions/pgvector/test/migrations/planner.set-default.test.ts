@@ -96,6 +96,7 @@ async function setDefaultStatement(value: number[]): Promise<string | undefined>
     schema: liveSchema,
     policy,
     fromContract: null,
+    statements: [],
     frameworkComponents: [pgvectorDescriptor],
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',

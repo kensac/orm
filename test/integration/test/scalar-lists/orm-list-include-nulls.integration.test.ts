@@ -68,6 +68,7 @@ async function migrateContract(connectionString: string, contract: Contract<SqlS
       schema: await familyInstance.introspect({ driver }),
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      statements: [],
       frameworkComponents: postgresFrameworkComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',

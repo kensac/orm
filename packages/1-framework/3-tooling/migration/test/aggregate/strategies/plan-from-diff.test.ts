@@ -55,7 +55,7 @@ describe('planFromDiff', () => {
       plan: ({ schema, ownership }) => {
         observedSchema = schema;
         observedOwnership = ownership;
-        return { kind: 'success', plan: makeStubPlan('placeholder') };
+        return { kind: 'success', plan: makeStubPlan('placeholder'), appliedStatements: [] };
       },
       emptyMigration: () => {
         throw new Error('not used');

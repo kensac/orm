@@ -117,6 +117,7 @@ describe('roles enter verify — existence-only, asymmetric', { concurrent: fals
       schema: emptySchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      statements: [],
       frameworkComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',

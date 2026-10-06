@@ -18,10 +18,12 @@ import {
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
+  AppliedStatement,
   MigrationOperationClass,
   MigrationPlanner,
   MigrationPlanWithAuthoringSurface,
   MigrationScaffoldContext,
+  ResolvedStatement,
   SchemaDiffIssue,
   SchemaOwnership,
 } from '@internal/framework-components/control';
@@ -114,6 +116,7 @@ export type PostgresPlanResult =
       readonly kind: 'success';
       readonly plan: TypeScriptRenderablePostgresMigration;
       readonly warnings?: readonly SqlPlannerConflict[];
+      readonly appliedStatements: readonly AppliedStatement[];
     }
   | SqlPlannerFailureResult;
 
@@ -161,6 +164,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
      * `fromContract?.storage.storageHash ?? null`.
      */
     readonly fromContract: Contract | null;
+    readonly statements: readonly ResolvedStatement[];
     readonly schemaName?: string;
     readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
     /**
@@ -439,6 +443,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
         options.snapshotsImportPath,
         this.#lowerer,
       ),
+      appliedStatements: [],
       ...(warnings.length > 0 ? { warnings: Object.freeze(warnings) } : {}),
     });
   }

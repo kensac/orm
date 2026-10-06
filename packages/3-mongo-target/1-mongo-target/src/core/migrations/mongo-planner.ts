@@ -386,6 +386,7 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
         },
         options.snapshotsImportPath,
       ),
+      appliedStatements: [],
     };
   }
 

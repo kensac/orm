@@ -20,7 +20,7 @@ import type {
   ControlFamilyInstance,
 } from './control-instances';
 import type { OperationContext } from './control-operation-results';
-import type { ResolvedStatement } from './migration-statements';
+import type { AppliedStatement, ResolvedStatement } from './migration-statements';
 
 // ============================================================================
 // Migration Package Metadata
@@ -287,6 +287,8 @@ export interface MigrationPlannerSuccessResult {
   readonly kind: 'success';
   readonly plan: MigrationPlanWithAuthoringSurface;
   readonly warnings?: readonly MigrationPlannerConflict[];
+  /** The statements the plan applied, one per statement it was given, in order. */
+  readonly appliedStatements: readonly AppliedStatement[];
 }
 
 /**
