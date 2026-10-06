@@ -1,6 +1,6 @@
 # ADR 028 — Migration structure & operations
 
-> **Amended 2026-10:** edges do not carry the `hints` field shown below. A rename is stated on the command line as a statement, `--rename <old>:<new>`, and the planner turns it into rename operations in the edge's `ops`. See [Migration System § Statements](../subsystems/7.%20Migration%20System.md#statements).
+> **Update — 2026-10:** edges do not carry the `hints` field shown below. A rename is stated on the command line as a statement, `--rename <old>:<new>`, and the planner turns it into rename operations in the edge's `ops`. See [Migration System § Statements](../subsystems/7.%20Migration%20System.md#statements).
 
 ## Context
 

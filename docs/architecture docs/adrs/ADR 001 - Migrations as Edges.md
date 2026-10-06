@@ -1,6 +1,6 @@
 # ADR 001 — Migrations as Edges
 
-> **Amended 2026-10:** the planner hints this ADR anticipates for renames are not built. A rename is stated on the command line as a statement, `--rename <old>:<new>`, which never enters the contract or the migration edge. See [Migration System § Statements](../subsystems/7.%20Migration%20System.md#statements).
+> **Update — 2026-10:** the planner hints this ADR anticipates for renames are not built. A rename is stated on the command line as a statement, `--rename <old>:<new>`, which never enters the contract or the migration edge. See [Migration System § Statements](../subsystems/7.%20Migration%20System.md#statements).
 
 ## Context
 
