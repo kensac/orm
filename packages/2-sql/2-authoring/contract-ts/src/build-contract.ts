@@ -38,6 +38,7 @@ import {
   type CodecLookupWithDescriptors,
   type ColumnTypeDescriptor,
   codecForRef,
+  type DataType,
   type DataTypeLookup,
 } from '@internal/framework-components/codec';
 import { mergeCapabilityMatrices } from '@internal/framework-components/components';
@@ -86,6 +87,7 @@ import {
   computeCheckContentHash,
   derivedCheckPrefixes,
 } from '@internal/sql-schema-ir/naming';
+import { defaultInCanonicalForm } from '@internal/sql-schema-ir/types';
 import { invariant } from '@internal/utils/assertions';
 import { canonicalStringify } from '@internal/utils/canonical-stringify';
 import { blindCast } from '@internal/utils/casts';
@@ -234,11 +236,38 @@ function buildCodecForDefault(
   }
 }
 
+/** A default the codec wrote, in the canonical form of the column's data type (ADR 254), whatever form the codec writes. */
+function inCanonicalForm(
+  value: JsonValue,
+  dataType: DataType,
+  site: ColumnDefaultSite,
+  many: boolean,
+): ColumnDefault {
+  const canonical = defaultInCanonicalForm(value, dataType.toCanonicalForm, many);
+  if (canonical.refusal !== undefined) {
+    throw contractError(
+      'CONTRACT.DEFAULT_INVALID',
+      `Field "${site.modelName}.${site.fieldName}" has a default that its data type ${dataType.id} does not hold: ${canonical.refusal}`,
+      {
+        meta: {
+          modelName: site.modelName,
+          fieldName: site.fieldName,
+          codecId: site.codecId,
+          dataType: dataType.id,
+          reason: 'data-type-refused-default',
+        },
+      },
+    );
+  }
+  return { kind: 'literal', value: canonical.value };
+}
+
 function encodeColumnDefault(
   defaultInput: AuthoredColumnDefault,
   codecLookup: CodecLookupWithDescriptors,
   resolveCodec: (codecLookup: CodecLookupWithDescriptors) => Codec | undefined,
   site: ColumnDefaultSite,
+  dataType: DataType,
   many = false,
   elementNullable = false,
 ): ColumnDefault {
@@ -270,25 +299,21 @@ function encodeColumnDefault(
       );
     }
     const codec = codecForDefault(codecLookup, resolveCodec, site);
-    return {
-      kind: 'literal',
-      value: defaultInput.value.map((element, index) => {
-        if (element !== null) return encodeDefaultValue(element, codec, site, index + 1);
-        if (elementNullable) return null;
-        throw new InternalError(
-          'Literal default on a strict list column cannot contain null elements.',
-        );
-      }),
-    };
+    const elements = defaultInput.value.map((element, index) => {
+      if (element !== null) return encodeDefaultValue(element, codec, site, index + 1);
+      if (elementNullable) return null;
+      throw new InternalError(
+        'Literal default on a strict list column cannot contain null elements.',
+      );
+    });
+    return inCanonicalForm(elements, dataType, site, true);
   }
-  return {
-    kind: 'literal',
-    value: encodeDefaultValue(
-      defaultInput.value,
-      codecForDefault(codecLookup, resolveCodec, site),
-      site,
-    ),
-  };
+  return inCanonicalForm(
+    encodeDefaultValue(defaultInput.value, codecForDefault(codecLookup, resolveCodec, site), site),
+    dataType,
+    site,
+    false,
+  );
 }
 
 function assertStorageSemantics(
@@ -961,6 +986,7 @@ function buildStorageColumn(
           codecLookup,
           (lookup) => columnCodec(codecId, typeParams, lookup),
           { modelName, fieldName: field.fieldName, codecId },
+          dataType,
           isListColumn,
           field.elementNullable === true,
         )
