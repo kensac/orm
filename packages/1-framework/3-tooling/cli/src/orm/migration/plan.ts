@@ -21,6 +21,7 @@ import { destructiveOperationList, errorConsentOperationsMissing } from '../db/c
 import { defineOrmCommand } from '../define-command';
 import { consentToken } from '../init-inputs';
 import { normalizeError } from '../normalize-error';
+import { appliedStatementBlocks } from '../statement-blocks';
 import {
   appMigrationsDirFor,
   baseDirFor,
@@ -158,6 +159,7 @@ function planBlocks(result: MigrationPlanResult, migrationsRelative: string): re
     return [
       ...warningBlocks(result),
       { kind: 'summary', status: 'ok', text: 'No changes detected' },
+      ...appliedStatementBlocks(result.appliedStatements),
       outcome,
     ];
   }
@@ -174,6 +176,7 @@ function planBlocks(result: MigrationPlanResult, migrationsRelative: string): re
     { kind: 'summary', status: 'ok', text: result.summary },
     ...originNoticeBlocks(result),
     ...operationBlocks(result),
+    ...appliedStatementBlocks(result.appliedStatements),
     outcome,
     ...previewBlocks(result),
   ];
@@ -289,6 +292,11 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
             'Destination contract reference; defaults to the emitted contract. Same grammar as --from',
           placeholder: 'contract',
         }),
+        rename: flag.repeated({
+          brief:
+            'Rename a model or field: Model, namespace.Model, Model.field or namespace.Model.field on each side; repeat for several, applied in order',
+          placeholder: 'old:new',
+        }),
       },
     },
     needs: { config: ormConfigSection },
@@ -324,6 +332,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
             ...ifDefined('name', args.flags.name),
             ...ifDefined('from', args.flags.from),
             ...ifDefined('to', args.flags.to),
+            renames: args.flags.rename,
             ...ifDefined('consent', consent),
             ...ifDefined(
               'carryEmittedExtensionDirs',
