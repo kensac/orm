@@ -65,7 +65,7 @@ const stack = createSqlExecutionStack({
 
 Codec stability depends on a round-trip invariant: `ark.schema(typeParams.jsonIr).expression === typeParams.expression`. The emit-path renderer reads `expression` directly, so a contract emitted against arktype `X` and rehydrated against arktype `Y` produces correct types only as long as that invariant holds across `X→Y`.
 
-The package's `arktype` dependency is pinned to a tilde range (`~2.1.29`) — patch upgrades are accepted, minor and major upgrades are not. Bumping the range without a coordinated re-emit of every contract using `arktype/json@1` risks emit-path output going stale relative to the rehydrated runtime schema. Consumers who upgrade `arktype` outside this range should re-run `pnpm emit` and verify `contract.d.ts` matches expectations.
+The package's `arktype` dependency is pinned to a tilde range (`~2.2.7`) — patch upgrades are accepted, minor and major upgrades are not. Bumping the range without a coordinated re-emit of every contract using `arktype/json@1` risks emit-path output going stale relative to the rehydrated runtime schema. Consumers who upgrade `arktype` outside this range should re-run `pnpm emit` and verify `contract.d.ts` matches expectations.
 
 The runtime enforces the invariant defensively: the codec's factory runs at execution-context construction time (typically when `runtime.connect()` is called), and throws `RUNTIME.TYPE_PARAMS_INVALID` if the rehydrated schema's `expression` doesn't match the serialized one. So a stale-but-shape-valid `contract.json` fails fast at startup rather than rendering wrong types in user code. The error message points at re-running `pnpm emit`.
 
