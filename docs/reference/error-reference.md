@@ -1630,7 +1630,7 @@ SQLite twin of `MIGRATION.POSTGRES_CONTROL_STACK_MISSING`: a `SqliteMigration` o
 
 ### MIGRATION.STATEMENT_INVALID
 
-A `--rename <old>:<new>` statement is malformed or pairs two things that cannot be renamed into each other: it has no `:` or more than one, a side has an empty name or more than three names, it names a model on one side and a field on the other, it names fields of two different models (a field cannot move between models), or an earlier statement in the same command already renames the same model or field, or renames another one to the same new name. Each side is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`. Payload: `statement`.
+A `--rename <old>:<new>` statement is malformed or pairs two things that cannot be renamed into each other: it has no `:` or more than one, a side has an empty name or more than three names, it names a model on one side and a field on the other, it names fields of two different models (a field cannot move between models), or an earlier statement in the same command already renames the same model or field, or renames another one to the same new name. Each side is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`. A field's model is named as the destination contract names it: when the old side names the model by its old name, as in `--rename Profile:User --rename Profile.name:User.fullName`, the message gives the corrected statement, `--rename User.name:User.fullName`, and says when the model also needs its own `--rename`. Payload: `statement`.
 
 ### MIGRATION.STATEMENT_ORIGIN_UNKNOWN
 
