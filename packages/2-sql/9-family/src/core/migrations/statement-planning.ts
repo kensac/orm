@@ -2,6 +2,8 @@ import type { Contract, ContractWithDomain } from '@internal/contract/types';
 import type {
   AppliedStatement,
   FieldCoordinate,
+  MigrationOperationClass,
+  MigrationOperationPolicy,
   ModelCoordinate,
   ResolvedModelRename,
   ResolvedStatement,
@@ -94,6 +96,8 @@ export interface StatementPlanningTarget<TCall> {
   /** Applies a call to the working schema. */
   apply(call: TCall): void;
   operationCount(call: TCall): number;
+  /** The class of each operation the call produces: the call's own and its companions'. */
+  operationClasses(call: TCall): readonly MigrationOperationClass[];
 }
 
 export interface PlannedStatements<TCall> {
@@ -107,12 +111,14 @@ function rejected(
   summary: string,
   why: string,
   table: ModelTable | undefined,
+  refusedOperationClass?: MigrationOperationClass,
 ): SqlPlannerConflict {
   return {
     kind: 'statementRejected',
     summary,
     why,
     statement,
+    ...(refusedOperationClass === undefined ? {} : { refusedOperationClass }),
     ...(table === undefined
       ? {}
       : {
@@ -149,6 +155,7 @@ function planModelRename<TCall>(
   statement: ResolvedModelRename,
   fromContract: Contract<SqlStorage>,
   contract: Contract<SqlStorage>,
+  policy: MigrationOperationPolicy,
   target: StatementPlanningTarget<TCall>,
 ): Result<
   { readonly call: TCall; readonly rename: ResolvedTableRename } | undefined,
@@ -179,12 +186,12 @@ function planModelRename<TCall>(
   const { rename } = effect;
   const destinationTable = { namespaceId: rename.namespaceId, table: rename.to };
   const label = `Cannot rename table "${rename.from}" to "${rename.to}"`;
-  const policy = tableControlPolicy(contract, destinationTable);
-  if (policy !== 'managed') {
+  const controlPolicy = tableControlPolicy(contract, destinationTable);
+  if (controlPolicy !== 'managed') {
     return notOk(
       rejected(
         statement,
-        `${label}: the table's control policy is "${policy}"`,
+        `${label}: the table's control policy is "${controlPolicy}"`,
         'A statement can only rename a table whose control policy is "managed".',
         destinationTable,
       ),
@@ -212,6 +219,20 @@ function planModelRename<TCall>(
     );
   }
   const call = target.renameCall(rename);
+  const refused = target
+    .operationClasses(call)
+    .find((operationClass) => !policy.allowedOperationClasses.includes(operationClass));
+  if (refused !== undefined) {
+    return notOk(
+      rejected(
+        statement,
+        `${label}: the plan does not allow "${refused}" operations`,
+        `The rename produces a "${refused}" operation, and this command plans only ${policy.allowedOperationClasses.map((c) => `"${c}"`).join(', ')} operations.`,
+        destinationTable,
+        refused,
+      ),
+    );
+  }
   target.apply(call);
   return ok({ call, rename });
 }
@@ -225,6 +246,7 @@ export function planStatements<TCall>(input: {
   readonly statements: readonly ResolvedStatement[];
   readonly fromContract: Contract<SqlStorage> | null;
   readonly contract: Contract<SqlStorage>;
+  readonly policy: MigrationOperationPolicy;
   readonly target: StatementPlanningTarget<TCall>;
 }): Result<PlannedStatements<TCall>, SqlPlannerConflict> {
   const calls: TCall[] = [];
@@ -252,7 +274,7 @@ export function planStatements<TCall>(input: {
         ),
       );
     }
-    const planned = planModelRename(statement, fromContract, contract, input.target);
+    const planned = planModelRename(statement, fromContract, contract, input.policy, input.target);
     if (!planned.ok) return planned;
     if (planned.value !== undefined) {
       calls.push(planned.value.call);

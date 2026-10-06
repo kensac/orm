@@ -120,6 +120,7 @@ function fakeTarget(initial: readonly string[]) {
       present.add(`${namespaceId}.${to}`);
     },
     operationCount: () => 2,
+    operationClasses: () => ['widening'] as const,
   };
 }
 
@@ -127,6 +128,8 @@ function planned<T>(result: ReturnType<typeof planStatements<T>>) {
   if (!result.ok) throw new Error(`expected a plan, got: ${result.failure.summary}`);
   return result.value;
 }
+
+const ALL_CLASSES = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
 
 describe('modelRenameStorageEffect', () => {
   it('is unchanged when both models map to the same table', () => {
@@ -194,6 +197,7 @@ describe('planStatements', () => {
     const origin = contractOf({ Profile: { table: 'Profile' }, Post: { table: 'Post' } });
     const destination = contractOf({ User: { table: 'User' }, Article: { table: 'Article' } });
     const result = planStatements({
+      policy: ALL_CLASSES,
       statements: [renameModel('Profile', 'User'), renameModel('Post', 'Article')],
       fromContract: origin,
       contract: destination,
@@ -222,6 +226,7 @@ describe('planStatements', () => {
 
   it('applies a statement whose table does not change with no operations', () => {
     const result = planStatements({
+      policy: ALL_CLASSES,
       statements: [renameModel('Profile', 'User')],
       fromContract: contractOf({ Profile: { table: 'profile' } }),
       contract: contractOf({ User: { table: 'profile' } }),
@@ -243,6 +248,7 @@ describe('planStatements', () => {
     const statement = renameModel('User', 'User', 'auth', 'billing');
     const conflict = rejection(
       planStatements({
+        policy: ALL_CLASSES,
         statements: [statement],
         fromContract: contractOf({ User: { table: 'User', namespace: 'auth' } }),
         contract: contractOf({ User: { table: 'User', namespace: 'billing' } }),
@@ -264,6 +270,7 @@ describe('planStatements', () => {
     (control) => {
       const conflict = rejection(
         planStatements({
+          policy: ALL_CLASSES,
           statements: [renameModel('Profile', 'User')],
           fromContract: contractOf({ Profile: { table: 'Profile' } }),
           contract: contractOf({ User: { table: 'User', control } }),
@@ -281,6 +288,7 @@ describe('planStatements', () => {
   it('rejects a rename whose table the schema being planned from does not have', () => {
     const conflict = rejection(
       planStatements({
+        policy: ALL_CLASSES,
         statements: [renameModel('Profile', 'User')],
         fromContract: contractOf({ Profile: { table: 'Profile' } }),
         contract: contractOf({ User: { table: 'User' } }),
@@ -294,6 +302,7 @@ describe('planStatements', () => {
   it('rejects a rename whose new table the schema being planned from already has', () => {
     const conflict = rejection(
       planStatements({
+        policy: ALL_CLASSES,
         statements: [renameModel('Profile', 'User')],
         fromContract: contractOf({ Profile: { table: 'Profile' } }),
         contract: contractOf({ User: { table: 'User' } }),
@@ -303,10 +312,30 @@ describe('planStatements', () => {
     expect(conflict.summary).toContain('already has a table "User"');
   });
 
+  it('rejects a rename whose operations the policy does not allow', () => {
+    const statement = renameModel('Profile', 'User');
+    const conflict = rejection(
+      planStatements({
+        policy: { allowedOperationClasses: ['additive'] },
+        statements: [statement],
+        fromContract: contractOf({ Profile: { table: 'Profile' } }),
+        contract: contractOf({ User: { table: 'User' } }),
+        target: fakeTarget(['app.Profile']),
+      }),
+    );
+    expect(conflict).toMatchObject({
+      kind: 'statementRejected',
+      statement,
+      refusedOperationClass: 'widening',
+    });
+    expect(conflict.summary).toContain('does not allow "widening" operations');
+  });
+
   it('rejects a field statement until field renames are planned', () => {
     const contract = contractOf({ User: { table: 'User' } });
     const conflict = rejection(
       planStatements({
+        policy: ALL_CLASSES,
         statements: [renameField],
         fromContract: contract,
         contract,
@@ -319,6 +348,7 @@ describe('planStatements', () => {
   it('rejects statements when there is no origin contract', () => {
     const conflict = rejection(
       planStatements({
+        policy: ALL_CLASSES,
         statements: [renameModel('Profile', 'User')],
         fromContract: null,
         contract: contractOf({ User: { table: 'User' } }),

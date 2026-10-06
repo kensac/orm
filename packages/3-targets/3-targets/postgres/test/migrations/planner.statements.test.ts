@@ -1,6 +1,7 @@
 import { asNamespaceId, type Contract } from '@internal/contract/types';
 import {
   APP_SPACE_ID,
+  type MigrationOperationPolicy,
   type ResolvedModelRename,
   type ResolvedStatement,
 } from '@internal/framework-components/control';
@@ -57,11 +58,12 @@ function plan(
   to: Contract<SqlStorage>,
   statements: readonly ResolvedStatement[],
   schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, []),
+  policy: MigrationOperationPolicy = ALL_CLASSES,
 ) {
   return createPostgresMigrationPlanner(stubLowerer).plan({
     contract: to,
     schema,
-    policy: ALL_CLASSES,
+    policy,
     fromContract: from,
     statements,
     frameworkComponents: [],
@@ -222,6 +224,18 @@ describe('Postgres planner, model statements', () => {
     const toUpper = withModels(contractOf('User', {}, 'to'), { User: 'User' });
     expect(await labelsOf(plan(fromLower, toUpper, [renameModel('user', 'User')]))).toEqual([
       'Rename table "user" to "User"',
+    ]);
+  });
+
+  it('refuses a statement under a policy that does not allow its operations', () => {
+    const statement = renameModel('Profile', 'User');
+    const additiveOnly = { allowedOperationClasses: ['additive'] as const };
+    expect(conflictsOf(plan(from, to, [statement], undefined, additiveOnly))).toEqual([
+      expect.objectContaining({
+        kind: 'statementRejected',
+        refusedOperationClass: 'widening',
+        statement,
+      }),
     ]);
   });
 

@@ -701,6 +701,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       statements: options.statements,
       fromContract: options.fromContract,
       contract: options.contract,
+      policy: options.policy,
       target: {
         tables: () => postgresSchemaTables(working.current, options.contract),
         renameCall: (rename) =>
@@ -712,6 +713,10 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
           }),
         apply: (call) => working.apply(call),
         operationCount: (call) => 1 + call.companions.length,
+        operationClasses: (call) => [
+          call.operationClass,
+          ...call.companions.map((companion) => companion.operationClass),
+        ],
       },
     });
     if (!planned.ok) return planned;
