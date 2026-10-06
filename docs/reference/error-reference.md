@@ -1352,6 +1352,10 @@ A `migration check` finding, carried as an `error` diagnostic on a completed run
 
 A `migration check` finding, carried as an `error` diagnostic on a completed run that exits `4`: a migration's `from` hash is not produced by any other migration (and is not the empty state), so the migration is unreachable in the graph. Delete it or re-emit a connecting migration.
 
+### MIGRATION.COLUMN_RENAME_UNMATCHED
+
+`this.renameColumn({ table, column, to })` in a hand-written migration does not match the migration's contracts: the migration has no start contract, the table does not exist at that point of the migration (or, with no `schema`, is declared in more than one namespace), the table has no column `column`, the table already has a column `to`, or the end contract has no column `to` on that table. Raised when the migration's operations are built, so `migration.ts` writes no `ops.json`. Order the rename calls in the sequence the renames happen and check the table, column and namespace names. Payload: `table`, `from`, `to`.
+
 ### MIGRATION.CONSENT_PLAN_MISMATCH
 
 An apply carrying consent was refused because the plan recomputed for it is not the plan that was consented to. `db update` recomputes the plan at apply time and compares its hash against the one the consent was given for; a mismatch means the schema, the contract, or the database moved in between, so applying would carry out operations nobody agreed to. Re-run the command and review the freshly planned operations before consenting again. Payload: `consentedPlanHash`, `planHash`.

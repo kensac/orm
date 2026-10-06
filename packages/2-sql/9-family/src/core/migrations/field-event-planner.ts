@@ -25,6 +25,7 @@
 import type { Contract } from '@internal/contract/types';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { type SqlStorage, type StorageColumn, StorageTable } from '@internal/sql-contract/types';
+import type { ResolvedColumnRename } from './resolve-column-rename';
 import type { ResolvedTableRename } from './resolve-table-rename';
 import type { CodecControlHooks, FieldEvent, FieldEventContext } from './types';
 
@@ -53,6 +54,11 @@ export interface PlanFieldEventOperationsOptions {
    * column under its new name, so a rename alone fires no event.
    */
   readonly renames: readonly ResolvedTableRename[];
+  /**
+   * The column renames the plan applies, each on the table under the name it has after the table
+   * renames. A column under its old name is the same column under its new name.
+   */
+  readonly columnRenames: readonly ResolvedColumnRename[];
 }
 
 interface FieldEntry {
@@ -75,6 +81,12 @@ export function planFieldEventOperations(
   );
   const newNameOf = (namespaceId: string, tableName: string) =>
     renamedTo.get(renameKey(namespaceId, tableName));
+  const columnRenamedTo = new Map(
+    options.columnRenames.map((rename) => [
+      renameKey(rename.namespaceId, rename.table, rename.from),
+      rename.to,
+    ]),
+  );
 
   const added: FieldEntry[] = [];
   const dropped: FieldEntry[] = [];
@@ -103,12 +115,15 @@ export function planFieldEventOperations(
       const newTableRaw = newTables?.[tableName];
       const priorTable = StorageTable.is(priorTableRaw) ? priorTableRaw : undefined;
       const newTable = StorageTable.is(newTableRaw) ? newTableRaw : undefined;
+      const priorColumns = underNewNames(priorTable?.columns, (columnName) =>
+        columnRenamedTo.get(renameKey(namespaceId, tableName, columnName)),
+      );
       const fieldNames = unionSorted(
-        priorTable ? Object.keys(priorTable.columns) : [],
+        priorColumns ? Object.keys(priorColumns) : [],
         newTable ? Object.keys(newTable.columns) : [],
       );
       for (const fieldName of fieldNames) {
-        const priorField = priorTable?.columns[fieldName];
+        const priorField = priorColumns?.[fieldName];
         const newField = newTable?.columns[fieldName];
         const entry: FieldEntry = {
           namespaceId,
@@ -137,8 +152,8 @@ export function planFieldEventOperations(
   return calls;
 }
 
-function renameKey(namespaceId: string, tableName: string): string {
-  return JSON.stringify([namespaceId, tableName]);
+function renameKey(...parts: readonly string[]): string {
+  return JSON.stringify(parts);
 }
 
 function underNewNames<T>(

@@ -53,6 +53,15 @@ export {
 } from '../core/migrations/plan-helpers';
 export { INIT_ADDITIVE_POLICY } from '../core/migrations/policies';
 export type {
+  ColumnRename,
+  ResolvedColumnRename,
+} from '../core/migrations/resolve-column-rename';
+export {
+  COLUMN_RENAME_UNMATCHED_CODE,
+  resolveColumnRenameAgainst,
+  unmatchedColumnRename,
+} from '../core/migrations/resolve-column-rename';
+export type {
   ResolvedTableRename,
   TableRename,
 } from '../core/migrations/resolve-table-rename';
@@ -67,6 +76,7 @@ export type {
 } from '../core/migrations/schema-differ';
 export type { SchemaTables } from '../core/migrations/schema-tables';
 export type {
+  FieldStorageEffect,
   ModelStorageEffect,
   ModelTable,
   PlannedStatements,
@@ -74,6 +84,7 @@ export type {
 } from '../core/migrations/statement-planning';
 export {
   describeStatement,
+  fieldRenameStorageEffect,
   modelRenameStorageEffect,
   planStatements,
 } from '../core/migrations/statement-planning';

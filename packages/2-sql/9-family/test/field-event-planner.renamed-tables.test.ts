@@ -23,6 +23,7 @@ function eventsWith(renames: readonly ResolvedTableRename[]) {
     newContract,
     codecHooks: new Map<string, CodecControlHooks>([['cs/string@1', cs.hook]]),
     renames,
+    columnRenames: [],
   });
   return cs.calls.map((call) => `${call.event} ${call.tableName}.${call.fieldName}`);
 }
