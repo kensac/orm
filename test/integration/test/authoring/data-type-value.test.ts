@@ -70,17 +70,13 @@ describe.each([
     name: 'Postgres',
     stack: createControlStack({ family: sql, target: postgres, adapter: postgresAdapter }),
     integer: 'pg/int4',
-    small: 'pg/int2',
-    text: 'pg/text',
   },
   {
     name: 'SQLite',
     stack: createControlStack({ family: sql, target: sqlite, adapter: sqliteAdapter }),
     integer: 'sqlite/integer',
-    small: 'sqlite/integer',
-    text: 'sqlite/text',
   },
-])('dataTypeValue on the assembled $name stack', ({ stack, integer, small, text }) => {
+])('dataTypeValue on the assembled $name stack', ({ stack, integer }) => {
   const read = (type: string, source: string) => {
     const { argument, ctx } = parseArgument(source);
     return dataTypeValue(dataTypeId(type), stack.dataTypes).parse(argument, ctx);
@@ -92,41 +88,25 @@ describe.each([
 
   it('refuses a quoted string for the integer type', () => {
     expect(read(integer, '"8"')).toEqual(
-      refusal(
-        '"8"',
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        `${integer} has no cast from ${text}; write a number`,
-      ),
+      refusal('"8"', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected a number'),
     );
   });
 
   it('refuses a sql literal for the integer type', () => {
     expect(read(integer, 'sql`x`')).toEqual(
-      refusal(
-        'sql`x`',
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        `${integer} has no cast from sql/expression; write a number`,
-      ),
+      refusal('sql`x`', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected a number'),
     );
   });
 
   it('refuses a number for sql/expression', () => {
     expect(read('sql/expression', '8')).toEqual(
-      refusal(
-        '8',
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        `sql/expression has no cast from ${small}; write sql\`...\``,
-      ),
+      refusal('8', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`'),
     );
   });
 
   it('refuses a quoted string for sql/expression with the rewrite', () => {
     expect(read('sql/expression', '"8"')).toEqual(
-      refusal(
-        '"8"',
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        `sql/expression has no cast from ${text}; write it as sql\`8\``,
-      ),
+      refusal('"8"', 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`; write sql`8`'),
     );
   });
 

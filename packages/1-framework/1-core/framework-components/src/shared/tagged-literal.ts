@@ -158,5 +158,16 @@ function escapeQuotedText(text: string): string {
 export function printTaggedLiteral(tag: string, text: string): string {
   if (text.includes('`')) return `${tag}"${escapeQuotedText(text)}"`;
   const fenced = text.replace(/\\/g, '\\\\');
-  return text.includes('\n') ? `${tag}\`\n${fenced}\n\`` : `${tag}\`${fenced}\``;
+  return isPrintedOnOwnLines(text) ? `${tag}\`\n${fenced}\n\`` : `${tag}\`${fenced}\``;
+}
+
+function isPrintedOnOwnLines(text: string): boolean {
+  return !text.includes('`') && text.includes('\n');
+}
+
+/** Whether {@link printTaggedLiteral} prints `text` as a literal whose canonical text is `text` again. */
+export function taggedLiteralTextReadsBack(text: string): boolean {
+  const resolvedBody = isPrintedOnOwnLines(text) ? `\n${text}\n` : text;
+  const canonical = canonicalizeTaggedLiteralBody(resolvedBody);
+  return canonical.ok && canonical.text === text;
 }

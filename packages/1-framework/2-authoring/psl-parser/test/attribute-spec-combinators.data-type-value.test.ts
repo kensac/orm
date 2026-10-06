@@ -299,7 +299,7 @@ describe('dataTypeValue', () => {
       refusal(
         source,
         'PSL_VALUE_TYPE_INCOMPATIBLE',
-        'This target has no data type for a string value; write sql`...`',
+        'Expected sql`...`; this target has no data type for a string value',
       ),
     );
   });
@@ -316,7 +316,7 @@ describe('dataTypeValue', () => {
       refusal(
         source,
         'PSL_VALUE_TYPE_INCOMPATIBLE',
-        'sql/expression has no cast from pg/text; write it as sql`(archived_at IS NULL)`',
+        'Expected sql`...`; write sql`(archived_at IS NULL)`',
       ),
     );
   });
@@ -324,34 +324,40 @@ describe('dataTypeValue', () => {
   it('writes the rewrite of a string holding a backtick in the double-quote form', () => {
     const source = '"a `b`"';
     expect(parse(sqlExpression.id, source)).toEqual(
-      refusal(
-        source,
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        'sql/expression has no cast from pg/text; write it as sql"a `b`"',
-      ),
+      refusal(source, 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`; write sql"a `b`"'),
     );
   });
 
-  it.each([
-    ['42', 'pg/int2'],
-    ['true', 'pg/bool'],
-  ])('refuses %s for a type with a tag by naming its written form', (source, valueType) => {
-    expect(parse(sqlExpression.id, source)).toEqual(
-      refusal(
-        source,
-        'PSL_VALUE_TYPE_INCOMPATIBLE',
-        `sql/expression has no cast from ${valueType}; write sql\`...\``,
-      ),
-    );
-  });
+  it.each([['42'], ['true']])(
+    'refuses %s for a type with a tag by naming its written form',
+    (source) => {
+      expect(parse(sqlExpression.id, source)).toEqual(
+        refusal(source, 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`'),
+      );
+    },
+  );
 
   it('refuses a string for a type without a tag by naming its written form', () => {
     const source = '"8"';
     expect(parse(pgInt4.id, source)).toEqual(
+      refusal(source, 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected a number'),
+    );
+  });
+
+  it('refuses a string for a type with a tag without a rewrite when the literal would not read back', () => {
+    const source = '"  (archived_at IS NULL)"';
+    expect(parse(sqlExpression.id, source)).toEqual(
+      refusal(source, 'PSL_VALUE_TYPE_INCOMPATIBLE', 'Expected sql`...`'),
+    );
+  });
+
+  it('refuses a number of the right form too large for the type, naming both types', () => {
+    const source = '40000';
+    expect(parse(pgInt2.id, source)).toEqual(
       refusal(
         source,
         'PSL_VALUE_TYPE_INCOMPATIBLE',
-        'pg/int4 has no cast from pg/text; write a number',
+        'Expected a number that pg/int2 can hold; got pg/int4',
       ),
     );
   });
@@ -424,7 +430,7 @@ describe('dataTypeValue', () => {
         notOk([
           {
             code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-            message: 'pg/int4 has no cast from pg/text; write a number',
+            message: 'Expected a number',
             filename: 'schema.prisma',
             range: { start: { line: 0, character: 10 }, end: { line: 0, character: 13 } },
           },
@@ -458,7 +464,7 @@ describe('oneOf given a call to a function one arm names', () => {
       notOk([
         {
           code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-          message: 'pg/int4 has no cast from pg/text; write a number',
+          message: 'Expected a number',
           filename: 'schema.prisma',
           range: { start: { line: 0, character: 10 }, end: { line: 0, character: 13 } },
         },

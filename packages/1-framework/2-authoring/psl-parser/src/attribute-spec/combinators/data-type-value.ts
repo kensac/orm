@@ -1,4 +1,5 @@
 import {
+  admittedFormPhrases,
   admittedTags,
   castTypedValue,
   type DataTypeSupport,
@@ -6,6 +7,7 @@ import {
   describeRefusal,
   printTaggedLiteral,
   readWrittenValue,
+  taggedLiteralTextReadsBack,
 } from '@internal/framework-components/authoring';
 import type { DataTypeId } from '@internal/framework-components/codec';
 import { describeTaggedLiteralFailure } from '@internal/framework-components/control';
@@ -69,16 +71,21 @@ function parseDataTypeValue(
         });
   }
 
+  const admitted = admittedFormPhrases(support, dataType);
   const read = readWrittenValue(support, literal.written);
-  if (!read.ok) return refuse(describeRefusal(read.failure, forms));
+  if (!read.ok) {
+    return refuse(describeRefusal(read.failure, support, { forms: admitted, rewrite: undefined }));
+  }
 
   const cast = castTypedValue(support, dataType, read.value);
   if (!cast.ok) {
     const rewrite =
-      literal.written.kind === 'string' && firstTag !== undefined
-        ? `it as ${printTaggedLiteral(firstTag, literal.written.text)}`
-        : forms;
-    return refuse(describeRefusal(cast.failure, rewrite));
+      literal.written.kind === 'string' &&
+      firstTag !== undefined &&
+      taggedLiteralTextReadsBack(literal.written.text)
+        ? printTaggedLiteral(firstTag, literal.written.text)
+        : undefined;
+    return refuse(describeRefusal(cast.failure, support, { forms: admitted, rewrite }));
   }
 
   return ok({

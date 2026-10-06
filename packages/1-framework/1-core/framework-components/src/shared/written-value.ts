@@ -52,13 +52,23 @@ export interface RefusalDescription {
   readonly message: string;
 }
 
+/** What a refusal tells the author to write: the forms the position admits, and an exact rewrite of the written value when there is one. */
+export interface RefusalGuidance {
+  /** Each form the position admits, as {@link admittedFormPhrases} lists them. */
+  readonly forms: readonly string[];
+  /** The written value rewritten in an admitted form, as in ``sql`8` ``. */
+  readonly rewrite: string | undefined;
+}
+
 /**
- * Words a refusal of the cast rule. `guidance` is what follows `write ` in the message: the admitted forms, as in `a number`, or a rewrite, as in ``it as sql`8` ``.
+ * Words a refusal of the cast rule. The message leads with what to write; the types are named only when the value has a form the position admits and its type is still refused, such as a number too large for the receiving type.
  */
 export function describeRefusal(
   refusal: ReadRefusal | CastRefusal,
-  guidance: string,
+  support: DataTypeSupport,
+  guidance: RefusalGuidance,
 ): RefusalDescription {
+  const expected = `Expected ${joinForms(guidance.forms)}`;
   switch (refusal.kind) {
     case 'unknown-tag':
       return {
@@ -68,16 +78,31 @@ export function describeRefusal(
     case 'unwritable':
       return {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: `This target has no data type for a ${refusal.syntax} value; write ${guidance}`,
+        message: `${expected}; this target has no data type for a ${refusal.syntax} value`,
       };
     case 'unreadable':
       return { code: 'PSL_INVALID_LITERAL', message: refusal.message };
     case 'no-cast':
       return {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message: `${refusal.receivingType} has no cast from ${refusal.valueType}; write ${guidance}`,
+        message: noCastMessage(refusal, support, guidance),
       };
   }
+}
+
+function noCastMessage(
+  refusal: Extract<CastRefusal, { readonly kind: 'no-cast' }>,
+  support: DataTypeSupport,
+  guidance: RefusalGuidance,
+): string {
+  const forms = joinForms(guidance.forms);
+  const valueForm = writtenFormPhrase(support, refusal.valueType);
+  if (valueForm !== undefined && guidance.forms.includes(valueForm)) {
+    return `Expected ${forms} that ${refusal.receivingType} can hold; got ${refusal.valueType}`;
+  }
+  return guidance.rewrite === undefined
+    ? `Expected ${forms}`
+    : `Expected ${forms}; write ${guidance.rewrite}`;
 }
 
 interface FoundEntry {
@@ -211,14 +236,25 @@ function writtenFormPhrase(support: DataTypeSupport, type: string): string | und
 }
 
 /** What {@link describeAdmittedForms} returns for a type that nothing writes. */
-export const NO_WRITTEN_FORM = 'no written form';
+const NO_WRITTEN_FORM = 'no written form';
 
-/** How a position of `dataType` can be written, for a diagnostic: ``sql`...` ``, `true or false`. */
-export function describeAdmittedForms(support: DataTypeSupport, dataType: DataTypeId): string {
+/** Each form a position of `dataType` admits, once: ``sql`...` ``, `true or false`. */
+export function admittedFormPhrases(
+  support: DataTypeSupport,
+  dataType: DataTypeId,
+): readonly string[] {
   const phrases = admittedTypes(support, dataType).flatMap((type) => {
     const phrase = writtenFormPhrase(support, type);
     return phrase === undefined ? [] : [phrase];
   });
-  const unique = [...new Set(phrases)];
-  return unique.length === 0 ? NO_WRITTEN_FORM : unique.join(' or ');
+  return [...new Set(phrases)];
+}
+
+function joinForms(forms: readonly string[]): string {
+  return forms.length === 0 ? NO_WRITTEN_FORM : forms.join(' or ');
+}
+
+/** How a position of `dataType` can be written, for a diagnostic: ``sql`...` ``, `true or false`. */
+export function describeAdmittedForms(support: DataTypeSupport, dataType: DataTypeId): string {
+  return joinForms(admittedFormPhrases(support, dataType));
 }

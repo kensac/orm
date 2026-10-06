@@ -123,67 +123,67 @@ describe('written defaults a column refuses', () => {
       'a number too wide for the column',
       'count Int @default(100000000000000099)',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from pg/int8; write a number',
+      'Field "N.count": Expected a number that pg/int4 can hold; got pg/int8',
     ],
     [
       'a number with a fraction on a whole-number column',
       'count Int @default(1.5)',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from pg/numeric; write a number',
+      'Field "N.count": Expected a number that pg/int4 can hold; got pg/numeric',
     ],
     [
       'a quoted document on a jsonb column',
       'meta Jsonb @default("{}")',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.meta": pg/jsonb has no cast from pg/text; write json`...`',
+      'Field "N.meta": Expected json`...`',
     ],
     [
       'quoted digits on a numeric column',
       'price Decimal @default("1.50")',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.price": pg/numeric has no cast from pg/text; write a number',
+      'Field "N.price": Expected a number',
     ],
     [
       'quoted digits on an int column',
       'count Int @default("1")',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from pg/text; write a number',
+      'Field "N.count": Expected a number',
     ],
     [
       'a JSON document on an int column',
       `count Int @default(${tagged('json', '1')})`,
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from pg/json; write a number',
+      'Field "N.count": Expected a number',
     ],
     [
       'a written list on a column that holds one value',
       'count Int @default([1, 2])',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from a list; write a number',
+      'Field "N.count": Expected a number; got a list',
     ],
     [
       'text among a list of numbers',
       'scores Int[] @default([1, "x"])',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.scores" at element 2: pg/int4 has no cast from pg/text; write a number',
+      'Field "N.scores" at element 2: Expected a number',
     ],
     [
       'a written list on a jsonb column',
       'meta Jsonb @default([1, 2])',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.meta": pg/jsonb has no cast from a list; write json`...`',
+      'Field "N.meta": Expected json`...`; got a list',
     ],
     [
       'a non-finite word on a whole-number column',
       'count Int @default(NaN)',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.count": pg/int4 has no cast from pg/numeric; write a number',
+      'Field "N.count": Expected a number that pg/int4 can hold; got pg/numeric',
     ],
     [
       'a number on a column whose type takes only text',
       'payload Bytes @default(1234)',
       'PSL_VALUE_TYPE_INCOMPATIBLE',
-      'Field "N.payload": pg/bytea has no cast from pg/int2; write a quoted string',
+      'Field "N.payload": Expected a quoted string',
     ],
     [
       'a single value on a list column',
@@ -227,7 +227,7 @@ describe('written defaults a column refuses', () => {
       expect.objectContaining({
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
         message:
-          'Field "N.active": This target has no data type for a boolean value; write sql`...`',
+          'Field "N.active": Expected sql`...`; this target has no data type for a boolean value',
       }),
     ]);
   });
@@ -268,8 +268,7 @@ describe('written defaults a column refuses', () => {
     expect(diagnostics(model('  embed pgvector.Vector(3) @default([1, "x", 3])'))).toEqual([
       {
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message:
-          'Field "N.embed" at element 2: pgvector/vector has no cast from a list holding pg/text; write a number',
+        message: 'Field "N.embed" at element 2: Expected a number',
         sourceId: 'schema.prisma',
         span: {
           start: { offset: 63, line: 3, column: 41 },

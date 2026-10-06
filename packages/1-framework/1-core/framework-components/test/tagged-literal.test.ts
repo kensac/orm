@@ -6,6 +6,7 @@ import {
   resolvePslBacktickEscapes,
   resolveTemplateTagEscapes,
   TAGGED_LITERAL_MAX_BYTES,
+  taggedLiteralTextReadsBack,
 } from '../src/shared/tagged-literal';
 
 const MAX_BYTES = 65536;
@@ -167,5 +168,26 @@ describe('printTaggedLiteral', () => {
       ok: true,
       text: text,
     });
+  });
+});
+
+describe('taggedLiteralTextReadsBack', () => {
+  it.each([
+    ['single-line', 'md5(random()::text)'],
+    ['multi-line', "(now()\n  + '1 day'::interval)"],
+    ['a backtick', 'a `b`'],
+    ['an empty line first', '\nselect 1'],
+  ])('holds for %s text', (_name, text) => {
+    expect(taggedLiteralTextReadsBack(text)).toBe(true);
+  });
+
+  it.each([
+    ['leading indentation', '  select 1'],
+    ['a blank first line of spaces', '  \nselect 1'],
+    ['a carriage return', 'a\rb'],
+    ['a NUL character', 'a\0b'],
+    ['leading indentation in the double-quote form', '  a `b`'],
+  ])('fails for text with %s, which the literal canonicalizes away', (_name, text) => {
+    expect(taggedLiteralTextReadsBack(text)).toBe(false);
   });
 });

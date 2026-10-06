@@ -9,12 +9,11 @@
 
 import type { JsonValue } from '@internal/contract/types';
 import {
+  admittedFormPhrases,
   type CastRefusal,
   castTypedValue,
   type DataTypeSupport,
-  describeAdmittedForms,
   describeRefusal,
-  NO_WRITTEN_FORM,
   type ReadRefusal,
   readWrittenValue,
   type TypedValue,
@@ -324,14 +323,12 @@ function location(fieldPath: string, elementIndex: number | undefined): string {
 }
 
 /**
- * What may be written where every one of `types` is received, for a message: `a number`. A column
+ * What may be written where every one of `types` is received, each form once: `a number`. A column
  * whose type nothing writes still takes a `sql` literal, which `@default` stores as a SQL expression.
  */
-function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): string {
-  const forms = [...new Set(types.map((type) => describeAdmittedForms(dataTypes, type)))].filter(
-    (form) => form !== NO_WRITTEN_FORM,
-  );
-  return forms.length === 0 ? `${SQL_EXPRESSION_TAG}\`...\`` : forms.join(' or ');
+function formsOf(dataTypes: DataTypeSupport, types: readonly DataTypeId[]): readonly string[] {
+  const forms = [...new Set(types.flatMap((type) => admittedFormPhrases(dataTypes, type)))];
+  return forms.length === 0 ? [`${SQL_EXPRESSION_TAG}\`...\``] : forms;
 }
 
 /** {@link readDataTypeDefault} worded as a PSL diagnostic's code and message. */
@@ -351,6 +348,7 @@ export function lowerDataTypeDefault(input: {
     : refusalDiagnostic(
         atSourceElement(read.refusal, input.sourceElementIndexes),
         input.fieldPath,
+        input.dataTypes,
         formsOf(input.dataTypes, read.suggestedTypes),
       );
 }
@@ -379,8 +377,10 @@ function codecRefusalDiagnostic(refusal: CodecRefusal, fieldPath: string): Defau
 function refusalDiagnostic(
   refusal: DefaultRefusal,
   fieldPath: string,
-  forms: string,
+  dataTypes: DataTypeSupport,
+  forms: readonly string[],
 ): DefaultDiagnostic {
+  const guidance = { forms, rewrite: undefined };
   const where = location(fieldPath, refusal.elementIndex);
   const atWrittenValue: DefaultRefusalPlace = {
     kind: 'written-value',
@@ -400,18 +400,29 @@ function refusalDiagnostic(
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: ${refusal.receivingType} has no cast from a list; write ${forms}`,
+        message: `${where}: Expected ${forms.join(' or ')}; got a list`,
         place: atWrittenValue,
       };
-    case 'no-element-cast':
+    case 'no-element-cast': {
+      const { message } = describeRefusal(
+        {
+          kind: 'no-cast',
+          receivingType: refusal.receivingType,
+          valueType: refusal.valueType,
+          casts: refusal.elementTypes,
+        },
+        dataTypes,
+        guidance,
+      );
       return {
         ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
-        message: `${where}: ${refusal.receivingType} has no cast from a list holding ${refusal.valueType}; write ${forms}`,
+        message: `${where}: ${message}`,
         place: atWrittenValue,
       };
+    }
     default: {
-      const { code, message } = describeRefusal(refusal, forms);
+      const { code, message } = describeRefusal(refusal, dataTypes, guidance);
       return { ok: false, code, message: `${where}: ${message}`, place: atWrittenValue };
     }
   }

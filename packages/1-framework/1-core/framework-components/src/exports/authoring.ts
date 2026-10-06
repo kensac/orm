@@ -71,7 +71,7 @@ export type {
   PslExtensionBlockParsedAttribute,
   PslExtensionBlockPrintEntry,
 } from '../shared/psl-extension-block';
-export { printTaggedLiteral } from '../shared/tagged-literal';
+export { printTaggedLiteral, taggedLiteralTextReadsBack } from '../shared/tagged-literal';
 export type { PresetStorageTemplate } from '../shared/temporal-presets';
 export {
   TEMPORAL_ON_CREATE_ARG,
@@ -86,11 +86,13 @@ export type {
   DataTypeSupport,
   ReadRefusal,
   RefusalDescription,
+  RefusalGuidance,
   TypedValue,
   WrittenScalar,
   WrittenValue,
 } from '../shared/written-value';
 export {
+  admittedFormPhrases,
   admittedTags,
   castTypedValue,
   describeAdmittedForms,
@@ -98,6 +100,5 @@ export {
   entryForPlain,
   entryForTag,
   knownTags,
-  NO_WRITTEN_FORM,
   readWrittenValue,
 } from '../shared/written-value';

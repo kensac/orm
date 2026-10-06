@@ -222,7 +222,7 @@ describe('PSL number defaults on columns whose data type casts from no number', 
       diagnostics: [
         expect.objectContaining({
           code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-          message: 'Field "Payload.data": pg/bytea has no cast from pg/int2; write a quoted string',
+          message: 'Field "Payload.data": Expected a quoted string',
         }),
       ],
     });
@@ -236,8 +236,7 @@ describe('PSL number defaults on columns whose data type casts from no number', 
     expect(result.ok ? [] : result.failure.diagnostics).toEqual([
       expect.objectContaining({
         code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-        message:
-          'Field "Event.at": sqlite/datetime has no cast from sqlite/integer; write a quoted string',
+        message: 'Field "Event.at": Expected a quoted string',
       }),
     ]);
   });

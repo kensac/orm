@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createDataTypeLookup, dataType, dataTypeId } from '../src/shared/data-type';
 import type { DataTypeAuthoringEntry } from '../src/shared/framework-authoring';
 import {
+  admittedFormPhrases,
   admittedTags,
   castTypedValue,
   type DataTypeSupport,
@@ -274,38 +275,98 @@ describe('describeAdmittedForms', () => {
   });
 });
 
+describe('admittedFormPhrases', () => {
+  it('lists each form a position admits once', () => {
+    expect(admittedFormPhrases(support, geometry.id)).toEqual(['a quoted string', 'json`...`']);
+    expect(admittedFormPhrases(support, big.id)).toEqual(['a number']);
+  });
+
+  it('lists nothing for a type nothing writes', () => {
+    expect(admittedFormPhrases(support, dataTypeId('x/missing'))).toEqual([]);
+  });
+});
+
 describe('describeRefusal', () => {
+  const forms = (...phrases: string[]) => ({ forms: phrases, rewrite: undefined });
+
   it('words an unknown tag with the known tags', () => {
     expect(
-      describeRefusal({ kind: 'unknown-tag', tag: 'pg.sql', known: ['sql', 'json'] }, 'a number'),
+      describeRefusal(
+        { kind: 'unknown-tag', tag: 'pg.sql', known: ['sql', 'json'] },
+        support,
+        forms('a number'),
+      ),
     ).toEqual({
       code: 'PSL_UNKNOWN_LITERAL_TAG',
       message: 'Unknown literal tag "pg.sql". Known tags: sql, json.',
     });
   });
 
-  it('words a syntax the target has no data type for, with the forms to write', () => {
-    expect(describeRefusal({ kind: 'unwritable', syntax: 'boolean' }, 'a number')).toEqual({
+  it('words a syntax the target has no data type for, leading with the forms to write', () => {
+    expect(
+      describeRefusal({ kind: 'unwritable', syntax: 'boolean' }, support, forms('a number')),
+    ).toEqual({
       code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-      message: 'This target has no data type for a boolean value; write a number',
+      message: 'Expected a number; this target has no data type for a boolean value',
     });
   });
 
   it('words an unreadable value by its message', () => {
     expect(
-      describeRefusal({ kind: 'unreadable', message: '"a" is not a UUID.' }, 'a number'),
+      describeRefusal(
+        { kind: 'unreadable', message: '"a" is not a UUID.' },
+        support,
+        forms('a number'),
+      ),
     ).toEqual({ code: 'PSL_INVALID_LITERAL', message: '"a" is not a UUID.' });
   });
 
-  it('words a missing cast with the forms to write', () => {
+  it('words a value of another form by the forms to write', () => {
     expect(
       describeRefusal(
         { kind: 'no-cast', receivingType: big.id, valueType: text.id, casts: [small.id] },
-        'a number',
+        support,
+        forms('a number'),
+      ),
+    ).toEqual({ code: 'PSL_VALUE_TYPE_INCOMPATIBLE', message: 'Expected a number' });
+  });
+
+  it('joins several forms with or', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: geometry.id, valueType: bool.id, casts: [] },
+        support,
+        forms('a quoted string', 'json`...`'),
       ),
     ).toEqual({
       code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
-      message: 't/big has no cast from t/text; write a number',
+      message: 'Expected a quoted string or json`...`',
+    });
+  });
+
+  it('adds the exact rewrite when there is one', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: sqlExpression.id, valueType: text.id, casts: [] },
+        support,
+        { forms: ['sql`...`'], rewrite: 'sql`(archived_at IS NULL)`' },
+      ),
+    ).toEqual({
+      code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
+      message: 'Expected sql`...`; write sql`(archived_at IS NULL)`',
+    });
+  });
+
+  it('names both types when the value has a form the position admits', () => {
+    expect(
+      describeRefusal(
+        { kind: 'no-cast', receivingType: small.id, valueType: big.id, casts: [] },
+        support,
+        forms('a number'),
+      ),
+    ).toEqual({
+      code: 'PSL_VALUE_TYPE_INCOMPATIBLE',
+      message: 'Expected a number that t/small can hold; got t/big',
     });
   });
 });
