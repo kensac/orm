@@ -1143,10 +1143,10 @@ export function buildSqlContractFromDefinition(
 ): Contract<SqlStorage> {
   const target = definition.target.targetId;
   const defaultNamespaceId = definition.target.defaultNamespaceId;
-  const indexTypeRegistry = indexTypeRegistryOf([
+  const indexTypeRegistry = indexTypeRegistryOf(
     definition.target,
-    ...Object.values(definition.extensions ?? {}),
-  ]);
+    Object.values(definition.extensions ?? {}),
+  );
   const qualifyColumnType = resolveColumnTypeQualifier(definition.target);
   const renderCheckExpressions = resolveCheckExpressionRenderer(definition.target);
   const targetFamily = 'sql';

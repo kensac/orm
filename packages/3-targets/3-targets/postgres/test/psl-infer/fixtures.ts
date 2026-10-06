@@ -82,7 +82,7 @@ export const inferBuildContext: SqlPslBuildContext = {
   },
   codecLookup: createPostgresBuiltinCodecLookup(),
   dataTypeLookup: createDataTypeLookup(postgresDataTypes),
-  indexTypes: indexTypeRegistryOf([{ id: 'postgres', indexTypes: postgresIndexTypes }]),
+  indexTypes: indexTypeRegistryOf({ id: 'postgres', indexTypes: postgresIndexTypes }),
 };
 
 /** Infers and prints PSL from a flat introspection fixture, with the header `contract infer` writes. */

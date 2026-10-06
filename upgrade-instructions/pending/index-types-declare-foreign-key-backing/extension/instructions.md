@@ -50,4 +50,4 @@ The functions that decide whether a foreign key is already backed take the rule 
 +buildChildRelationField(name, parentModel, fk, optional, relationName, { table: hostTable, backsForeignKey })
 ```
 
-Build the registry with `indexTypeRegistryOf([target, ...extensionPacks])` from `@internal/sql-contract/index-types`; `registry.backsForeignKey(type)` answers the rule for the registered types and returns `false` for any other. A target's `inferPslContract` hook reads the same answer from `context.indexTypes.backsForeignKey`; code that builds a `SqlPslBuildContext` by hand adds `indexTypes`.
+Build the registry with `indexTypeRegistryOf(target, extensionPacks)` from `@internal/sql-contract/index-types`; `registry.backsForeignKey(type)` answers the rule for the registered types and returns `false` for any other. A target's `inferPslContract` hook reads the same answer from `context.indexTypes.backsForeignKey`; code that builds a `SqlPslBuildContext` by hand adds `indexTypes`.

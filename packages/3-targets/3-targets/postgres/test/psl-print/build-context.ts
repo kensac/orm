@@ -63,6 +63,6 @@ export function testBuildContext(
         extraCodecs.get(codecId) ?? postgresCodecDescriptorRegistry.descriptorFor(codecId),
     },
     dataTypeLookup: createDataTypeLookup(postgresDataTypes),
-    indexTypes: indexTypeRegistryOf([{ id: 'postgres', indexTypes: postgresIndexTypes }]),
+    indexTypes: indexTypeRegistryOf({ id: 'postgres', indexTypes: postgresIndexTypes }),
   };
 }

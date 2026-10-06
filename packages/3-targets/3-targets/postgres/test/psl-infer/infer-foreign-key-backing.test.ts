@@ -68,8 +68,7 @@ describe('contract infer and foreign key backing', () => {
   it("reads an extension pack's registration, not only the target's", () => {
     const withPack = {
       ...inferBuildContext,
-      indexTypes: indexTypeRegistryOf([
-        { id: 'postgres', indexTypes: postgresIndexTypes },
+      indexTypes: indexTypeRegistryOf({ id: 'postgres', indexTypes: postgresIndexTypes }, [
         {
           id: 'ordered-pack',
           indexTypes: defineIndexTypes().add('ordered', {

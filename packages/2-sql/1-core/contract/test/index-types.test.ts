@@ -126,12 +126,10 @@ describe('createIndexTypeRegistry', () => {
 
   it('names the pack that registered an entry without backsForeignKey', () => {
     expect(() =>
-      indexTypeRegistryOf([
-        {
-          id: 'legacy-pack',
-          indexTypes: { entries: [{ type: 'legacy', options: type('object') }] },
-        },
-      ]),
+      indexTypeRegistryOf({
+        id: 'legacy-pack',
+        indexTypes: { entries: [{ type: 'legacy', options: type('object') }] },
+      }),
     ).toThrow(
       expect.objectContaining({
         message: expect.stringContaining('"legacy-pack"'),
@@ -142,8 +140,8 @@ describe('createIndexTypeRegistry', () => {
 });
 
 describe('indexTypeRegistryOf', () => {
-  it('registers the index types of every pack that declares some', () => {
-    const registry = indexTypeRegistryOf([
+  it('registers the index types of the target and every extension pack that declares some', () => {
+    const registry = indexTypeRegistryOf(
       {
         id: 'target',
         indexTypes: defineIndexTypes().add('ordered', {
@@ -151,15 +149,17 @@ describe('indexTypeRegistryOf', () => {
           backsForeignKey: true,
         }),
       },
-      { id: 'no-indexes' },
-      {
-        id: 'search',
-        indexTypes: defineIndexTypes().add('search', {
-          options: type('object'),
-          backsForeignKey: false,
-        }),
-      },
-    ]);
+      [
+        { id: 'no-indexes' },
+        {
+          id: 'search',
+          indexTypes: defineIndexTypes().add('search', {
+            options: type('object'),
+            backsForeignKey: false,
+          }),
+        },
+      ],
+    );
 
     expect([registry.backsForeignKey('ordered'), registry.backsForeignKey('search')]).toEqual([
       true,
@@ -168,9 +168,52 @@ describe('indexTypeRegistryOf', () => {
   });
 
   it('refuses a pack whose indexTypes is not a registration', () => {
-    expect(() => indexTypeRegistryOf([{ id: 'broken', indexTypes: 'nope' }])).toThrow(
-      expect.objectContaining({ code: 'CONTRACT.PACK_CONTRIBUTION_INVALID' }),
-    );
+    expect(() =>
+      indexTypeRegistryOf({ id: 'target' }, [{ id: 'broken', indexTypes: 'nope' }]),
+    ).toThrow(expect.objectContaining({ code: 'CONTRACT.PACK_CONTRIBUTION_INVALID' }));
+  });
+
+  describe('an index type whose access method is not its own name', () => {
+    const convertedSearch = defineIndexTypes().add('search', {
+      options: type('object'),
+      backsForeignKey: false,
+      accessMethod: 'gin',
+    });
+
+    it('is accepted from the target, which converts it', () => {
+      const registry = indexTypeRegistryOf({ id: 'target', indexTypes: convertedSearch });
+
+      expect(registry.get('search')).toMatchObject({ type: 'search', accessMethod: 'gin' });
+    });
+
+    it('is refused from an extension pack, naming the pack and the access method', () => {
+      expect(() =>
+        indexTypeRegistryOf({ id: 'target' }, [{ id: 'search-pack', indexTypes: convertedSearch }]),
+      ).toThrow(
+        expect.objectContaining({
+          code: 'CONTRACT.PACK_CONTRIBUTION_INVALID',
+          message: expect.stringContaining('"search-pack"'),
+          why: expect.stringContaining('target'),
+          fix: expect.stringContaining('accessMethod'),
+          meta: { indexType: 'search', accessMethod: 'gin', packId: 'search-pack' },
+        }),
+      );
+    });
+
+    it('is accepted from an extension pack that declares its own name as the access method', () => {
+      const registry = indexTypeRegistryOf({ id: 'target' }, [
+        {
+          id: 'bm25-pack',
+          indexTypes: defineIndexTypes().add('bm25', {
+            options: type('object'),
+            backsForeignKey: false,
+            accessMethod: 'bm25',
+          }),
+        },
+      ]);
+
+      expect(registry.has('bm25')).toBe(true);
+    });
   });
 
   it('two registries are independent', () => {

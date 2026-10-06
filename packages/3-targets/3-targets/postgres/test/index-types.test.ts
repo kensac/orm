@@ -2,6 +2,7 @@ import { createDataTypeLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
 import { buildSymbolTable } from '@internal/psl-parser';
 import { parse } from '@internal/psl-parser/syntax';
+import { defineIndexTypes, indexTypeRegistryOf } from '@internal/sql-contract/index-types';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import { type } from 'arktype';
@@ -11,6 +12,7 @@ import {
   postgresAuthoringPslBlockDescriptors,
 } from '../src/core/authoring';
 import { postgresTargetDescriptorMeta } from '../src/core/descriptor-meta';
+import { FULL_TEXT_INDEX_TYPE, fullTextIndexType } from '../src/core/full-text-index-definition';
 import { postgresAccessMethodOf, postgresIndexTypes } from '../src/core/index-types';
 import { type PostgresSchema, postgresCreateNamespace } from '../src/core/postgres-schema';
 
@@ -86,6 +88,25 @@ describe('postgresIndexTypes', () => {
   it('creates a fullText index as a gin index', () => {
     expect(postgresAccessMethodOf('fullText')).toBe('gin');
     expect(postgresAccessMethodOf('btree')).toBe('btree');
+  });
+
+  it('registers fullText as the target, which converts it into a gin index', () => {
+    const registry = indexTypeRegistryOf({ id: 'postgres', indexTypes: postgresIndexTypes });
+
+    expect(registry.get(FULL_TEXT_INDEX_TYPE)).toMatchObject({ accessMethod: 'gin' });
+  });
+
+  it('refuses fullText registered by an extension pack, which cannot convert it', () => {
+    const copied = defineIndexTypes().add(FULL_TEXT_INDEX_TYPE, fullTextIndexType);
+
+    expect(() =>
+      indexTypeRegistryOf({ id: 'postgres' }, [{ id: 'copied-full-text', indexTypes: copied }]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.PACK_CONTRIBUTION_INVALID',
+        meta: { indexType: 'fullText', accessMethod: 'gin', packId: 'copied-full-text' },
+      }),
+    );
   });
 });
 

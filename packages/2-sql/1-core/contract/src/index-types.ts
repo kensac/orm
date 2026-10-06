@@ -8,8 +8,9 @@ export interface IndexTypeEntry<TOptions = unknown> {
   /**
    * The access method an index of this type is created with. It is the type literal itself for an
    * access method such as `btree`. When it differs, the type is a kind of index the target turns
-   * into an index of that access method, rendering its body from the options; only the target can
-   * provide that conversion today. Absent, it is the type literal.
+   * into an index of that access method, rendering its body from the options. Only the target
+   * provides that conversion, so {@link indexTypeRegistryOf} refuses such an entry from an extension
+   * pack. Absent, it is the type literal.
    */
   readonly accessMethod?: string;
   /**
@@ -168,28 +169,58 @@ function isIndexTypeRegistration(value: unknown): value is IndexTypeRegistration
 }
 
 /**
- * The registry of every index type the given packs register: the target and the extension packs a
- * contract is built or inferred with.
+ * The registry of every index type the target and the extension packs a contract is built or
+ * inferred with register. An extension pack's entry whose access method is not its type literal is
+ * refused, because only the target converts such a type into an index of its access method.
  */
 export function indexTypeRegistryOf(
-  registrants: readonly IndexTypeRegistrant[],
+  target: IndexTypeRegistrant,
+  extensions: readonly IndexTypeRegistrant[] = [],
 ): IndexTypeRegistry {
   const registry = createIndexTypeRegistry();
-  for (const registrant of registrants) {
-    const registration = registrant.indexTypes;
-    if (registration === undefined) continue;
-    if (!isIndexTypeRegistration(registration)) {
-      throw contractError(
-        'CONTRACT.PACK_CONTRIBUTION_INVALID',
-        `Pack "${registrant.id ?? '<unknown>'}" declares "indexTypes" but its value is not an IndexTypeRegistration (expected an object with an "entries" array; got ${typeof registration}).`,
-        {
-          meta: { packId: registrant.id, contribution: 'indexTypes', reason: 'invalid-shape' },
-        },
-      );
-    }
-    for (const entry of registration.entries) {
-      registry.register(entry, registrant.id);
+  for (const entry of registeredEntriesOf(target)) {
+    registry.register(entry, target.id);
+  }
+  for (const extension of extensions) {
+    for (const entry of registeredEntriesOf(extension)) {
+      if (rendersIndexBody(entry)) {
+        throw extensionIndexTypeNotAccessMethod(entry, extension.id);
+      }
+      registry.register(entry, extension.id);
     }
   }
   return registry;
+}
+
+function registeredEntriesOf(registrant: IndexTypeRegistrant): ReadonlyArray<IndexTypeEntry> {
+  const registration = registrant.indexTypes;
+  if (registration === undefined) return [];
+  if (!isIndexTypeRegistration(registration)) {
+    throw contractError(
+      'CONTRACT.PACK_CONTRIBUTION_INVALID',
+      `Pack "${registrant.id ?? '<unknown>'}" declares "indexTypes" but its value is not an IndexTypeRegistration (expected an object with an "entries" array; got ${typeof registration}).`,
+      {
+        meta: { packId: registrant.id, contribution: 'indexTypes', reason: 'invalid-shape' },
+      },
+    );
+  }
+  return registration.entries;
+}
+
+function extensionIndexTypeNotAccessMethod(entry: IndexTypeEntry, packId: string | undefined) {
+  const accessMethod = accessMethodOf(entry);
+  const pack = packId === undefined ? 'an extension pack' : `extension pack "${packId}"`;
+  return contractError(
+    'CONTRACT.PACK_CONTRIBUTION_INVALID',
+    `Index type "${entry.type}" registered by ${pack} declares the access method "${accessMethod}", but an extension pack's index type must be an access method itself.`,
+    {
+      why: `An index type whose access method differs from its name is turned into an index of that access method by the target, which renders the index body from the options. Only the target provides that conversion, so the database would be asked for an access method named "${entry.type}".`,
+      fix: `Register the access method under its own name, or leave \`accessMethod\` out of the "${entry.type}" registration so the type name is the access method.`,
+      meta: {
+        indexType: entry.type,
+        accessMethod,
+        ...ifDefined('packId', packId),
+      },
+    },
+  );
 }

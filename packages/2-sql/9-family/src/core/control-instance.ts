@@ -595,7 +595,7 @@ export function createSqlFamilyInstance<TTargetId extends string>(
   // that read it rather than by every command that creates a family instance.
   let indexTypeRegistry: IndexTypeRegistry | undefined;
   const stackIndexTypes = (): IndexTypeRegistry => {
-    indexTypeRegistry ??= indexTypeRegistryOf([target, ...extensions]);
+    indexTypeRegistry ??= indexTypeRegistryOf(target, extensions);
     return indexTypeRegistry;
   };
   // The stack parts `contract emit` reads a PSL document with, which `contract infer` and
