@@ -17,7 +17,6 @@ import type {
   AuthoringModelAttributeLoweringOutput,
   AuthoringPslBlockDescriptorNamespace,
   AuthoringWarning,
-  AuthoringWarningSink,
   ParsedPslExtensionBlock,
 } from '@internal/framework-components/authoring';
 import {
@@ -595,7 +594,6 @@ interface BuildModelNodeInput {
   readonly binder: Binder;
   readonly symbolTable: SymbolTable;
   readonly diagnostics: PslDiagnosticCollector;
-  readonly warnings: AuthoringWarningSink;
   readonly enumHandles?: ReadonlyMap<string, EnumTypeHandle>;
   readonly capabilities: CapabilityMatrix;
   /**
@@ -1132,7 +1130,6 @@ function buildModelNodeFromPsl(input: BuildModelNodeInput): BuildModelNodeResult
             );
           },
         },
-        warnings: input.warnings,
       });
       if (lowered === undefined) {
         continue;
@@ -2500,7 +2497,6 @@ export function interpretPslDocumentToSqlContract(
       binder,
       symbolTable: input.symbolTable,
       diagnostics,
-      warnings: authoringWarnings,
       ...(enumHandlesByName.size > 0 ? { enumHandles: enumHandlesByName } : {}),
       capabilities: input.capabilities,
       ...(namespaceExtensionEntities.size > 0 ? { namespaceExtensionEntities } : {}),
