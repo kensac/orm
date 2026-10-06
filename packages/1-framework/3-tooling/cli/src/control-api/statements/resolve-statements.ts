@@ -16,7 +16,12 @@ import {
   errorStatementOriginUnknown,
   errorStatementUnresolved,
 } from '../../utils/cli-errors';
-import { type ParsedRename, parseRenameStatement, type StatementSide } from './parse-rename';
+import {
+  type ParsedRename,
+  parseRenameStatement,
+  STATEMENT_FORMS_FIX,
+  type StatementSide,
+} from './parse-rename';
 
 /**
  * The origin contract statements resolve against, or where the command looked
@@ -52,9 +57,14 @@ interface FoundModel {
   readonly model: ContractModelBase;
 }
 
+interface Refusal {
+  readonly reason: string;
+  readonly fix: string;
+}
+
 type ModelLookup =
   | ({ readonly kind: 'found' } & FoundModel)
-  | { readonly kind: 'missing' | 'refused'; readonly reason: string };
+  | ({ readonly kind: 'missing' | 'refused' } & Refusal);
 
 interface ModelReading extends FoundModel {
   readonly entity: 'model';
@@ -79,6 +89,13 @@ interface ResolutionState {
 
 const MODEL_RENAMES = 'model';
 const FIELD_RENAMES = 'field';
+const LISTED_LIMIT = 20;
+
+const CHECK_NAMES_FIX =
+  'The old name must exist in the origin contract and not in the destination contract, and the new name the other way round. Names match exactly, including case.';
+const VALUE_OBJECT_FIX = 'Leave value objects and their fields out of the statements.';
+const REPEATED_NAME_FIX =
+  'Give each model or field at most one --rename statement, and each new name to one model or field only.';
 
 function qualifiedModel(coordinate: ModelCoordinate): string {
   return `${coordinate.namespace}.${coordinate.model}`;
@@ -89,11 +106,18 @@ function qualifiedField(coordinate: FieldCoordinate): string {
 }
 
 function listed(names: readonly string[]): string {
-  return names.length === 0 ? '(none)' : [...names].sort().join(', ');
+  if (names.length === 0) return '(none)';
+  const sorted = [...names].sort();
+  const shown = sorted.slice(0, LISTED_LIMIT).join(', ');
+  return sorted.length > LISTED_LIMIT ? `${shown} and ${sorted.length - LISTED_LIMIT} more` : shown;
 }
 
 function sentence(reason: string): string {
   return `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`;
+}
+
+function unresolved(text: string, refusal: Refusal): CliStructuredError {
+  return errorStatementUnresolved(text, sentence(refusal.reason), refusal.fix);
 }
 
 function modelIn(
@@ -126,8 +150,15 @@ function hasField(model: ContractModelBase, field: string): boolean {
   return Object.hasOwn(model.fields, field) || Object.hasOwn(model.relations, field);
 }
 
-function valueObjectReason(name: string): string {
-  return `"${name}" is a value object, and value object renames are not supported in this release`;
+function missing(reason: string): Refusal {
+  return { reason, fix: CHECK_NAMES_FIX };
+}
+
+function valueObjectRefusal(name: string): Refusal {
+  return {
+    reason: `"${name}" is a value object, and value object renames are not supported in this release`,
+    fix: VALUE_OBJECT_FIX,
+  };
 }
 
 function lookupModelInNamespace(
@@ -145,11 +176,13 @@ function lookupModelInNamespace(
     };
   }
   if (hasValueObject(namespace, name)) {
-    return { kind: 'refused', reason: valueObjectReason(`${namespaceId}.${name}`) };
+    return { kind: 'refused', ...valueObjectRefusal(`${namespaceId}.${name}`) };
   }
   return {
     kind: 'missing',
-    reason: `the ${contract.name} contract has no model "${name}" in namespace "${namespaceId}" (models there: ${listed(Object.keys(namespace.models))})`,
+    ...missing(
+      `the ${contract.name} contract has no model "${name}" in namespace "${namespaceId}" (models there: ${listed(Object.keys(namespace.models))})`,
+    ),
   };
 }
 
@@ -164,7 +197,9 @@ function lookupModel(
     if (namespace === undefined) {
       return {
         kind: 'missing',
-        reason: `the ${contract.name} contract has no namespace "${namespaceId}" (namespaces: ${listed(Object.keys(namespaces))})`,
+        ...missing(
+          `the ${contract.name} contract has no namespace "${namespaceId}" (namespaces: ${listed(Object.keys(namespaces))})`,
+        ),
       };
     }
     return lookupModelInNamespace(contract, namespaceId, namespace, name);
@@ -177,21 +212,22 @@ function lookupModel(
     return lookupModelInNamespace(contract, only[0], only[1], name);
   }
   if (declaring.length > 1) {
-    const candidates = declaring.map(([id]) => `${id}.${name}`);
+    const candidates = declaring.map(([id]) => `${id}.${name}`).sort();
     return {
       kind: 'refused',
-      reason: `"${name}" is a model in more than one namespace of the ${contract.name} contract (${listed(candidates)}); name it with its namespace`,
+      reason: `"${name}" is a model in more than one namespace of the ${contract.name} contract (${listed(candidates)})`,
+      fix: `Name the model with its namespace, for example ${candidates[0]}.`,
     };
   }
   if (Object.values(namespaces).some((namespace) => hasValueObject(namespace, name))) {
-    return { kind: 'refused', reason: valueObjectReason(name) };
+    return { kind: 'refused', ...valueObjectRefusal(name) };
   }
   const models = Object.entries(namespaces).flatMap(([id, namespace]) =>
     Object.keys(namespace.models).map((model) => `${id}.${model}`),
   );
   return {
     kind: 'missing',
-    reason: `the ${contract.name} contract has no model "${name}" (models: ${listed(models)})`,
+    ...missing(`the ${contract.name} contract has no model "${name}" (models: ${listed(models)})`),
   };
 }
 
@@ -200,9 +236,9 @@ function readModel(
   side: Side,
   namespaceId: string | undefined,
   name: string,
-): Result<ModelReading, string> {
+): Result<ModelReading, Refusal> {
   const lookup = lookupModel(side === 'old' ? state.origin : state.destination, namespaceId, name);
-  if (lookup.kind !== 'found') return notOk(lookup.reason);
+  if (lookup.kind !== 'found') return notOk(lookup);
   return ok({ entity: 'model', coordinate: lookup.coordinate, model: lookup.model });
 }
 
@@ -211,10 +247,12 @@ function readFieldOf(
   found: FoundModel,
   field: string,
   destinationModel: ModelCoordinate | undefined,
-): Result<FieldReading, string> {
+): Result<FieldReading, Refusal> {
   if (!hasField(found.model, field)) {
     return notOk(
-      `the ${contract.name} model "${qualifiedModel(found.coordinate)}" has no field "${field}" (fields: ${listed(fieldNames(found.model))})`,
+      missing(
+        `the ${contract.name} model "${qualifiedModel(found.coordinate)}" has no field "${field}" (fields: ${listed(fieldNames(found.model))})`,
+      ),
     );
   }
   return ok({
@@ -247,24 +285,25 @@ function readOldField(
   namespaceId: string | undefined,
   modelName: string,
   field: string,
-): Result<FieldReading, string> {
+): Result<FieldReading, Refusal> {
   const destination = lookupModel(state.destination, namespaceId, modelName);
   if (destination.kind === 'found') {
     const counterpart = originCounterpart(state, destination.coordinate);
     if (counterpart === undefined) {
       const name = qualifiedModel(destination.coordinate);
-      return notOk(
-        `the destination model "${name}" has no counterpart in the origin contract: the origin has no model "${name}" and no earlier statement renames a model to it`,
-      );
+      return notOk({
+        reason: `the destination model "${name}" has no counterpart in the origin contract: the origin has no model "${name}" and no earlier statement renames a model to it`,
+        fix: `Rename the origin model to "${name}" with its own --rename statement before this one, or check the names.`,
+      });
     }
     return readFieldOf(state.origin, counterpart, field, destination.coordinate);
   }
-  if (destination.kind === 'refused') return notOk(destination.reason);
+  if (destination.kind === 'refused') return notOk(destination);
   const origin = lookupModel(state.origin, namespaceId, modelName);
   if (origin.kind === 'found' && hasField(origin.model, field)) {
     return readFieldOf(state.origin, origin, field, undefined);
   }
-  return notOk(destination.reason);
+  return notOk(destination);
 }
 
 function readNewField(
@@ -272,9 +311,9 @@ function readNewField(
   namespaceId: string | undefined,
   modelName: string,
   field: string,
-): Result<FieldReading, string> {
+): Result<FieldReading, Refusal> {
   const destination = lookupModel(state.destination, namespaceId, modelName);
-  if (destination.kind !== 'found') return notOk(destination.reason);
+  if (destination.kind !== 'found') return notOk(destination);
   return readFieldOf(state.destination, destination, field, destination.coordinate);
 }
 
@@ -284,7 +323,7 @@ function readField(
   namespaceId: string | undefined,
   modelName: string,
   field: string,
-): Result<FieldReading, string> {
+): Result<FieldReading, Refusal> {
   return side === 'old'
     ? readOldField(state, namespaceId, modelName, field)
     : readNewField(state, namespaceId, modelName, field);
@@ -294,21 +333,24 @@ function readSide(
   state: ResolutionState,
   side: Side,
   segments: StatementSide,
-): Result<SideReading, string> {
+): Result<SideReading, Refusal> {
   if (segments.length === 1) return readModel(state, side, undefined, segments[0]);
   if (segments.length === 3) return readField(state, side, ...segments);
   const [first, second] = segments;
   const asModel = readModel(state, side, first, second);
   const asField = readField(state, side, undefined, first, second);
   if (asModel.ok && asField.ok) {
-    return notOk(
-      `"${first}.${second}" resolves both as namespace "${first}" model "${second}" and as model "${first}" field "${second}"; write the field as namespace.Model.field if you mean the field`,
-    );
+    return notOk({
+      reason: `"${first}.${second}" resolves both as namespace "${first}" model "${second}" and as model "${first}" field "${second}"`,
+      fix: 'Write the field as namespace.Model.field if you mean the field.',
+    });
   }
   if (asModel.ok) return asModel;
   if (asField.ok) return asField;
   return notOk(
-    `"${first}.${second}" resolves neither as namespace.Model (${asModel.failure}) nor as Model.field (${asField.failure})`,
+    missing(
+      `"${first}.${second}" resolves neither as namespace.Model (${asModel.failure.reason}) nor as Model.field (${asField.failure.reason})`,
+    ),
   );
 }
 
@@ -325,6 +367,7 @@ function resolveModelRename(
       errorStatementInvalid(
         text,
         `An earlier statement already renames "${qualifiedModel(from)}".`,
+        REPEATED_NAME_FIX,
       ),
     );
   }
@@ -333,6 +376,7 @@ function resolveModelRename(
       errorStatementInvalid(
         text,
         `An earlier statement already renames a model to "${qualifiedModel(to)}".`,
+        REPEATED_NAME_FIX,
       ),
     );
   }
@@ -341,6 +385,7 @@ function resolveModelRename(
       errorStatementUnresolved(
         text,
         `"${qualifiedModel(to)}" already exists in the origin contract, so it cannot be the new name of a model.`,
+        CHECK_NAMES_FIX,
       ),
     );
   }
@@ -349,6 +394,7 @@ function resolveModelRename(
       errorStatementUnresolved(
         text,
         `"${qualifiedModel(from)}" still exists in the destination contract, so it was not renamed.`,
+        CHECK_NAMES_FIX,
       ),
     );
   }
@@ -358,18 +404,59 @@ function resolveModelRename(
   return ok({ kind: 'rename', entity: 'model', from, to });
 }
 
+function modelPart(side: StatementSide): string {
+  return side.slice(0, -1).join('.');
+}
+
+/**
+ * The old side names a model the destination contract does not have. The
+ * user most likely named the field's model by its old name, so the error
+ * spells the statement with the model named as the destination names it.
+ */
+function oldModelNotInDestination(
+  state: ResolutionState,
+  statement: ParsedRename,
+  from: FieldReading,
+  toModel: string,
+): CliStructuredError {
+  const oldModel = modelPart(statement.from);
+  const newModel = modelPart(statement.to);
+  const corrected = `${newModel}.${from.coordinate.field}:${statement.to.join('.')}`;
+  const renamedEarlier = state.originOfRenamedModel.get(toModel);
+  const modelRenamed =
+    renamedEarlier !== undefined &&
+    qualifiedModel(renamedEarlier) === qualifiedModel(from.coordinate);
+  const modelStatement = `${oldModel}:${newModel}`;
+  const why = [
+    `"${qualifiedModel(from.coordinate)}" is not a model of the destination contract, and a field cannot move between models.`,
+    `Name a field's model as the destination contract names it: --rename ${corrected}.`,
+    ...(modelRenamed
+      ? []
+      : [`The model also needs its own statement, --rename ${modelStatement}, before it.`]),
+  ].join(' ');
+  const fix = modelRenamed
+    ? `Write the statement as --rename ${corrected}.`
+    : `Write the statements as --rename ${modelStatement} --rename ${corrected}.`;
+  return errorStatementInvalid(statement.text, why, fix);
+}
+
 function resolveFieldRename(
   state: ResolutionState,
-  text: string,
+  statement: ParsedRename,
   from: FieldReading,
   to: FieldReading,
 ): Result<ResolvedStatement, CliStructuredError> {
+  const text = statement.text;
   const toModel = qualifiedModel(to.coordinate);
-  if (from.destinationModel === undefined || qualifiedModel(from.destinationModel) !== toModel) {
+  if (from.destinationModel === undefined) {
+    return notOk(oldModelNotInDestination(state, statement, from, toModel));
+  }
+  if (qualifiedModel(from.destinationModel) !== toModel) {
     return notOk(
       errorStatementInvalid(
         text,
-        `The old name is a field of "${qualifiedModel(from.destinationModel ?? from.coordinate)}" and the new name a field of "${toModel}"; a field cannot move between models.`,
+        `The old name is a field of "${qualifiedModel(from.destinationModel)}" and the new name a field of "${toModel}"; a field cannot move between models.`,
+        'Rename a field within one model, and name that model as the destination contract names it.',
       ),
     );
   }
@@ -380,6 +467,7 @@ function resolveFieldRename(
       errorStatementInvalid(
         text,
         `An earlier statement already renames "${qualifiedField(from.coordinate)}".`,
+        REPEATED_NAME_FIX,
       ),
     );
   }
@@ -388,6 +476,7 @@ function resolveFieldRename(
       errorStatementInvalid(
         text,
         `An earlier statement already renames a field to "${qualifiedField(to.coordinate)}".`,
+        REPEATED_NAME_FIX,
       ),
     );
   }
@@ -396,6 +485,7 @@ function resolveFieldRename(
       errorStatementUnresolved(
         text,
         `The field "${to.coordinate.field}" already exists on the origin model "${qualifiedModel(from.coordinate)}", so it cannot be the new name of a field.`,
+        CHECK_NAMES_FIX,
       ),
     );
   }
@@ -404,6 +494,7 @@ function resolveFieldRename(
       errorStatementUnresolved(
         text,
         `The field "${from.coordinate.field}" still exists on the destination model "${toModel}", so it was not renamed.`,
+        CHECK_NAMES_FIX,
       ),
     );
   }
@@ -417,19 +508,20 @@ function resolveStatement(
   statement: ParsedRename,
 ): Result<ResolvedStatement, CliStructuredError> {
   const from = readSide(state, 'old', statement.from);
-  if (!from.ok) return notOk(errorStatementUnresolved(statement.text, sentence(from.failure)));
+  if (!from.ok) return notOk(unresolved(statement.text, from.failure));
   const to = readSide(state, 'new', statement.to);
-  if (!to.ok) return notOk(errorStatementUnresolved(statement.text, sentence(to.failure)));
+  if (!to.ok) return notOk(unresolved(statement.text, to.failure));
   if (from.value.entity === 'model' && to.value.entity === 'model') {
     return resolveModelRename(state, statement.text, from.value.coordinate, to.value.coordinate);
   }
   if (from.value.entity === 'field' && to.value.entity === 'field') {
-    return resolveFieldRename(state, statement.text, from.value, to.value);
+    return resolveFieldRename(state, statement, from.value, to.value);
   }
   return notOk(
     errorStatementInvalid(
       statement.text,
       'The statement names a model on one side and a field on the other.',
+      STATEMENT_FORMS_FIX,
     ),
   );
 }

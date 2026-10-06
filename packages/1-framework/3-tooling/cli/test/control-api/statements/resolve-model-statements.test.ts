@@ -74,6 +74,20 @@ describe('resolveStatements, model renames', () => {
       );
     });
 
+    it('lists at most twenty models when the old name is missing', () => {
+      const models = Object.fromEntries(
+        Array.from({ length: 25 }, (_, i) => [`M${String(i).padStart(2, '0')}`, {}]),
+      );
+      const failure = expectFailure(
+        resolve(['Account:User'], contractOf({ app: { models } }), profileToUser.destination),
+        UNRESOLVED,
+        'app.M00',
+        'app.M19',
+        'and 5 more',
+      );
+      expect(failure.why).not.toContain('app.M20');
+    });
+
     it('refuses a new name the destination does not have, naming the models it has', () => {
       const { origin, destination } = profileToUser;
       expectFailure(
@@ -129,12 +143,13 @@ describe('resolveStatements, model renames', () => {
         auth: { models: { Account: {} } },
         billing: { models: { User: {} } },
       });
-      expectFailure(
+      const failure = expectFailure(
         resolve(['User:Account'], origin, destination),
         UNRESOLVED,
         'auth.User',
         'billing.User',
       );
+      expect(failure.fix).toBe('Name the model with its namespace, for example auth.User.');
     });
 
     it('does not prefer the default namespace for a bare name', () => {
@@ -213,11 +228,12 @@ describe('resolveStatements, model renames', () => {
     it('refuses a value object, saying value object renames are not supported', () => {
       const origin = contractOf({ app: { valueObjects: { Address: ['street'] } } });
       const destination = contractOf({ app: { valueObjects: { Location: ['street'] } } });
-      expectFailure(
+      const failure = expectFailure(
         resolve(['Address:Location'], origin, destination),
         UNRESOLVED,
         'value object renames are not supported in this release',
       );
+      expect(failure.fix).toBe('Leave value objects and their fields out of the statements.');
     });
   });
 
@@ -225,12 +241,13 @@ describe('resolveStatements, model renames', () => {
     it('refuses renaming two models to the same name', () => {
       const origin = contractOf({ app: { models: { A: {}, C: {} } } });
       const destination = contractOf({ app: { models: { B: {} } } });
-      expectFailure(
+      const failure = expectFailure(
         resolve(['A:B', 'C:B'], origin, destination),
         INVALID,
         '--rename C:B',
         'already renames a model to "app.B"',
       );
+      expect(failure.fix).not.toContain('namespace.Model.field');
     });
 
     it('refuses renaming one model twice', () => {

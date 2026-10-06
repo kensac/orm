@@ -16,18 +16,22 @@ export interface ParsedRename {
 
 const MAX_SEGMENTS = 3;
 
+export const STATEMENT_FORMS_FIX =
+  'Each side of `<old>:<new>` is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`, and both sides name a model or both name a field.';
+
+function invalid(text: string, why: string): CliStructuredError {
+  return errorStatementInvalid(text, why, STATEMENT_FORMS_FIX);
+}
+
 function parseSide(text: string, side: string): Result<StatementSide, CliStructuredError> {
   const segments = side.split('.');
   if (segments.some((segment) => segment === '')) {
-    return notOk(errorStatementInvalid(text, `"${side}" has an empty name.`));
+    return notOk(invalid(text, `"${side}" has an empty name.`));
   }
   const [first, second, third] = segments;
   if (first === undefined || segments.length > MAX_SEGMENTS) {
     return notOk(
-      errorStatementInvalid(
-        text,
-        `"${side}" has ${segments.length} names; at most three are allowed.`,
-      ),
+      invalid(text, `"${side}" has ${segments.length} names; at most three are allowed.`),
     );
   }
   if (second === undefined) return ok([first]);
@@ -45,12 +49,10 @@ export function parseRenameStatement(text: string): Result<ParsedRename, CliStru
   const sides = text.split(':');
   const [oldSide, newSide] = sides;
   if (oldSide === undefined || newSide === undefined) {
-    return notOk(
-      errorStatementInvalid(text, 'The statement has no ":" between the old and new name.'),
-    );
+    return notOk(invalid(text, 'The statement has no ":" between the old and new name.'));
   }
   if (sides.length > 2) {
-    return notOk(errorStatementInvalid(text, 'The statement has more than one ":".'));
+    return notOk(invalid(text, 'The statement has more than one ":".'));
   }
   const from = parseSide(text, oldSide);
   if (!from.ok) return from;
@@ -58,10 +60,7 @@ export function parseRenameStatement(text: string): Result<ParsedRename, CliStru
   if (!to.ok) return to;
   if (namesModelAndField(from.value, to.value)) {
     return notOk(
-      errorStatementInvalid(
-        text,
-        'The statement names a model on one side and a field on the other.',
-      ),
+      invalid(text, 'The statement names a model on one side and a field on the other.'),
     );
   }
   return ok({ text, from: from.value, to: to.value });

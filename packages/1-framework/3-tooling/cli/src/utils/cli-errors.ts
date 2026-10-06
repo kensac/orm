@@ -483,20 +483,21 @@ export function errorPlanOriginUnknown(
   );
 }
 
-const STATEMENT_FORMS =
-  'Each side of `<old>:<new>` is one of `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`, and both sides name a model or both name a field.';
-
 /**
  * A `--rename` statement is malformed, or names two things that cannot be
  * renamed into each other (a model and a field, or fields of two models).
  */
-export function errorStatementInvalid(statement: string, reason: string): ActionableCliError {
+export function errorStatementInvalid(
+  statement: string,
+  why: string,
+  fix: string,
+): ActionableCliError {
   return new ActionableCliError(
     'MIGRATION.STATEMENT_INVALID',
     `Invalid statement "--rename ${statement}"`,
     {
-      why: reason,
-      fix: STATEMENT_FORMS,
+      why,
+      fix,
       nextActions: [chooseAction('Correct the statement')],
       meta: { statement },
     },
@@ -507,13 +508,17 @@ export function errorStatementInvalid(statement: string, reason: string): Action
  * A `--rename` statement is well formed, but its names do not resolve in the
  * origin and destination contracts the way a rename requires.
  */
-export function errorStatementUnresolved(statement: string, reason: string): ActionableCliError {
+export function errorStatementUnresolved(
+  statement: string,
+  why: string,
+  fix: string,
+): ActionableCliError {
   return new ActionableCliError(
     'MIGRATION.STATEMENT_UNRESOLVED',
     `Cannot resolve statement "--rename ${statement}"`,
     {
-      why: reason,
-      fix: 'The old name must exist in the origin contract and not in the destination contract, and the new name the other way round. Names match exactly, including case.',
+      why,
+      fix,
       nextActions: [chooseAction('Correct the names in the statement')],
       meta: { statement },
     },

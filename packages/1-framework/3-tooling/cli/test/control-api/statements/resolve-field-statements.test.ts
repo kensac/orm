@@ -67,11 +67,27 @@ describe('resolveStatements, field renames', () => {
     it('refuses old and new sides naming the old and new names of a renamed model', () => {
       const origin = contractOf({ app: { models: { A: { fields: ['x'] } } } });
       const destination = contractOf({ app: { models: { B: { fields: ['y'] } } } });
-      expectFailure(
+      const failure = expectFailure(
         resolve(['A:B', 'A.x:B.y'], origin, destination),
         INVALID,
         '--rename A.x:B.y',
-        'a field cannot move between models',
+        '"app.A" is not a model of the destination contract',
+        "Name a field's model as the destination contract names it: --rename B.x:B.y",
+      );
+      expect(failure.fix).toBe('Write the statement as --rename B.x:B.y.');
+    });
+
+    it('also asks for the model statement when no earlier statement renames the model', () => {
+      const origin = contractOf({ app: { models: { Profile: { fields: ['name'] } } } });
+      const destination = contractOf({ app: { models: { User: { fields: ['fullName'] } } } });
+      const failure = expectFailure(
+        resolve(['Profile.name:User.fullName'], origin, destination),
+        INVALID,
+        '--rename User.name:User.fullName',
+        'needs its own statement, --rename Profile:User',
+      );
+      expect(failure.fix).toBe(
+        'Write the statements as --rename Profile:User --rename User.name:User.fullName.',
       );
     });
 
@@ -190,6 +206,18 @@ describe('resolveStatements, field renames', () => {
         INVALID,
         'already renames "app.User.name"',
       );
+    });
+
+    it('refuses renaming two fields to the same name', () => {
+      const origin = contractOf({ app: { models: { User: { fields: ['a', 'b'] } } } });
+      const destination = contractOf({ app: { models: { User: { fields: ['c'] } } } });
+      const failure = expectFailure(
+        resolve(['User.a:User.c', 'User.b:User.c'], origin, destination),
+        INVALID,
+        '--rename User.b:User.c',
+        'already renames a field to "app.User.c"',
+      );
+      expect(failure.fix).not.toContain('namespace.Model.field');
     });
   });
 });
