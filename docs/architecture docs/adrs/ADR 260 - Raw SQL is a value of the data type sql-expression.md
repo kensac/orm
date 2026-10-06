@@ -124,7 +124,7 @@ Why: PSL removes the common indentation of a multi-line literal, and a TypeScrip
 
 ## One set of codes for the cast rule
 
-`@default` and the six places report refusals of the shared read and cast functions with the same codes: `PSL_VALUE_TYPE_INCOMPATIBLE` (no cast from the written value's type), `PSL_INVALID_LITERAL` (an entry or a cast refused the value) and `PSL_UNKNOWN_LITERAL_TAG`. The framework's `describeRefusal` words them. A refusal ends with what to write: ``write it as sql`...` `` with the exact rewrite for a quoted string, `write it as a sql literal` when that rewrite would read back as different text, or the forms the type admits, such as ``write sql`...` ``. Default-only refusals keep default-only codes. ADR 254 says defaults and other positions are admitted by one rule, so users and tools see it under one name.
+`@default` and the six places report refusals of the shared read and cast functions with the same codes: `PSL_VALUE_TYPE_INCOMPATIBLE` (no cast from the written value's type), `PSL_INVALID_LITERAL` (an entry or a cast refused the value) and `PSL_UNKNOWN_LITERAL_TAG`. The framework's `describeRefusal` words them. A refusal starts with what to write, the forms the type admits: ``Expected sql`...` ``. A quoted string also gets the exact rewrite, ``Expected sql`...`; write sql`(archived_at IS NULL)` ``, when that literal reads back as the same text. Default-only refusals keep default-only codes. ADR 254 says defaults and other positions are admitted by one rule, so users and tools see it under one name.
 
 ## Consequences
 

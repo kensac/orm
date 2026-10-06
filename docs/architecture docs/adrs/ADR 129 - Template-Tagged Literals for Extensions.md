@@ -103,7 +103,7 @@ model Post {
 }
 ```
 
-`dataTypeValue` reads the literal, reads its tag through the stack's authoring entries and applies the cast rule of [ADR 254](ADR%20254%20-%20Data%20types%20and%20casts.md) while it parses the argument. So an unknown tag and a value of the wrong type are reported at the written value, while the argument is parsed. `where: "(archived IS NULL)"` is `PSL_VALUE_TYPE_INCOMPATIBLE`, ``sql/expression has no cast from pg/text; write it as sql`(archived IS NULL)` ``.
+`dataTypeValue` reads the literal, reads its tag through the stack's authoring entries and applies the cast rule of [ADR 254](ADR%20254%20-%20Data%20types%20and%20casts.md) while it parses the argument. So an unknown tag and a value of the wrong type are reported at the written value, while the argument is parsed. `where: "(archived IS NULL)"` is `PSL_VALUE_TYPE_INCOMPATIBLE`, ``Expected sql`...`; write sql`(archived IS NULL)` ``.
 
 `dataTypeValue` is a named argument, a block parameter or a parameter of a `funcCall`, never a bare arm of `oneOf`, whose aggregate `Expected one of: …` would hide that message. When the argument is a call and exactly one arm of a `oneOf` is a `funcCall` of that name, `oneOf` keeps that arm's diagnostics, so a typed parameter inside a call reports its own refusal.
 
