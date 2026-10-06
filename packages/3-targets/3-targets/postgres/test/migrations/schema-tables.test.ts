@@ -12,6 +12,8 @@ describe('postgresSchemaTables', () => {
     expect(tables.hasTable(UNBOUND_NAMESPACE_ID, 'userProfile')).toBe(true);
     expect(tables.hasColumn(UNBOUND_NAMESPACE_ID, 'userProfile', 'email')).toBe(true);
     expect(tables.hasColumn(UNBOUND_NAMESPACE_ID, 'userProfile', 'ghost')).toBe(false);
+    expect(tables.columnsNamed(UNBOUND_NAMESPACE_ID, 'userProfile', 'email')).toEqual(['email']);
+    expect(tables.columnsNamed(UNBOUND_NAMESPACE_ID, 'userProfile', 'EMAIL')).toEqual([]);
     expect(tables.hasTable(UNBOUND_NAMESPACE_ID, 'ghost')).toBe(false);
   });
 

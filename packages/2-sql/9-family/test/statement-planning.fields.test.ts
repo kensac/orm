@@ -13,6 +13,8 @@ import {
   renameModel,
 } from './statement-fixtures';
 
+const ignoreCase = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
+
 const origin = contractOf({ User: { table: 'User', fields: { id: 'id', name: 'name' } } });
 const destination = contractOf({
   User: { table: 'User', fields: { id: 'id', fullName: 'fullName' } },
@@ -138,6 +140,44 @@ describe('planStatements, field renames', () => {
       }),
     );
     expect(conflict.summary).toContain('already has a column "fullName"');
+  });
+
+  it('rejects a rename onto a name the target takes for an existing column of another case', () => {
+    const before = contractOf({
+      User: { table: 'User', fields: { other: 'other', Name: 'Name' } },
+    });
+    const after = contractOf({ User: { table: 'User', fields: { NAME: 'NAME', Name: 'Name' } } });
+    const conflict = rejection(
+      planStatements({
+        policy: ALL_CLASSES,
+        statements: [renameField('User', 'other', 'NAME')],
+        fromContract: before,
+        contract: after,
+        target: fakeTarget(
+          ['app.User'],
+          { 'app.User': ['other', 'Name'] },
+          ['widening'],
+          ignoreCase,
+        ),
+      }),
+    );
+    expect(conflict.summary).toContain('already has a column "Name"');
+  });
+
+  it('renames a column whose name changes only in case where the target ignores case', () => {
+    const before = contractOf({ User: { table: 'User', fields: { name: 'name' } } });
+    const after = contractOf({ User: { table: 'User', fields: { Name: 'Name' } } });
+    expect(
+      planned(
+        planStatements({
+          policy: ALL_CLASSES,
+          statements: [renameField('User', 'name', 'Name')],
+          fromContract: before,
+          contract: after,
+          target: fakeTarget(['app.User'], { 'app.User': ['name'] }, ['widening'], ignoreCase),
+        }),
+      ).calls,
+    ).toEqual(['column app.User.name -> Name']);
   });
 
   it('rejects a field that has a column on one side only', () => {

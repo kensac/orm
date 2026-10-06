@@ -1,6 +1,7 @@
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
-import { columnExistsAst } from '../../../contract-free/checks';
+import { columnExistsAst, columnNameTakenAst } from '../../../contract-free/checks';
 import { quoteIdentifier } from '../../sql-utils';
+import { sqliteIdentifiersCollide } from '../identifier-case';
 import { buildTargetDetails } from '../planner-target-details';
 import {
   type Op,
@@ -91,8 +92,9 @@ export function renameColumnExecuteSql(
 
 /**
  * Renames a column. SQLite updates the indexes, foreign keys and triggers that name it, and keeps
- * index names. Column name checks compare exactly, so a rename that only changes case needs no
- * temporary name.
+ * index names. SQLite takes names that differ only in case for the same name, so the new name
+ * must be free whatever its case, except in a rename that only changes case, which SQLite performs
+ * in one statement.
  */
 export async function renameColumn(
   tableName: string,
@@ -103,7 +105,11 @@ export async function renameColumn(
   const fromChecks = columnExistsAst(tableName, fromName);
   const toChecks = columnExistsAst(tableName, toName);
   const fromPresent = await lowerer.lowerToExecuteRequest(fromChecks.columnPresent());
-  const toAbsent = await lowerer.lowerToExecuteRequest(toChecks.columnAbsent());
+  const toAbsent = await lowerer.lowerToExecuteRequest(
+    sqliteIdentifiersCollide(fromName, toName)
+      ? toChecks.columnAbsent()
+      : columnNameTakenAst(tableName, toName).nameFree(),
+  );
   const toPresent = await lowerer.lowerToExecuteRequest(toChecks.columnPresent());
   const fromAbsent = await lowerer.lowerToExecuteRequest(fromChecks.columnAbsent());
   return {

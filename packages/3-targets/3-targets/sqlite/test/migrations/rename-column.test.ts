@@ -14,7 +14,7 @@ import {
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { describe, expect, it } from 'vitest';
-import { columnExistsAst } from '../../src/contract-free/checks';
+import { columnExistsAst, columnNameTakenAst } from '../../src/contract-free/checks';
 import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-schema';
 import { RenameColumnCall } from '../../src/core/migrations/op-factory-call';
 import { renameColumn } from '../../src/core/migrations/operations/columns';
@@ -108,7 +108,7 @@ describe('renameColumn (sqlite)', () => {
     });
     expect(received).toEqual([
       columnExistsAst('User', 'name').columnPresent(),
-      columnExistsAst('User', 'fullName').columnAbsent(),
+      columnNameTakenAst('User', 'fullName').nameFree(),
       columnExistsAst('User', 'fullName').columnPresent(),
       columnExistsAst('User', 'name').columnAbsent(),
     ]);
@@ -116,9 +116,10 @@ describe('renameColumn (sqlite)', () => {
     expect(op.postcheck).toHaveLength(2);
   });
 
-  it('renames a column whose name changes only in case in one statement', async () => {
-    const { lowerer } = recordingCheckLowerer();
+  it('renames a column whose name changes only in case in one statement, checking the new name exactly', async () => {
+    const { lowerer, received } = recordingCheckLowerer();
     const op = await renameColumn('User', 'name', 'Name', lowerer);
+    expect(received[1]).toEqual(columnExistsAst('User', 'Name').columnAbsent());
     expect(op.execute.map((step) => step.sql)).toEqual([
       'ALTER TABLE "User" RENAME COLUMN "name" TO "Name"',
     ]);

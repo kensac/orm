@@ -26,6 +26,33 @@ export function columnExistsAst(table: string, column: string): ColumnExistsChec
   };
 }
 
+export interface ColumnNameTakenCheckBuilder {
+  nameFree(): SelectAst;
+}
+
+/**
+ * Typed builder for the check that no column of the table has a name SQLite takes for `column`.
+ * Produces `SELECT COUNT(*) = 0 AS "result" FROM pragma_table_info(?) WHERE "name" COLLATE NOCASE
+ * = ?`: SQLite compares column names without regard to the case of ASCII letters, as `NOCASE`
+ * does.
+ */
+export function columnNameTakenAst(table: string, column: string): ColumnNameTakenCheckBuilder {
+  const source = FunctionSource.of('pragma_table_info', [
+    cfExpr.param(table, SQLITE_TEXT_CODEC_ID).ast,
+  ]);
+  const name = cfExpr.fn({
+    method: 'collateNocase',
+    template: '{{self}} COLLATE NOCASE',
+    self: cfExpr.identifierRef('name'),
+    returns: { codecId: SQLITE_TEXT_CODEC_ID, nullable: false },
+  });
+  const where = name.eqParam(column, SQLITE_TEXT_CODEC_ID);
+  return {
+    nameFree: () =>
+      exprSelect().from(source).project('result', cfExpr.countStar().eqLit(0)).where(where).build(),
+  };
+}
+
 export interface TableExistsCheckBuilder {
   tableAbsent(): SelectAst;
   tablePresent(): SelectAst;

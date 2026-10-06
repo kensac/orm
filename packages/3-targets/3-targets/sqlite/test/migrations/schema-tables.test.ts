@@ -15,6 +15,11 @@ describe('sqliteSchemaTables', () => {
     expect(tables.hasTable(UNBOUND_NAMESPACE_ID, 'ghost')).toBe(false);
   });
 
+  it('finds the columns SQLite takes for a name, whatever their case', () => {
+    expect(tables.columnsNamed(UNBOUND_NAMESPACE_ID, 'userProfile', 'EMAIL')).toEqual(['email']);
+    expect(tables.columnsNamed(UNBOUND_NAMESPACE_ID, 'userProfile', 'ghost')).toEqual([]);
+  });
+
   it('names the unbound namespace for a table it has, and none otherwise', () => {
     expect(tables.namespacesWithTable('userProfile')).toEqual([UNBOUND_NAMESPACE_ID]);
     expect(tables.namespacesWithTable('ghost')).toEqual([]);

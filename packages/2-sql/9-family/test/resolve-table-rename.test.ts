@@ -69,6 +69,7 @@ describe('resolveTableRenameAgainst', () => {
   const atThisPoint = (namespaces: Readonly<Record<string, readonly string[]>>): SchemaTables => ({
     hasTable: (namespaceId, tableName) => namespaces[namespaceId]?.includes(tableName) === true,
     hasColumn: () => false,
+    columnsNamed: () => [],
     namespacesWithTable: (tableName) =>
       Object.keys(namespaces).filter((namespaceId) => namespaces[namespaceId]?.includes(tableName)),
   });

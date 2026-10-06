@@ -58,6 +58,10 @@ function schemaTables(
     hasTable: (namespaceId, table) => columnsOf(namespaceId, table) !== undefined,
     hasColumn: (namespaceId, table, column) =>
       columnsOf(namespaceId, table)?.includes(column) === true,
+    columnsNamed: (namespaceId, table, column) =>
+      (columnsOf(namespaceId, table) ?? []).filter(
+        (existing) => existing.toLowerCase() === column.toLowerCase(),
+      ),
     namespacesWithTable: (table) =>
       Object.keys(namespaces).filter((namespaceId) => columnsOf(namespaceId, table) !== undefined),
   };
@@ -114,6 +118,19 @@ describe('resolveColumnRenameAgainst', () => {
     expect(refusalFor(rename('User', 'name', 'id')).message).toContain(
       'column "User"."id" already exists at this point of the migration',
     );
+  });
+
+  it('refuses a new name the table has under another case where the target ignores case', () => {
+    const against = schemaTables({ [UNBOUND_NAMESPACE_ID]: { User: ['other', 'FullName'] } });
+    expect(refusalFor(rename('User', 'other', 'fullName'), against).message).toContain(
+      'column "User"."fullName" already exists at this point of the migration as "FullName"',
+    );
+  });
+
+  it('resolves a rename that only changes the case of the name', () => {
+    const endUpper = contractWithColumns({ User: ['id', 'Name'] });
+    const result = resolveColumnRenameAgainst(lookup, endUpper, rename('User', 'name', 'Name'));
+    expect(result.ok).toBe(true);
   });
 
   it('refuses a new name the end contract does not have', () => {

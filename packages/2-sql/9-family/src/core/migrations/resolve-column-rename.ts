@@ -56,7 +56,7 @@ export function unmatchedColumnRename(rename: ColumnRename, reason: string): Str
     COLUMN_RENAME_UNMATCHED_CODE,
     `renameColumn ${columnLabel(rename.namespaceId, rename.table, rename.from)} to "${rename.to}" does not match the migration's contracts: ${reason}.`,
     {
-      why: "renameColumn must name a table and a column as the migration's earlier rename operations leave them, and a new column name that the end contract has on that table and that the table does not have yet. Order the rename calls in the sequence the renames happen, and check the spelling, the table, the column and the namespace.",
+      why: "renameColumn must name a table and a column as the migration's earlier rename operations leave them, and a new column name that the end contract has on that table and that the table does not have yet. Order the rename calls in the sequence the renames happen, and check the names of the table, the column and the namespace.",
       meta: { table: rename.table, from: rename.from, to: rename.to },
     },
   );
@@ -104,11 +104,14 @@ export function resolveColumnRenameAgainst(
       ),
     );
   }
-  if (previous.hasColumn(namespaceId, rename.table, rename.to)) {
+  const [taken] = previous
+    .columnsNamed(namespaceId, rename.table, rename.to)
+    .filter((column) => column !== rename.from);
+  if (taken !== undefined) {
     return notOk(
       unmatchedColumnRename(
         rename,
-        `column ${columnLabel(namespaceId, rename.table, rename.to)} already exists at this point of the migration`,
+        `column ${columnLabel(namespaceId, rename.table, rename.to)} already exists at this point of the migration${taken === rename.to ? '' : ` as "${taken}"`}`,
       ),
     );
   }

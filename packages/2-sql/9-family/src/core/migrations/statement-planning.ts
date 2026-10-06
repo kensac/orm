@@ -385,11 +385,14 @@ class StatementPlanner<TCall> {
         ),
       );
     }
-    if (tables.hasColumn(rename.namespaceId, table, rename.to)) {
+    const [taken] = tables
+      .columnsNamed(rename.namespaceId, table, rename.to)
+      .filter((column) => column !== rename.from);
+    if (taken !== undefined) {
       return notOk(
         rejected(
           statement,
-          `${label}: the schema being planned from already has a column "${rename.to}" on table "${table}"`,
+          `${label}: the schema being planned from already has a column "${taken}" on table "${table}"`,
           'A rename cannot replace a column that already exists.',
           { ...tableLocation, column: rename.to },
         ),

@@ -152,12 +152,17 @@ export function fakeTarget(
   initial: readonly string[],
   columns: Readonly<Record<string, readonly string[]>> = {},
   operationClasses: readonly MigrationOperationClass[] = ['widening'],
+  sameColumnName: (left: string, right: string) => boolean = (left, right) => left === right,
 ) {
   const tables = new Map(initial.map((table) => [table, new Set(columns[table] ?? [])]));
   const schemaTables: SchemaTables = {
     hasTable: (namespaceId, table) => tables.has(`${namespaceId}.${table}`),
     hasColumn: (namespaceId, table, column) =>
       tables.get(`${namespaceId}.${table}`)?.has(column) === true,
+    columnsNamed: (namespaceId, table, column) =>
+      [...(tables.get(`${namespaceId}.${table}`) ?? [])].filter((existing) =>
+        sameColumnName(existing, column),
+      ),
     namespacesWithTable: () => [],
   };
   return {
