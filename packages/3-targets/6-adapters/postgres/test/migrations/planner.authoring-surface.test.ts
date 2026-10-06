@@ -82,6 +82,7 @@ describe('PostgresMigrationPlanner authoring surface', () => {
         schema: fromSchemaIR,
         policy: { allowedOperationClasses: ['additive'] },
         fromContract,
+        statements: [],
         frameworkComponents: [],
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: '../../snapshots',

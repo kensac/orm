@@ -115,6 +115,13 @@ export {
   extractComponentIds,
   extractQueryOperationTypeImports,
 } from '../control/control-stack';
+export type {
+  FieldCoordinate,
+  ModelCoordinate,
+  ResolvedFieldRename,
+  ResolvedModelRename,
+  ResolvedStatement,
+} from '../control/migration-statements';
 export { orderIssuesByDependencies } from '../control/order-issues-by-dependencies';
 export type {
   DiffableNode,

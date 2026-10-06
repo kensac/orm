@@ -85,6 +85,7 @@ export async function planFromDiff<TFamilyId extends string, TTargetId extends s
     schema: input.schemaIntrospection,
     policy: input.operationPolicy,
     fromContract: null,
+    statements: [],
     frameworkComponents: input.frameworkComponents,
     spaceId: input.space.spaceId,
     ownership: input.ownership,

@@ -125,6 +125,7 @@ async function runPlannerLeg(
     schema: fromSchema,
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
     fromContract,
+    statements: [],
     frameworkComponents,
     spaceId,
     // Offline `migration plan` is the aggregate-of-(possibly one) degenerate

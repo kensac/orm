@@ -20,6 +20,7 @@ import type {
   ControlFamilyInstance,
 } from './control-instances';
 import type { OperationContext } from './control-operation-results';
+import type { ResolvedStatement } from './migration-statements';
 
 // ============================================================================
 // Migration Package Metadata
@@ -461,6 +462,11 @@ export interface MigrationPlanner<
      * parsed value.
      */
     readonly fromContract: Contract | null;
+    /**
+     * Statements the user gave, resolved against `fromContract` and `contract`,
+     * in the order given. Empty when the user gave none.
+     */
+    readonly statements: readonly ResolvedStatement[];
     /**
      * Active framework components participating in this composition.
      * Families/targets can interpret this list to derive family-specific metadata.
