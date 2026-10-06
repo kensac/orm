@@ -163,7 +163,7 @@ describe('planner helpers', () => {
       providedInvariants: [],
     });
     const success = plannerSuccess(plan, []);
-    expect(success).toEqual({ kind: 'success', plan });
+    expect(success).toEqual({ kind: 'success', plan, appliedStatements: [] });
     expect(Object.isFrozen(success)).toBe(true);
 
     const warning = {
