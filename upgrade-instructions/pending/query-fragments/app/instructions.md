@@ -75,7 +75,7 @@ Rename every use of these types in the file, including a re-export such as `expo
 
 ## Rename what you named after scopes
 
-Code that calls a fragment a "scope" still compiles, but rename it to match the new words. Name a module, a variable or a comment for a fragment that selects, includes, orders or limits a fragment, and keep "scope" for a fragment that only imposes conditions on the query. For example, a module `scopes.ts` that holds both a filter and a shared `select` becomes `fragments.ts`, with its imports updated, while a comment that describes a filter in it as a scope stays.
+Code that calls a fragment a "scope" still compiles, but rename it to match the new words. Name a module, a variable or a comment for a fragment that selects, includes, orders or limits a fragment, and keep "scope" for a fragment that only imposes conditions on the query. For example, a module `scopes.ts` that holds both a filter and a shared `select` becomes `fragments.ts`, with its imports updated, while a comment that describes a filter in it as a scope stays. Update documentation the same way, such as a README that names `db.orm.scope`, `.scope(...)` or a module you renamed.
 
 ## `fragment` is a member of every collection
 
