@@ -6,9 +6,9 @@
 
 ### 1. A collection keeps its class through the chain
 
-**Outcome.** Class methods chain, conditionals are sound, and `apply` exists. ADR 258 in full, apart from its "Later decisions". Closes TML-3397 and the chaining part of TML-3403.
+**Outcome.** Class methods chain, conditionals are sound, and `with` exists. ADR 258 in full, apart from its "Later decisions". Closes TML-3397 and the chaining part of TML-3403.
 
-**Builds on:** nothing. **Hands to:** slices 2 and 4 a `Collection` whose methods have the shape of scopes, the named facts `Filtered`, `Ordered`, `Including`, `Scope`, and `apply`.
+**Builds on:** nothing. **Hands to:** slices 2 and 4 a `Collection` whose methods have the shape of scopes, the named facts `Filtered`, `Ordered`, `Including`, `Scope`, and `with`.
 
 Slice spec: [slices/1-collection-keeps-its-class/spec.md](slices/1-collection-keeps-its-class/spec.md). Reference implementation: `bot/spike-this-typed-chaining`, write-up `spikes/this-typed-chaining.md`.
 

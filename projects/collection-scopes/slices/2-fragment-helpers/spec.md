@@ -18,10 +18,10 @@ const forTenant = (tenantId: string) =>
   db.orm.scope({ tenantId: field.uuidString() }, (rows) => rows.where((r) => r.tenantId.eq(tenantId)));
 const summary = Post.scope((posts) => posts.select('id', 'title').include('user'));
 
-Post.apply(notDeleted).apply(forTenant(ctx.tenantId)).apply(summary).all();
-Comment.apply(notDeleted);
-Tag.apply(notDeleted);                        // error: Tag has no deletedAt
-Post.select('id').apply(summary);             // error: the rows no longer have every Post field
+Post.with(notDeleted).with(forTenant(ctx.tenantId)).with(summary).all();
+Comment.with(notDeleted);
+Tag.with(notDeleted);                        // error: Tag has no deletedAt
+Post.select('id').with(summary);             // error: the rows no longer have every Post field
 Post.orderBy(orderByField(Post, input.sort, input.direction, ['title', 'createdAt']));
 ```
 
@@ -51,7 +51,7 @@ One idea: a scope is a function, and these are the three ways to make one that T
 
 In: the two `scope` methods, `orderByField`, `CodecField`, their exports, the write refusals, tests, the package README and `skills/prisma-8/references/queries-postgres.md`, the demo using each, ADR 259 set to match the code and to Accepted with its cost tables for the demo and for a 200-model contract, and two upgrade entries (`query-fragment-helpers`, app and extension).
 
-Out: `apply` and the `Scope` type (slice 1); a default scope per model; selecting or including by shape across models; collection scopes from indexes (slice 4); the registered class inside an include refinement (TML-3426).
+Out: `with` and the `Scope` type (slice 1); a default scope per model; selecting or including by shape across models; collection scopes from indexes (slice 4); the registered class inside an include refinement (TML-3426).
 
 ## Pre-investigated edge cases
 
