@@ -161,8 +161,8 @@ interface ConflictLocation extends ModelTable {
   readonly column?: string;
 }
 
-const CHECK_THE_DATABASE =
-  'Check that the database matches the origin contract with prisma db verify --schema-only, or leave out this statement.';
+const DRIFTED =
+  'so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.';
 
 function rejected(
   statement: ResolvedStatement,
@@ -316,7 +316,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from has no table "${rename.from}"`,
-          `The origin contract names table "${rename.from}", but the schema the plan starts from does not have it. ${CHECK_THE_DATABASE}`,
+          `The database has no table "${rename.from}", although the contract it was last updated to names it, ${DRIFTED}`,
           { namespaceId: rename.namespaceId, table: rename.from },
         ),
       );
@@ -400,7 +400,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from has no column "${rename.from}" on table "${table}"`,
-          `The origin contract names column "${rename.from}" on table "${table}", but the schema the plan starts from does not have it. ${CHECK_THE_DATABASE}`,
+          `The database has no column "${rename.from}" on table "${table}", although the contract it was last updated to names it, ${DRIFTED}`,
           { ...tableLocation, column: rename.from },
         ),
       );

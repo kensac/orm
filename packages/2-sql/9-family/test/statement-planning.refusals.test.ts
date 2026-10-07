@@ -67,7 +67,7 @@ describe('statement refusals say what to do next', () => {
         contract: user,
         target: fakeTarget([]),
       },
-      why: 'The origin contract names table "Profile", but the schema the plan starts from does not have it. Check that the database matches the origin contract with prisma db verify --schema-only, or leave out this statement.',
+      why: 'The database has no table "Profile", although the contract it was last updated to names it, so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.',
     },
     {
       case: 'a table name another table already holds',
@@ -107,7 +107,7 @@ describe('statement refusals say what to do next', () => {
         contract: userWithFullName,
         target: fakeTarget(['app.User'], { 'app.User': ['id'] }),
       },
-      why: 'The origin contract names column "name" on table "User", but the schema the plan starts from does not have it. Check that the database matches the origin contract with prisma db verify --schema-only, or leave out this statement.',
+      why: 'The database has no column "name" on table "User", although the contract it was last updated to names it, so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.',
     },
     {
       case: 'a column name another column already holds',
