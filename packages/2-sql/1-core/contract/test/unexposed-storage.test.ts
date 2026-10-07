@@ -32,17 +32,17 @@ function userModel(fields: Record<string, SqlModelFieldStorage>): ContractModel 
 const tables = {
   user: table(
     {
-      id: col('int4', 'pg/int4@1'),
-      email: col('text', 'pg/text@1'),
-      legacy_key: col('text', 'pg/text@1', true),
+      id: col('pg/int4', 'pg/int4@1'),
+      email: col('pg/text', 'pg/text@1'),
+      legacy_key: col('pg/text', 'pg/text@1', true),
     },
     { pk: pk('id') },
   ),
   _prisma_migrations: table(
     {
-      id: col('varchar', 'pg/varchar@1'),
-      migration_name: col('varchar', 'pg/varchar@1'),
-      user_id: col('int4', 'pg/int4@1', true),
+      id: col('pg/varchar', 'pg/varchar@1'),
+      migration_name: col('pg/varchar', 'pg/varchar@1'),
+      user_id: col('pg/int4', 'pg/int4@1', true),
     },
     {
       pk: pk('id'),
