@@ -292,9 +292,13 @@ withTempDir(({ createTempDir }) => {
         expect(refusal?.code, 'S2.07: the old name no longer resolves').toBe(
           'MIGRATION.STATEMENT_UNRESOLVED',
         );
-        expect(refusal?.why, 'S2.07: the origin has no Profile').toContain(
-          'origin contract has no model "Profile"',
+        expect(refusal?.why, 'S2.07: says the rename has already happened').toContain(
+          'The origin contract already has "User" and has no "Profile", so this rename has already happened.',
         );
+        expect(
+          refusal?.nextActions?.map((action) => action.label),
+          'S2.07: says to leave out the statement',
+        ).toEqual(['Leave out --rename Profile:User.']);
       },
       timeouts.spinUpPpgDev,
     );
