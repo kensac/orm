@@ -40,12 +40,14 @@ export type ResolvedMigrationStatement =
   | ResolvedFieldRenameStatement;
 
 /**
- * A statement as a plan applied it: `operationIds` are the ids of the plan's operations the
- * statement accounts for, in plan order, and empty when the storage did not change.
+ * A statement as a plan applied it: `operationIndexes` are the positions, in the plan's
+ * `operations`, of the operations the statement accounts for, in plan order, and empty when the
+ * storage did not change. Statements refer to operations by position because operation ids are
+ * not unique within a plan.
  */
 export interface AppliedMigrationStatement {
   readonly statement: ResolvedMigrationStatement;
-  readonly operationIds: readonly string[];
+  readonly operationIndexes: readonly number[];
 }
 
 /**

@@ -40,12 +40,7 @@ import {
 import * as contractFreeDdl from '../../contract-free/ddl';
 import { sqliteError } from '../errors';
 import { quoteIdentifier } from '../sql-utils';
-import {
-  addColumn,
-  dropColumnExecuteSql,
-  renameColumn,
-  renameColumnOperationId,
-} from './operations/columns';
+import { addColumn, dropColumnExecuteSql, renameColumn } from './operations/columns';
 import type { SqliteColumnSpec, SqliteIndexSpec, SqliteTableSpec } from './operations/shared';
 import { step } from './operations/shared';
 import {
@@ -459,11 +454,6 @@ export class RenameColumnCall extends SqliteOpFactoryCallNode {
     this.indexReplacements = Object.freeze([...indexReplacements]);
     this.companions = Object.freeze(indexReplacementCalls(indexReplacements));
     this.freeze();
-  }
-
-  /** The id of the operation this call lowers to. */
-  get operationId(): string {
-    return renameColumnOperationId(this.tableName, this.oldColumnName);
   }
 
   override toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {

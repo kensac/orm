@@ -69,11 +69,11 @@ describe('planStatements', () => {
       appliedStatements: [
         {
           statement: renameModel('Profile', 'User'),
-          operationIds: ['table app.Profile -> User', 'table app.Profile -> User companion'],
+          operationIndexes: [0, 1],
         },
         {
           statement: renameModel('Post', 'Article'),
-          operationIds: ['table app.Post -> Article', 'table app.Post -> Article companion'],
+          operationIndexes: [2, 3],
         },
       ],
     });
@@ -90,7 +90,7 @@ describe('planStatements', () => {
     expect(planned(result)).toMatchObject({
       calls: [],
       tableRenames: [],
-      appliedStatements: [{ operationIds: [] }],
+      appliedStatements: [{ operationIndexes: [] }],
     });
   });
 

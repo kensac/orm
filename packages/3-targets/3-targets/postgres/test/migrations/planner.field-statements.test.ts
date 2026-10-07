@@ -123,12 +123,11 @@ describe('Postgres planner, field statements', () => {
     ]);
   });
 
-  it('reports the statement with the ids of the operations it accounts for', async () => {
+  it('reports the statement with the positions of the operations it accounts for', () => {
     const { from, to } = contracts({ emailUnique: {} });
     const result = success(plan(from, to, [renameEmail]));
-    const ops = await Promise.all(result.plan.operations);
     expect(result.appliedStatements).toEqual([
-      { statement: renameEmail, operationIds: ops.slice(0, 2).map((op) => op.id) },
+      { statement: renameEmail, operationIndexes: [0, 1] },
     ]);
   });
 
@@ -138,7 +137,7 @@ describe('Postgres planner, field statements', () => {
     const result = plan(from, to, [renameEmail]);
     expect(await labelsOf(result)).toEqual([]);
     expect(success(result).appliedStatements).toEqual([
-      expect.objectContaining({ operationIds: [] }),
+      expect.objectContaining({ operationIndexes: [] }),
     ]);
   });
 
@@ -147,7 +146,7 @@ describe('Postgres planner, field statements', () => {
     const result = plan(from, profileContract('from'), [renameField('Profile', 'posts', 'posts')]);
     expect(await labelsOf(result)).toEqual([]);
     expect(success(result).appliedStatements).toEqual([
-      expect.objectContaining({ operationIds: [] }),
+      expect.objectContaining({ operationIndexes: [] }),
     ]);
   });
 
@@ -165,9 +164,9 @@ describe('Postgres planner, field statements', () => {
       'Rename column "User"."email" to "emailAddress"',
       'Rename unique constraint "Profile_email_key" to "User_emailAddress_key" on "User"',
     ]);
-    expect(success(result).appliedStatements.map((applied) => applied.operationIds.length)).toEqual(
-      [2, 2],
-    );
+    expect(
+      success(result).appliedStatements.map((applied) => applied.operationIndexes.length),
+    ).toEqual([2, 2]);
   });
 
   it('replaces a check on the column after the rename', async () => {

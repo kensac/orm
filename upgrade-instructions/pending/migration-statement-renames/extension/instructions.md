@@ -56,7 +56,7 @@ The same planner options gain a required `origin: PlanOrigin | null`. It is the 
 
 ## `planner-success-applied-statements`
 
-`MigrationPlannerSuccessResult` gains a required `appliedStatements: readonly AppliedMigrationStatement[]`, one entry per statement the plan applied, in order, each with the ids of the plan's operations it accounts for. `AppliedMigrationStatement` is imported from `@prisma/orm-framework/components/control`. In a planner implementation, or a test double of one, that returns `{ kind: 'success', plan, ... }`, add `appliedStatements: []` when the planner applies no statements.
+`MigrationPlannerSuccessResult` gains a required `appliedStatements: readonly AppliedMigrationStatement[]`, one entry per statement the plan applied, in order, each with `operationIndexes`: the positions, in the plan's `operations`, of the operations it accounts for. `AppliedMigrationStatement` is imported from `@prisma/orm-framework/components/control`. In a planner implementation, or a test double of one, that returns `{ kind: 'success', plan, ... }`, add `appliedStatements: []` when the planner applies no statements.
 
 `MigrationPlannerConflict` also gains an optional `refusedStatement`. A planner sets it only on a conflict that refuses a statement, as described under `planner-plan-statements`; existing conflicts leave it out.
 

@@ -113,7 +113,14 @@ export interface MigrationOperationPolicy {
  * Contains only the fields needed for CLI output (tree view, JSON envelope).
  */
 export interface MigrationPlanOperation {
-  /** Unique identifier for this operation (e.g., "table.users.create"). */
+  /**
+   * Names what the operation changes (e.g., "table.users"). Ids are not guaranteed unique within a
+   * plan: on Postgres, same-named tables in two schemas give operations the same id. So anything
+   * that points at one operation of a plan, such as `AppliedMigrationStatement.operationIndexes`,
+   * uses its position in `operations`. Ids are written to `ops.json`, so they are part of a
+   * migration's hash; the ledger records executed operations, ids included, but nothing compares
+   * them.
+   */
   readonly id: string;
   /** Human-readable label for display in UI/CLI (e.g., "Create table users"). */
   readonly label: string;

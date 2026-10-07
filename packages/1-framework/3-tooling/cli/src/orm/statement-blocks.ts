@@ -24,7 +24,7 @@ export function appliedStatementBlocks(
         {
           label: 'Statements applied',
           children: applied.map((entry) => ({
-            label: `${entry.description} (${operationCountText(entry.operationIds.length)})`,
+            label: `${entry.description} (${operationCountText(entry.operationIndexes.length)})`,
           })),
         },
       ],

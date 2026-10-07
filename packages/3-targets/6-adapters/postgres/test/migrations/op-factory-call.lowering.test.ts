@@ -247,7 +247,7 @@ describe('renderOps', () => {
       testAdapter,
     );
 
-    expect(await dropped).toMatchObject({ id: 'dropTable.public.stale' });
+    expect(await dropped).toMatchObject({ id: 'dropTable.stale' });
     await expect(stub).rejects.toThrow(/Unfilled migration placeholder/);
   });
 });

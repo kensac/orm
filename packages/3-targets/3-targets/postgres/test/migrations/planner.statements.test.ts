@@ -125,14 +125,11 @@ describe('Postgres planner, model statements', () => {
     expect(labels).toContain('Drop table "Profile"');
   });
 
-  it('reports each statement with the ids of the operations it accounts for', async () => {
+  it('reports each statement with the positions of the operations it accounts for', () => {
     const statement = renameModel('Profile', 'User');
     const result = plan(from, to, [statement]);
     if (result.kind !== 'success') throw new Error('expected a plan');
-    const ops = await Promise.all(result.plan.operations);
-    expect(result.appliedStatements).toEqual([
-      { statement, operationIds: ops.slice(0, 2).map((op) => op.id) },
-    ]);
+    expect(result.appliedStatements).toEqual([{ statement, operationIndexes: [0, 1] }]);
   });
 
   it('puts the renames ahead of the rest of the plan', async () => {
@@ -158,7 +155,7 @@ describe('Postgres planner, model statements', () => {
     const result = plan(fromMapped, mapped, [renameModel('Profile', 'User')]);
     expect(await labelsOf(result)).toEqual([]);
     expect(result.kind === 'success' && result.appliedStatements).toEqual([
-      expect.objectContaining({ operationIds: [] }),
+      expect.objectContaining({ operationIndexes: [] }),
     ]);
   });
 

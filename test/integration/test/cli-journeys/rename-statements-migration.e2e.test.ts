@@ -44,7 +44,7 @@ interface PlannedOperation {
 
 interface AppliedStatementReport {
   readonly description: string;
-  readonly operationIds: readonly string[];
+  readonly operationIndexes: readonly number[];
 }
 
 async function createAppUserRole(connectionString: string): Promise<void> {
@@ -109,12 +109,12 @@ function expectAppliedStatements(
     `${label}: both statements applied, in order`,
   ).toEqual(['rename model "Profile" to "User"', 'rename field "User.name" to "User.fullName"']);
   expect(
-    applied.map((entry) => entry.operationIds.length),
+    applied.map((entry) => entry.operationIndexes.length),
     `${label}: the model rename and the field rename with their companions`,
   ).toEqual([2, 3]);
   expect(
-    applied.flatMap((entry) => entry.operationIds),
-    `${label}: the statements account for the plan's operations, in order`,
+    applied.flatMap((entry) => entry.operationIndexes.map((index) => operations[index]?.id)),
+    `${label}: the statements' positions name the plan's operations, in order`,
   ).toEqual(operations.map((operation) => operation.id));
 }
 

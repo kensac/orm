@@ -129,7 +129,7 @@ describe('planMigration', () => {
       from: { namespaceId: 'app', model: 'Profile' },
       to: { namespaceId: 'app', model: 'User' },
     } as unknown as ResolvedMigrationStatement;
-    const applied = { statement, operationIds: ['renameTable.Profile'] };
+    const applied = { statement, operationIndexes: [0] };
     let received:
       | { fromContract: unknown; statements: readonly ResolvedMigrationStatement[] }
       | undefined;

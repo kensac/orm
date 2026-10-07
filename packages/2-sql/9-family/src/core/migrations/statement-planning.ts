@@ -145,8 +145,6 @@ export function fieldRenameStorageEffect(
 /** A call that lowers to one operation, such as a companion of a rename. */
 export interface SingleOperationCall {
   readonly operationClass: MigrationOperationClass;
-  /** The id of the operation the call lowers to. */
-  readonly operationId: string;
 }
 
 /**
@@ -176,6 +174,10 @@ function operationsOf(call: CallWithCompanions): readonly SingleOperationCall[] 
 }
 
 export interface PlannedStatements<TCall extends CallWithCompanions> {
+  /**
+   * The calls, which a target puts first in its plan: each statement's `operationIndexes` count
+   * from the first operation of the first call.
+   */
   readonly calls: readonly TCall[];
   readonly tableRenames: readonly TableRename[];
   readonly columnRenames: readonly ColumnRename[];
@@ -318,6 +320,8 @@ class StatementPlanner<TCall extends CallWithCompanions> {
   /** The name each table renamed so far has in the working schema, keyed by its origin name. */
   readonly #renamedTables = new Map<string, string>();
   readonly calls: TCall[] = [];
+  /** How many operations the calls planned so far lower to. */
+  #operationCount = 0;
   readonly tableRenames: TableRename[] = [];
   readonly columnRenames: ColumnRename[] = [];
 
@@ -333,8 +337,8 @@ class StatementPlanner<TCall extends CallWithCompanions> {
     this.#target = input.target;
   }
 
-  /** Plans one statement; the result is the ids of the operations it accounts for. */
-  plan(statement: ResolvedMigrationStatement): Result<readonly string[], SqlPlannerConflict> {
+  /** Plans one statement; the result is the positions of the operations it accounts for. */
+  plan(statement: ResolvedMigrationStatement): Result<readonly number[], SqlPlannerConflict> {
     return statement.entity === 'model' ? this.#planModel(statement) : this.#planField(statement);
   }
 
@@ -358,7 +362,7 @@ class StatementPlanner<TCall extends CallWithCompanions> {
     label: string,
     location: ConflictLocation,
     call: TCall,
-  ): Result<readonly string[], SqlPlannerConflict> {
+  ): Result<readonly number[], SqlPlannerConflict> {
     const refused = operationsOf(call)
       .map((operation) => operation.operationClass)
       .find((operationClass) => !this.#policy.allowedOperationClasses.includes(operationClass));
@@ -375,12 +379,14 @@ class StatementPlanner<TCall extends CallWithCompanions> {
     }
     this.#target.apply(call);
     this.calls.push(call);
-    return ok(operationsOf(call).map((operation) => operation.operationId));
+    const first = this.#operationCount;
+    this.#operationCount += operationsOf(call).length;
+    return ok(operationsOf(call).map((_, offset) => first + offset));
   }
 
   #planModel(
     statement: ResolvedModelRenameStatement,
-  ): Result<readonly string[], SqlPlannerConflict> {
+  ): Result<readonly number[], SqlPlannerConflict> {
     const worked = modelRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok) {
       return notOk(
@@ -431,7 +437,7 @@ class StatementPlanner<TCall extends CallWithCompanions> {
 
   #planField(
     statement: ResolvedFieldRenameStatement,
-  ): Result<readonly string[], SqlPlannerConflict> {
+  ): Result<readonly number[], SqlPlannerConflict> {
     const worked = fieldRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok && worked.failure.kind === 'noTable') {
       return notOk(
@@ -527,9 +533,9 @@ export function planStatements<TCall extends CallWithCompanions>(input: {
   const planner = new StatementPlanner({ ...input, fromContract });
   const appliedStatements: AppliedMigrationStatement[] = [];
   for (const statement of input.statements) {
-    const operationIds = planner.plan(statement);
-    if (!operationIds.ok) return operationIds;
-    appliedStatements.push({ statement, operationIds: operationIds.value });
+    const operationIndexes = planner.plan(statement);
+    if (!operationIndexes.ok) return operationIndexes;
+    appliedStatements.push({ statement, operationIndexes: operationIndexes.value });
   }
   return ok({
     calls: planner.calls,

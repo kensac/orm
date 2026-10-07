@@ -101,7 +101,7 @@ describe('migration plan --rename', () => {
         {
           statement: profileToUser,
           description: 'rename model "Profile" to "User"',
-          operationIds: [expect.any(String)],
+          operationIndexes: [0],
         },
       ],
     });
@@ -201,7 +201,7 @@ describe('migration plan --rename', () => {
     expect(run.exitCode).toBe(0);
     expect(run.presented?.data).toMatchObject({
       noOp: true,
-      appliedStatements: [{ statement: profileToUser, operationIds: [] }],
+      appliedStatements: [{ statement: profileToUser, operationIndexes: [] }],
     });
     expect(run.presented?.presentation.human.at(1)).toEqual({
       kind: 'summary',
@@ -269,7 +269,7 @@ describe('migration plan --rename', () => {
     expect(run.presented?.data).toMatchObject({
       pendingPlaceholders: true,
       operations: [{ id: ADDITIVE_OP.id }],
-      appliedStatements: [{ statement: profileToUser, operationIds: [ADDITIVE_OP.id] }],
+      appliedStatements: [{ statement: profileToUser, operationIndexes: [0] }],
     });
     const labels = (run.presented?.presentation.human ?? []).flatMap((block) =>
       block.kind === 'tree'

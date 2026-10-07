@@ -8,11 +8,11 @@ import {
 
 /**
  * A statement a plan applied, as the CLI reports it: the statement as JSON output writes it, the
- * ids of its operations, and its description.
+ * positions of its operations in the result's `operations`, and its description.
  */
 export interface AppliedStatementReport {
   readonly statement: MigrationStatementJson;
-  readonly operationIds: readonly string[];
+  readonly operationIndexes: readonly number[];
   /** The statement in domain names, for example `rename model "Profile" to "User"`. */
   readonly description: string;
 }
@@ -24,7 +24,7 @@ export function reportAppliedStatements(
 ): readonly AppliedStatementReport[] {
   return applied.map((entry) => ({
     statement: migrationStatementJson(entry.statement),
-    operationIds: entry.operationIds,
+    operationIndexes: entry.operationIndexes,
     description: describeMigrationStatement(entry.statement, fromContract ?? contract, contract),
   }));
 }

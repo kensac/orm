@@ -73,7 +73,6 @@ import {
   dropDefault,
   dropNotNull,
   renameColumn,
-  renameColumnOperationId,
   setDefault,
   setNotNull,
 } from './operations/columns';
@@ -87,16 +86,9 @@ import {
   type RenamableConstraintKind,
   renameConstraint,
   renameConstraintLabel,
-  renameConstraintOperationId,
 } from './operations/constraints';
 import { createExtension } from './operations/dependencies';
-import {
-  type CreateIndexExtras,
-  createIndex,
-  dropIndex,
-  renameIndex,
-  renameIndexOperationId,
-} from './operations/indexes';
+import { type CreateIndexExtras, createIndex, dropIndex, renameIndex } from './operations/indexes';
 import { createNativeEnumType, dropNativeEnumType } from './operations/native-enum-types';
 import {
   createRlsPolicy,
@@ -107,7 +99,7 @@ import {
 } from './operations/rls';
 import type { ForeignKeySpec } from './operations/shared';
 import { step, targetDetails } from './operations/shared';
-import { dropTable, renameTable, renameTableOperationId } from './operations/tables';
+import { dropTable, renameTable } from './operations/tables';
 import { buildAddNotNullColumnWithTemporaryDefaultOperation } from './planner-recipes';
 import type { PostgresPlanTargetDetails } from './planner-target-details';
 
@@ -427,11 +419,6 @@ export class RenameTableCall extends PostgresOpFactoryCallNode {
     this.freeze();
   }
 
-  /** The id of the operation this call lowers to. */
-  get operationId(): string {
-    return renameTableOperationId(this.oldTableName);
-  }
-
   override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
@@ -566,11 +553,6 @@ export class RenameColumnCall extends PostgresOpFactoryCallNode {
     this.label = `Rename column "${tableName}"."${oldColumnName}" to "${columnName}"`;
     this.companions = Object.freeze([...companions]);
     this.freeze();
-  }
-
-  /** The id of the operation this call lowers to. */
-  get operationId(): string {
-    return renameColumnOperationId(this.tableName, this.oldColumnName);
   }
 
   override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
@@ -1248,16 +1230,6 @@ export class RenameConstraintCall extends PostgresOpFactoryCallNode {
     this.freeze();
   }
 
-  /** The id of the operation this call lowers to. */
-  get operationId(): string {
-    return renameConstraintOperationId(
-      this.kind,
-      this.schemaName,
-      this.tableName,
-      this.oldConstraintName,
-    );
-  }
-
   async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {
     if (lowerer === undefined) {
       throw postgresError(
@@ -1503,11 +1475,6 @@ export class RenameIndexCall extends PostgresOpFactoryCallNode {
     this.newIndexName = newIndexName;
     this.label = `Rename index "${oldIndexName}" to "${newIndexName}" on "${tableName}"`;
     this.freeze();
-  }
-
-  /** The id of the operation this call lowers to. */
-  get operationId(): string {
-    return renameIndexOperationId(this.schemaName, this.tableName, this.oldIndexName);
   }
 
   async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {

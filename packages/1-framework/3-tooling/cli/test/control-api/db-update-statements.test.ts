@@ -108,7 +108,7 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
           kind: 'success',
           appliedStatements: options.statements.map((statement) => ({
             statement,
-            operationIds: ['renameTable.Profile'],
+            operationIndexes: [0],
           })),
           plan: {
             targetId: 'postgres',
@@ -210,7 +210,7 @@ describe('executeDbUpdate with statements', () => {
     expect(result.ok && result.value.appliedStatements).toEqual([
       expect.objectContaining({
         description: 'rename model "Profile" to "User"',
-        operationIds: ['renameTable.Profile'],
+        operationIndexes: [0],
       }),
     ]);
   });

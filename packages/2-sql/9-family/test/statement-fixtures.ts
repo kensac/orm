@@ -190,8 +190,7 @@ export function fakeTarget(
   const call = (text: string): FakeCall => ({
     text,
     operationClass,
-    operationId: text,
-    companions: [{ operationClass, operationId: `${text} companion` }],
+    companions: [{ operationClass }],
   });
   return {
     tables: () => schemaTables,

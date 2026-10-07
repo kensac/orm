@@ -161,7 +161,7 @@ const PROFILE_TO_USER = {
     from: { namespaceId: 'app', model: 'Profile' },
     to: { namespaceId: 'app', model: 'User' },
   },
-  operationIds: ['renameTable.Profile', 'renameConstraint.Profile_pkey'],
+  operationIndexes: [0, 1],
   description: 'rename model "Profile" to "User"',
 };
 
@@ -208,7 +208,7 @@ describe('db update --rename', () => {
 
   it('lists the applied statements on a dry run', async () => {
     mocks.dbUpdate.mockResolvedValue(
-      ok({ ...planSuccess(), appliedStatements: [{ ...PROFILE_TO_USER, operationIds: [] }] }),
+      ok({ ...planSuccess(), appliedStatements: [{ ...PROFILE_TO_USER, operationIndexes: [] }] }),
     );
     const run = await harness().run(['db', 'update', '--dry-run', '--rename', 'Profile:User'], {
       cwd: projectDir,

@@ -250,13 +250,12 @@ describe('SQLite planner, field statements', () => {
     expect(labels.some((label) => label.startsWith('Drop column'))).toBe(false);
   });
 
-  it('reports the statement with the ids of the operations it accounts for', async () => {
+  it('reports the statement with the positions of the operations it accounts for', () => {
     const { from, to } = contracts({ emailIndex: true });
     const result = plan(from, to, [renameEmail]);
     if (result.kind !== 'success') throw new Error('expected a plan');
-    const ops = await Promise.all(result.plan.operations);
     expect(result.appliedStatements).toEqual([
-      { statement: renameEmail, operationIds: ops.slice(0, 3).map((op) => op.id) },
+      { statement: renameEmail, operationIndexes: [0, 1, 2] },
     ]);
   });
 

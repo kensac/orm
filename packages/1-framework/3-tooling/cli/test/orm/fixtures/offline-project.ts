@@ -199,7 +199,7 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
             kind: 'success',
             appliedStatements: options.statements.map((statement) => ({
               statement,
-              operationIds: (script.operations ?? [ADDITIVE_OP]).map((op) => op.id),
+              operationIndexes: (script.operations ?? [ADDITIVE_OP]).map((_, index) => index),
             })),
             plan: {
               operations:
