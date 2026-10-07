@@ -1,11 +1,11 @@
 import type { Contract } from '@internal/contract/types';
 import { errorMigrationOperationOptionRemoved } from '@internal/errors/migration';
 import {
-  type ColumnRename,
+  type ColumnRenameRequest,
   resolveColumnRenameAgainst,
   resolveTableRenameAgainst,
   type SqlMigrationPlanOperation,
-  type TableRename,
+  type TableRenameRequest,
   unmatchedColumnRename,
   unmatchedTableRename,
 } from '@internal/family-sql/control';
@@ -392,7 +392,7 @@ export abstract class PostgresMigration<
     readonly to: string;
   }): readonly Promise<SqlMigrationPlanOperation<PostgresPlanTargetDetails>>[] {
     const adapter = this.controlAdapterFor('renameTable');
-    const rename: TableRename = {
+    const rename: TableRenameRequest = {
       namespaceId: options.schema,
       from: options.table,
       to: options.to,
@@ -439,7 +439,7 @@ export abstract class PostgresMigration<
     readonly to: string;
   }): readonly Promise<SqlMigrationPlanOperation<PostgresPlanTargetDetails>>[] {
     const adapter = this.controlAdapterFor('renameColumn');
-    const rename: ColumnRename = {
+    const rename: ColumnRenameRequest = {
       namespaceId: options.schema,
       table: options.table,
       from: options.column,

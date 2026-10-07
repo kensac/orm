@@ -1,9 +1,9 @@
 import type { Contract } from '@internal/contract/types';
 import type {
+  ColumnRename,
   MigrationOperationPolicy,
-  ResolvedColumnRename,
-  ResolvedTableRename,
-  TableRenameInMigration,
+  TableRename,
+  TableRenameRequest,
 } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -34,7 +34,7 @@ export function emissionSchemaForNamespace(
  * The `renameTable` call a user writes in `migration.ts` for `rename`. `schema` names the namespace
  * the facade resolves the table in, and is left out for the unbound namespace or when not given.
  */
-export function renderRenameTableCall(rename: TableRenameInMigration): string {
+export function renderRenameTableCall(rename: TableRenameRequest): string {
   return new RenameTableCall(
     rename.namespaceId ?? UNBOUND_NAMESPACE_ID,
     rename.from,
@@ -63,7 +63,7 @@ function tableNode(
 export function postgresTableRenameCall(input: {
   readonly previous: PostgresDatabaseSchemaNode;
   readonly contract: Contract<SqlStorage>;
-  readonly rename: ResolvedTableRename;
+  readonly rename: TableRename;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): RenameTableCall {
   const { contract, rename } = input;
@@ -104,7 +104,7 @@ export function postgresTableRenameCall(input: {
 export function postgresColumnRenameCall(input: {
   readonly previous: PostgresDatabaseSchemaNode;
   readonly contract: Contract<SqlStorage>;
-  readonly rename: ResolvedColumnRename;
+  readonly rename: ColumnRename;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): RenameColumnCall {
   const { contract, rename } = input;

@@ -1,9 +1,5 @@
 import type { Contract } from '@internal/contract/types';
-import type {
-  ResolvedColumnRename,
-  ResolvedTableRename,
-  TableRenameInMigration,
-} from '@internal/family-sql/control';
+import type { ColumnRename, TableRename, TableRenameRequest } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
@@ -14,7 +10,7 @@ import { RenameColumnCall, RenameTableCall } from './op-factory-call';
 import { renameColumnInSqliteSchema, renameTableInSqliteSchema } from './working-schema';
 
 /** The `renameTable` call a user writes in `migration.ts` for `rename`; SQLite has no namespaces. */
-export function renderRenameTableCall(rename: TableRenameInMigration): string {
+export function renderRenameTableCall(rename: TableRenameRequest): string {
   return new RenameTableCall(rename.from, rename.to, []).renderTypeScript();
 }
 
@@ -28,7 +24,7 @@ export function renderRenameTableCall(rename: TableRenameInMigration): string {
 export function sqliteTableRenameCall(input: {
   readonly previous: SqlSchemaIR;
   readonly contract: Contract<SqlStorage>;
-  readonly rename: ResolvedTableRename;
+  readonly rename: TableRename;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): RenameTableCall {
   const { from, to } = input.rename;
@@ -53,7 +49,7 @@ export function sqliteTableRenameCall(input: {
 export function sqliteColumnRenameCall(input: {
   readonly previous: SqlSchemaIR;
   readonly contract: Contract<SqlStorage>;
-  readonly rename: ResolvedColumnRename;
+  readonly rename: ColumnRename;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
 }): RenameColumnCall {
   const { table, from, to } = input.rename;

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../1-core/contract/test/test-support';
 import {
   COLUMN_RENAME_UNMATCHED_CODE,
-  type ColumnRename,
+  type ColumnRenameRequest,
   resolveColumnRenameAgainst,
 } from '../src/core/migrations/resolve-column-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
@@ -69,7 +69,12 @@ function schemaTables(
   };
 }
 
-const rename = (table: string, from: string, to: string, namespaceId?: string): ColumnRename => ({
+const rename = (
+  table: string,
+  from: string,
+  to: string,
+  namespaceId?: string,
+): ColumnRenameRequest => ({
   namespaceId,
   table,
   from,
@@ -80,7 +85,7 @@ describe('resolveColumnRenameAgainst', () => {
   const endContract = contractWithColumns({ User: ['id', 'fullName'] });
   const lookup = schemaTables({ [UNBOUND_NAMESPACE_ID]: { User: ['id', 'name'] } });
 
-  function refusalFor(columnRename: ColumnRename, against: SchemaTables = lookup) {
+  function refusalFor(columnRename: ColumnRenameRequest, against: SchemaTables = lookup) {
     const result = resolveColumnRenameAgainst(against, endContract, columnRename);
     if (result.ok) throw new Error('expected a refusal');
     return result.failure;

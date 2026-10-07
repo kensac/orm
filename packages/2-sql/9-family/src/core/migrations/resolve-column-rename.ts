@@ -9,18 +9,18 @@ import type { SchemaTables } from './schema-tables';
 export const COLUMN_RENAME_UNMATCHED_CODE = 'MIGRATION.COLUMN_RENAME_UNMATCHED';
 
 /**
- * A column a migration renames: `namespaceId` is `undefined` when the migration leaves the
- * namespace to the contracts.
+ * A column rename as a `renameColumn` call states it: `namespaceId` is `undefined` when the
+ * namespace is left to the contracts.
  */
-export interface ColumnRename {
+export interface ColumnRenameRequest {
   readonly namespaceId: string | undefined;
   readonly table: string;
   readonly from: string;
   readonly to: string;
 }
 
-/** A column rename after its table was found, with the namespace that declares the table. */
-export interface ResolvedColumnRename {
+/** A column rename on a table in a known namespace. */
+export interface ColumnRename {
   readonly namespaceId: string;
   readonly table: string;
   readonly from: string;
@@ -51,7 +51,10 @@ function declaresColumn(
  * Refuses a `renameColumn` call that does not match the migration's contracts, with
  * `MIGRATION.COLUMN_RENAME_UNMATCHED`.
  */
-export function unmatchedColumnRename(rename: ColumnRename, reason: string): StructuredError {
+export function unmatchedColumnRename(
+  rename: ColumnRenameRequest,
+  reason: string,
+): StructuredError {
   return sqlFamilyError(
     COLUMN_RENAME_UNMATCHED_CODE,
     `renameColumn ${columnLabel(rename.namespaceId, rename.table, rename.from)} to "${rename.to}" does not match the migration's contracts: ${reason}.`,
@@ -78,8 +81,8 @@ export type ColumnRenameMismatch =
 export function checkColumnRename(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
-  rename: ColumnRename,
-): Result<ResolvedColumnRename, ColumnRenameMismatch> {
+  rename: ColumnRenameRequest,
+): Result<ColumnRename, ColumnRenameMismatch> {
   const namespaceIds =
     rename.namespaceId === undefined
       ? previous.namespacesWithTable(rename.table)
@@ -104,7 +107,7 @@ export function checkColumnRename(
 
 /** The reason `MIGRATION.COLUMN_RENAME_UNMATCHED` gives for a mismatch. */
 export function columnRenameMismatchReason(
-  rename: ColumnRename,
+  rename: ColumnRenameRequest,
   mismatch: ColumnRenameMismatch,
 ): string {
   switch (mismatch.kind) {
@@ -128,8 +131,8 @@ export function columnRenameMismatchReason(
 export function resolveColumnRenameAgainst(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
-  rename: ColumnRename,
-): Result<ResolvedColumnRename, StructuredError> {
+  rename: ColumnRenameRequest,
+): Result<ColumnRename, StructuredError> {
   const checked = checkColumnRename(previous, endContract, rename);
   if (!checked.ok) {
     return notOk(

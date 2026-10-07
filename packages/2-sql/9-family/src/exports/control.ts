@@ -49,7 +49,7 @@ export {
 export { INIT_ADDITIVE_POLICY } from '../core/migrations/policies';
 export type {
   ColumnRename,
-  ResolvedColumnRename,
+  ColumnRenameRequest,
 } from '../core/migrations/resolve-column-rename';
 export {
   COLUMN_RENAME_UNMATCHED_CODE,
@@ -57,8 +57,8 @@ export {
   unmatchedColumnRename,
 } from '../core/migrations/resolve-column-rename';
 export type {
-  ResolvedTableRename,
   TableRename,
+  TableRenameRequest,
 } from '../core/migrations/resolve-table-rename';
 export {
   resolveTableRenameAgainst,
@@ -87,11 +87,7 @@ export {
   modelRenameStorageEffect,
   planStatements,
 } from '../core/migrations/statement-planning';
-export type {
-  TableNameCaseGuardTable,
-  TableRenameByHand,
-  TableRenameInMigration,
-} from '../core/migrations/table-name-case-guard';
+export type { TableNameCaseGuardTable } from '../core/migrations/table-name-case-guard';
 export {
   detectTableNameCaseChanges,
   TABLE_NAME_CASE_CHANGED_CODE,

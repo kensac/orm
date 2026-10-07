@@ -61,7 +61,7 @@ describe('planStatements', () => {
     });
     expect(planned(result)).toEqual({
       calls: ['table app.Profile -> User', 'table app.Post -> Article'],
-      renames: [
+      tableRenames: [
         { namespaceId: 'app', from: 'Profile', to: 'User' },
         { namespaceId: 'app', from: 'Post', to: 'Article' },
       ],
@@ -89,7 +89,7 @@ describe('planStatements', () => {
     });
     expect(planned(result)).toMatchObject({
       calls: [],
-      renames: [],
+      tableRenames: [],
       appliedStatements: [{ operationIds: [] }],
     });
   });

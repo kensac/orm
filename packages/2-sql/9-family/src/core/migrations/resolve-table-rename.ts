@@ -9,17 +9,17 @@ import type { SchemaTables } from './schema-tables';
 export const TABLE_RENAME_UNMATCHED_CODE = 'MIGRATION.TABLE_RENAME_UNMATCHED';
 
 /**
- * A table a migration renames: `namespaceId` is `undefined` when the migration leaves the namespace
- * to the contracts.
+ * A table rename as a `renameTable` call or a guard's advice states it: `namespaceId` is
+ * `undefined` when the namespace is left to the contracts.
  */
-export interface TableRename {
+export interface TableRenameRequest {
   readonly namespaceId: string | undefined;
   readonly from: string;
   readonly to: string;
 }
 
-/** A rename after its table was found, with the namespace that declares it. */
-export interface ResolvedTableRename {
+/** A table rename in a known namespace. */
+export interface TableRename {
   readonly namespaceId: string;
   readonly from: string;
   readonly to: string;
@@ -39,7 +39,7 @@ function declares(contract: Contract<SqlStorage>, namespaceId: string, tableName
  * Refuses a `renameTable` call that does not match the migration's contracts, with
  * `MIGRATION.TABLE_RENAME_UNMATCHED`.
  */
-export function unmatchedTableRename(rename: TableRename, reason: string): StructuredError {
+export function unmatchedTableRename(rename: TableRenameRequest, reason: string): StructuredError {
   return sqlFamilyError(
     TABLE_RENAME_UNMATCHED_CODE,
     `renameTable "${tableLabel(rename.namespaceId, rename.from)}" to "${rename.to}" does not match the migration's contracts: ${reason}.`,
@@ -64,8 +64,8 @@ export type TableRenameMismatch =
 export function checkTableRename(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
-  rename: TableRename,
-): Result<ResolvedTableRename, TableRenameMismatch> {
+  rename: TableRenameRequest,
+): Result<TableRename, TableRenameMismatch> {
   const namespaceIds =
     rename.namespaceId === undefined
       ? previous.namespacesWithTable(rename.from)
@@ -87,7 +87,7 @@ export function checkTableRename(
 
 /** The reason `MIGRATION.TABLE_RENAME_UNMATCHED` gives for a mismatch. */
 export function tableRenameMismatchReason(
-  rename: TableRename,
+  rename: TableRenameRequest,
   mismatch: TableRenameMismatch,
 ): string {
   switch (mismatch.kind) {
@@ -109,8 +109,8 @@ export function tableRenameMismatchReason(
 export function resolveTableRenameAgainst(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
-  rename: TableRename,
-): Result<ResolvedTableRename, StructuredError> {
+  rename: TableRenameRequest,
+): Result<TableRename, StructuredError> {
   const checked = checkTableRename(previous, endContract, rename);
   if (!checked.ok) {
     return notOk(unmatchedTableRename(rename, tableRenameMismatchReason(rename, checked.failure)));

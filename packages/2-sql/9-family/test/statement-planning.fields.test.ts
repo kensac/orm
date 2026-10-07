@@ -76,7 +76,7 @@ describe('planStatements, field renames', () => {
       ),
     ).toEqual({
       calls: ['column app.User.name -> fullName'],
-      renames: [],
+      tableRenames: [],
       columnRenames: [{ namespaceId: 'app', table: 'User', from: 'name', to: 'fullName' }],
       appliedStatements: [
         {

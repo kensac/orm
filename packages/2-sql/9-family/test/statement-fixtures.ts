@@ -13,8 +13,8 @@ import type {
 } from '@internal/framework-components/control';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { createTestSqlNamespace } from '../../1-core/contract/test/test-support';
-import type { ResolvedColumnRename } from '../src/core/migrations/resolve-column-rename';
-import type { ResolvedTableRename } from '../src/core/migrations/resolve-table-rename';
+import type { ColumnRename } from '../src/core/migrations/resolve-column-rename';
+import type { TableRename } from '../src/core/migrations/resolve-table-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
 import type {
   planStatements,
@@ -195,11 +195,11 @@ export function fakeTarget(
   });
   return {
     tables: () => schemaTables,
-    renameTableCall: (rename: ResolvedTableRename) =>
+    renameTableCall: (rename: TableRename) =>
       call(`table ${rename.namespaceId}.${rename.from} -> ${rename.to}`),
-    renameColumnCall: (rename: ResolvedColumnRename) =>
+    renameColumnCall: (rename: ColumnRename) =>
       call(`column ${rename.namespaceId}.${rename.table}.${rename.from} -> ${rename.to}`),
-    renderTableRename: (rename: ResolvedTableRename) =>
+    renderTableRename: (rename: TableRename) =>
       `renameTable ${rename.namespaceId}.${rename.from} -> ${rename.to}`,
     apply: ({ text }) => {
       const [kind, from, , to] = text.split(' ');

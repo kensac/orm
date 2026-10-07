@@ -25,8 +25,8 @@
 import type { Contract } from '@internal/contract/types';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { type SqlStorage, type StorageColumn, StorageTable } from '@internal/sql-contract/types';
-import type { ResolvedColumnRename } from './resolve-column-rename';
-import type { ResolvedTableRename } from './resolve-table-rename';
+import type { ColumnRename } from './resolve-column-rename';
+import type { TableRename } from './resolve-table-rename';
 import type { CodecControlHooks, FieldEvent, FieldEventContext } from './types';
 
 export interface PlanFieldEventOperationsOptions {
@@ -53,12 +53,12 @@ export interface PlanFieldEventOperationsOptions {
    * The table renames the plan applies. A column under a renamed table's old name is the same
    * column under its new name, so a rename alone fires no event.
    */
-  readonly renames: readonly ResolvedTableRename[];
+  readonly tableRenames: readonly TableRename[];
   /**
    * The column renames the plan applies, each on the table under the name it has after the table
    * renames. A column under its old name is the same column under its new name.
    */
-  readonly columnRenames: readonly ResolvedColumnRename[];
+  readonly columnRenames: readonly ColumnRename[];
 }
 
 interface FieldEntry {
@@ -77,7 +77,7 @@ export function planFieldEventOperations(
   const priorContract = options.priorContract;
   const newContract = options.newContract;
   const renamedTo = new Map(
-    options.renames.map((rename) => [renameKey(rename.namespaceId, rename.from), rename.to]),
+    options.tableRenames.map((rename) => [renameKey(rename.namespaceId, rename.from), rename.to]),
   );
   const newNameOf = (namespaceId: string, tableName: string) =>
     renamedTo.get(renameKey(namespaceId, tableName));

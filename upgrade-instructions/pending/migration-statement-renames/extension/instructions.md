@@ -23,7 +23,7 @@ changes:
         - '(?<![\s\S])(?=[\s\S]*(?<![\w$])MigrationPlanner(?:Result|SuccessResult)?(?![\w$]))(?![\s\S]*(?<![\w$])appliedStatements(?![\w$]))[\s\S]*kind:\s*["'']success["'']'
   - id: sql-planner-helpers
     summary: |
-      In `@prisma/orm-family-sql/family/control`, `plannerSuccess(plan, warnings?)` becomes `plannerSuccess(plan, appliedStatements, warnings?)`, `planFieldEventOperations(...)` takes required `renames` and `columnRenames` lists, and the conflict kind union gains `'statementRefused'`.
+      In `@prisma/orm-family-sql/family/control`, `plannerSuccess(plan, warnings?)` becomes `plannerSuccess(plan, appliedStatements, warnings?)`, `planFieldEventOperations(...)` takes required `tableRenames` and `columnRenames` lists, and the conflict kind union gains `'statementRefused'`.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -57,7 +57,7 @@ The same planner options gain a required `origin: PlanOrigin | null`. It is the 
 ## `sql-planner-helpers`
 
 - Change `plannerSuccess(plan)` to `plannerSuccess(plan, [])`, and `plannerSuccess(plan, warnings)` to `plannerSuccess(plan, [], warnings)`.
-- Add `renames: []` and `columnRenames: []` to the options of each `planFieldEventOperations({ ... })` call.
+- Add `tableRenames: []` and `columnRenames: []` to the options of each `planFieldEventOperations({ ... })` call.
 - An exhaustive `switch` over `SqlPlannerConflictKind` gains a `case 'statementRefused':`.
 
 ## `aggregate-planner-app-space`

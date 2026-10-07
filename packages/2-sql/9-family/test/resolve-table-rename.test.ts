@@ -12,7 +12,7 @@ import { createTestSqlNamespace } from '../../1-core/contract/test/test-support'
 import {
   resolveTableRenameAgainst,
   TABLE_RENAME_UNMATCHED_CODE,
-  type TableRename,
+  type TableRenameRequest,
 } from '../src/core/migrations/resolve-table-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
 
@@ -55,7 +55,7 @@ function contractOf(
   };
 }
 
-const rename = (from: string, to: string, namespaceId?: string): TableRename => ({
+const rename = (from: string, to: string, namespaceId?: string): TableRenameRequest => ({
   namespaceId,
   from,
   to,
@@ -84,7 +84,7 @@ describe('resolveTableRenameAgainst', () => {
     auth: ['login'],
   });
 
-  function refusalFor(tableRename: TableRename, against: SchemaTables = lookup) {
+  function refusalFor(tableRename: TableRenameRequest, against: SchemaTables = lookup) {
     const result = resolveTableRenameAgainst(against, endContract, tableRename);
     expect(result.ok).toBe(false);
     return result.ok ? undefined : result.failure;

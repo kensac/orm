@@ -1,8 +1,8 @@
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import { planFieldEventOperations } from '../src/core/migrations/field-event-planner';
-import type { ResolvedColumnRename } from '../src/core/migrations/resolve-column-rename';
-import type { ResolvedTableRename } from '../src/core/migrations/resolve-table-rename';
+import type { ColumnRename } from '../src/core/migrations/resolve-column-rename';
+import type { TableRename } from '../src/core/migrations/resolve-table-rename';
 import type { CodecControlHooks } from '../src/core/migrations/types';
 import { col, contract, recordingHook, table } from './field-event-fixtures';
 
@@ -11,15 +11,15 @@ const string = col({ codecId: 'cs/string@1' });
 function eventsWith(
   prior: ReturnType<typeof contract>,
   next: ReturnType<typeof contract>,
-  renames: readonly ResolvedTableRename[],
-  columnRenames: readonly ResolvedColumnRename[],
+  tableRenames: readonly TableRename[],
+  columnRenames: readonly ColumnRename[],
 ) {
   const cs = recordingHook([]);
   planFieldEventOperations({
     priorContract: prior,
     newContract: next,
     codecHooks: new Map<string, CodecControlHooks>([['cs/string@1', cs.hook]]),
-    renames,
+    tableRenames,
     columnRenames,
   });
   return cs.calls.map((call) => `${call.event} ${call.tableName}.${call.fieldName}`);

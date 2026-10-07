@@ -14,14 +14,14 @@ import { type SqlModelStorage, type SqlStorage, StorageTable } from '@internal/s
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { controlPolicyForCall } from './control-policy';
 import {
+  type ColumnRename,
   type ColumnRenameMismatch,
   checkColumnRename,
   columnRenameMismatchReason,
-  type ResolvedColumnRename,
 } from './resolve-column-rename';
 import {
   checkTableRename,
-  type ResolvedTableRename,
+  type TableRename,
   type TableRenameMismatch,
   tableRenameMismatchReason,
 } from './resolve-table-rename';
@@ -37,7 +37,7 @@ export interface ModelTable {
 /** What a model rename does to storage. */
 export type ModelStorageEffect =
   | { readonly kind: 'unchanged' }
-  | { readonly kind: 'renameTable'; readonly rename: ResolvedTableRename }
+  | { readonly kind: 'renameTable'; readonly rename: TableRename }
   | { readonly kind: 'moveNamespace'; readonly from: ModelTable; readonly to: ModelTable };
 
 /** What a field rename does to storage. */
@@ -158,13 +158,13 @@ export interface StatementPlanningTarget<TCall extends StatementCall> {
   /** The tables of the working schema as earlier statements have left it. */
   tables(): SchemaTables;
   /** The call that renames a table, with its companions, computed against the working schema. */
-  renameTableCall(rename: ResolvedTableRename): TCall;
+  renameTableCall(rename: TableRename): TCall;
   /** The call that renames a column, with its companions, computed against the working schema. */
-  renameColumnCall(rename: ResolvedColumnRename): TCall;
+  renameColumnCall(rename: ColumnRename): TCall;
   /** Applies a call to the working schema. */
   apply(call: TCall): void;
   /** The `renameTable` call a user writes in `migration.ts` to make `rename` by hand. */
-  renderTableRename(rename: ResolvedTableRename): string;
+  renderTableRename(rename: TableRename): string;
 }
 
 function operationsOf(call: StatementCall): readonly StatementOperationCall[] {
@@ -173,8 +173,8 @@ function operationsOf(call: StatementCall): readonly StatementOperationCall[] {
 
 export interface PlannedStatements<TCall extends StatementCall> {
   readonly calls: readonly TCall[];
-  readonly renames: readonly ResolvedTableRename[];
-  readonly columnRenames: readonly ResolvedColumnRename[];
+  readonly tableRenames: readonly TableRename[];
+  readonly columnRenames: readonly ColumnRename[];
   readonly appliedStatements: readonly AppliedMigrationStatement[];
 }
 
@@ -241,7 +241,7 @@ function tableKey(table: ModelTable): string {
 function tableRenameRefused(
   statement: ResolvedMigrationStatement,
   label: string,
-  rename: ResolvedTableRename,
+  rename: TableRename,
   mismatch: TableRenameMismatch,
 ): SqlPlannerConflict {
   switch (mismatch.kind) {
@@ -273,7 +273,7 @@ function tableRenameRefused(
 function columnRenameRefused(
   statement: ResolvedMigrationStatement,
   label: string,
-  rename: ResolvedColumnRename,
+  rename: ColumnRename,
   mismatch: ColumnRenameMismatch,
 ): SqlPlannerConflict {
   const table = { namespaceId: rename.namespaceId, table: rename.table };
@@ -318,8 +318,8 @@ class StatementPlanner<TCall extends StatementCall> {
   /** The name each table renamed so far has in the working schema, keyed by its origin name. */
   readonly #renamedTables = new Map<string, string>();
   readonly calls: TCall[] = [];
-  readonly renames: ResolvedTableRename[] = [];
-  readonly columnRenames: ResolvedColumnRename[] = [];
+  readonly tableRenames: TableRename[] = [];
+  readonly columnRenames: ColumnRename[] = [];
 
   constructor(input: {
     readonly fromContract: Contract<SqlStorage>;
@@ -420,7 +420,7 @@ class StatementPlanner<TCall extends StatementCall> {
       this.#target.renameTableCall(rename),
     );
     if (planned.ok) {
-      this.renames.push(rename);
+      this.tableRenames.push(rename);
       this.#renamedTables.set(
         tableKey({ namespaceId: rename.namespaceId, table: rename.from }),
         rename.to,
@@ -471,7 +471,7 @@ class StatementPlanner<TCall extends StatementCall> {
         ),
       );
     }
-    const rename: ResolvedColumnRename = {
+    const rename: ColumnRename = {
       namespaceId: effect.table.namespaceId,
       table,
       from: effect.from,
@@ -512,7 +512,7 @@ export function planStatements<TCall extends StatementCall>(input: {
   const { fromContract } = input;
   const [first] = input.statements;
   if (first === undefined) {
-    return ok({ calls: [], renames: [], columnRenames: [], appliedStatements: [] });
+    return ok({ calls: [], tableRenames: [], columnRenames: [], appliedStatements: [] });
   }
   if (fromContract === null) {
     return notOk(
@@ -533,7 +533,7 @@ export function planStatements<TCall extends StatementCall>(input: {
   }
   return ok({
     calls: planner.calls,
-    renames: planner.renames,
+    tableRenames: planner.tableRenames,
     columnRenames: planner.columnRenames,
     appliedStatements,
   });

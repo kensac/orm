@@ -1,12 +1,12 @@
 import type { Contract } from '@internal/contract/types';
 import {
-  type ColumnRename,
+  type ColumnRenameRequest,
   type MigrationOperationClass,
   resolveColumnRenameAgainst,
   resolveTableRenameAgainst,
   type SqlMigrationPlanOperation,
   sqlTypeLookupsOf,
-  type TableRename,
+  type TableRenameRequest,
   unmatchedColumnRename,
   unmatchedTableRename,
 } from '@internal/family-sql/control';
@@ -168,7 +168,11 @@ export abstract class SqliteMigration<
     readonly to: string;
   }): readonly Promise<Op>[] {
     const adapter = this.controlAdapterFor('renameTable');
-    const rename: TableRename = { namespaceId: undefined, from: options.table, to: options.to };
+    const rename: TableRenameRequest = {
+      namespaceId: undefined,
+      from: options.table,
+      to: options.to,
+    };
     const startContract = this.startContract;
     if (startContract === null) {
       throw unmatchedTableRename(rename, 'the migration has no start contract');
@@ -205,7 +209,7 @@ export abstract class SqliteMigration<
     readonly to: string;
   }): readonly Promise<Op>[] {
     const adapter = this.controlAdapterFor('renameColumn');
-    const rename: ColumnRename = {
+    const rename: ColumnRenameRequest = {
       namespaceId: undefined,
       table: options.table,
       from: options.column,

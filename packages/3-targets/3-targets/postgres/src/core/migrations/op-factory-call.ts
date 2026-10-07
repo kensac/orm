@@ -391,7 +391,8 @@ export class DropTableCall extends PostgresOpFactoryCallNode {
   }
 }
 
-export type RenameTableCompanionCall = RenameConstraintCall | RenameIndexCall;
+/** A rename a table or column rename carries for an object whose name derives from the old name. */
+export type RenameCompanionCall = RenameConstraintCall | RenameIndexCall;
 
 export class RenameTableCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameTable' as const;
@@ -409,13 +410,13 @@ export class RenameTableCall extends PostgresOpFactoryCallNode {
    * The renames of objects whose names derive from the table name. They run after the table rename
    * and are never rendered on their own.
    */
-  readonly companions: readonly RenameTableCompanionCall[];
+  readonly companions: readonly RenameCompanionCall[];
 
   constructor(
     schemaName: string,
     oldTableName: string,
     tableName: string,
-    companions: readonly RenameTableCompanionCall[],
+    companions: readonly RenameCompanionCall[],
   ) {
     super();
     this.schemaName = schemaName;
@@ -534,8 +535,6 @@ export class AddColumnCall extends PostgresOpFactoryCallNode {
   }
 }
 
-export type RenameColumnCompanionCall = RenameConstraintCall | RenameIndexCall;
-
 export class RenameColumnCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameColumn' as const;
   // `widening` for the same reason as `RenameTableCall`.
@@ -550,14 +549,14 @@ export class RenameColumnCall extends PostgresOpFactoryCallNode {
    * The renames of objects whose names derive from the column name. They run after the column
    * rename and are never rendered on their own.
    */
-  readonly companions: readonly RenameColumnCompanionCall[];
+  readonly companions: readonly RenameCompanionCall[];
 
   constructor(
     schemaName: string,
     tableName: string,
     oldColumnName: string,
     columnName: string,
-    companions: readonly RenameColumnCompanionCall[],
+    companions: readonly RenameCompanionCall[],
   ) {
     super();
     this.schemaName = schemaName;

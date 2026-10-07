@@ -24,7 +24,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -63,7 +63,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -99,7 +99,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -129,7 +129,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -156,7 +156,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -183,7 +183,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -204,7 +204,7 @@ describe('planFieldEventOperations', () => {
       priorContract: same,
       newContract: same,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -227,7 +227,7 @@ describe('planFieldEventOperations', () => {
       priorContract: null,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -251,7 +251,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -270,7 +270,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -290,7 +290,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -314,7 +314,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -343,7 +343,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -375,7 +375,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -407,7 +407,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -443,14 +443,14 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
     const opsB = planFieldEventOperations({
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 
@@ -486,7 +486,7 @@ describe('planFieldEventOperations', () => {
       priorContract: fromContract,
       newContract,
       codecHooks,
-      renames: [],
+      tableRenames: [],
       columnRenames: [],
     });
 

@@ -307,10 +307,13 @@ export interface IndexReplacement {
   readonly create: CreateIndexCall;
 }
 
+/** A call a table or column rename carries to replace an index whose name derives from the old name. */
+export type RenameCompanionCall = DropIndexCall | CreateIndexCall;
+
 /** The replaced indexes' drops, then their creates, since a create may take a dropped name. */
 export function indexReplacementCalls(
   replacements: readonly IndexReplacement[],
-): (DropIndexCall | CreateIndexCall)[] {
+): RenameCompanionCall[] {
   return [...replacements.map(({ drop }) => drop), ...replacements.map(({ create }) => create)];
 }
 
@@ -330,7 +333,7 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
    * The replacements' drops, then their creates. They run after the table rename and are never
    * rendered on their own.
    */
-  readonly companions: readonly (DropIndexCall | CreateIndexCall)[];
+  readonly companions: readonly RenameCompanionCall[];
 
   constructor(
     oldTableName: string,
@@ -440,7 +443,7 @@ export class RenameColumnCall extends SqliteOpFactoryCallNode {
    * The replacements' drops, then their creates. They run after the column rename and are never
    * rendered on their own.
    */
-  readonly companions: readonly (DropIndexCall | CreateIndexCall)[];
+  readonly companions: readonly RenameCompanionCall[];
 
   constructor(
     tableName: string,
