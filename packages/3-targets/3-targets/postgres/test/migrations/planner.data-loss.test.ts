@@ -32,6 +32,7 @@ const columnTypes = {
   int4: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
   int8: { dataType: 'pg/int8', codecId: 'pg/int8@1', nullable: false },
   text: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+  'text?': { dataType: 'pg/text', codecId: 'pg/text@1', nullable: true },
 } as const;
 
 interface TableSpec {
@@ -265,5 +266,51 @@ describe('Postgres planner, data loss', () => {
         subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'age' },
       },
     ]);
+  });
+});
+
+describe('Postgres planner under db update', () => {
+  const DB_UPDATE = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
+
+  async function dbUpdatePlan(
+    from: Contract<SqlStorage>,
+    to: Contract<SqlStorage>,
+    fromContract: Contract<SqlStorage> | null,
+  ) {
+    const result = createPostgresMigrationPlanner(stubLowerer).plan({
+      contract: to,
+      schema: postgresContractToSchema(from, postgresTypeComponents),
+      policy: DB_UPDATE,
+      fromContract,
+      origin: null,
+      statements: [],
+      frameworkComponents: postgresTypeComponents,
+      spaceId: APP_SPACE_ID,
+      snapshotsImportPath: '../../snapshots',
+    });
+    if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
+    const operations = (await Promise.all(result.plan.operations)).map(
+      ({ id, label, operationClass }) => ({ id, label, operationClass }),
+    );
+    return { origin: result.plan.origin, operations };
+  }
+
+  it('plans the same operations with and without the origin contract, and asserts no origin', async () => {
+    const from = contract('from', {
+      Legacy: { columns: { id: 'int4' } },
+      User: {
+        columns: { id: 'int4', nickname: 'text', age: 'text', score: 'int4', email: 'text?' },
+      },
+    });
+    const to = contract('to', {
+      User: { columns: { id: 'int4', age: 'int4', score: 'int8', email: 'text', bio: 'text?' } },
+    });
+
+    const withOrigin = await dbUpdatePlan(from, to, from);
+    const without = await dbUpdatePlan(from, to, null);
+
+    expect(withOrigin).toEqual(without);
+    expect(withOrigin.origin).toBeNull();
+    expect(withOrigin.operations.length).toBeGreaterThan(0);
   });
 });

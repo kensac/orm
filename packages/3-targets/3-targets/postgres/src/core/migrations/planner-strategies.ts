@@ -236,11 +236,12 @@ export const notNullBackfillCallStrategy: CallMigrationStrategy = (issues, ctx) 
 };
 
 /**
- * Handles `not-equal` column issues whose TYPE differs. `fromContract` is
- * only supplied by `migration plan` — for reconciliation (`db update` /
- * `db init`, `fromContract === null`) this strategy never fires, mirroring
- * the legacy `typeChangeCallStrategy`'s requirement of a prior contract:
- * `mapNodeIssueToCall`'s in-place ALTER covers reconciliation directly.
+ * Handles `not-equal` column issues whose TYPE differs, for a plan that has an
+ * origin contract and may include `data` operations: `migration plan`. Under
+ * `db update` or `db init`, whose policies leave out `data`, it never fires,
+ * whether or not an origin contract is known: it could only plan the in-place
+ * ALTER that `mapNodeIssueToCall` plans, so leaving that to the mapper keeps
+ * the plan, and its order, the same either way.
  *
  * A single node issue can carry BOTH type and nullability drift (Postgres
  * alters in place, so the differ emits one `not-equal` column issue where
@@ -252,8 +253,9 @@ export const notNullBackfillCallStrategy: CallMigrationStrategy = (issues, ctx) 
  * partially handled.
  */
 export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
-  if (ctx.fromContract === null) return { kind: 'no_match' };
-  const dataAllowed = ctx.policy.allowedOperationClasses.includes('data');
+  if (ctx.fromContract === null || !ctx.policy.allowedOperationClasses.includes('data')) {
+    return { kind: 'no_match' };
+  }
 
   const matched: SchemaDiffIssue[] = [];
   const calls: PostgresOpFactoryCall[] = [];
@@ -268,7 +270,6 @@ export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
     const fromType = columnDataType(actual, ctx.types);
     const toType = columnDataType(expected, ctx.types);
     const isSafeWidening = isSafeTypeWidening(fromType, toType);
-    if (!isSafeWidening && !dataAllowed) continue;
 
     const ddlSchemaName = issueSchemaName(issue);
     const tableName = issueTableName(issue);
@@ -300,7 +301,7 @@ export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
     if (expected.nullable !== actual.nullable) {
       if (expected.nullable) {
         calls.push(new DropNotNullCall(schemaName, tableName, expected.name));
-      } else if (dataAllowed) {
+      } else {
         calls.push(
           new DataTransformCall(
             `handle-nulls-${tableName}-${expected.name}`,
@@ -309,8 +310,6 @@ export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
           ),
           new SetNotNullCall(schemaName, tableName, expected.name),
         );
-      } else {
-        calls.push(new SetNotNullCall(schemaName, tableName, expected.name));
       }
     }
   }

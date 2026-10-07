@@ -228,3 +228,43 @@ describe('SQLite planner, data loss', () => {
     ]);
   });
 });
+
+describe('SQLite planner under db update', () => {
+  async function dbUpdatePlan(
+    from: Contract<SqlStorage>,
+    to: Contract<SqlStorage>,
+    fromContract: Contract<SqlStorage> | null,
+  ) {
+    const result = createSqliteMigrationPlanner(stubLowerer).plan({
+      contract: to,
+      schema: sqliteContractToSchema(from, sqliteTestTypes),
+      policy: ALL_CLASSES,
+      fromContract,
+      origin: null,
+      statements: [],
+      frameworkComponents: sqliteTestComponents,
+      spaceId: APP_SPACE_ID,
+      snapshotsImportPath: '../../snapshots',
+    });
+    if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
+    const operations = (await Promise.all(result.plan.operations)).map(
+      ({ id, label, operationClass }) => ({ id, label, operationClass }),
+    );
+    return { origin: result.plan.origin, operations };
+  }
+
+  it('plans the same operations with and without the origin contract, and asserts no origin', async () => {
+    const from = contract('from', {
+      Legacy: { id: 'integer' },
+      User: { id: 'integer', email: 'text?', nickname: 'text', age: 'text' },
+    });
+    const to = contract('to', { User: { id: 'integer', email: 'text', age: 'integer' } });
+
+    const withOrigin = await dbUpdatePlan(from, to, from);
+    const without = await dbUpdatePlan(from, to, null);
+
+    expect(withOrigin).toEqual(without);
+    expect(withOrigin.origin).toBeNull();
+    expect(withOrigin.operations.length).toBeGreaterThan(0);
+  });
+});
