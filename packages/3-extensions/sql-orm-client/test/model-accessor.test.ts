@@ -62,7 +62,6 @@ describe('createModelAccessor', () => {
         {
           codecId,
           traits,
-          targetTypes: [] as readonly string[],
           paramsSchema: {
             '~standard': {
               version: 1 as const,
@@ -85,7 +84,6 @@ describe('createModelAccessor', () => {
       values: function* () {
         yield* map.values();
       },
-      byTargetType: () => Object.freeze([]),
     };
   }
 

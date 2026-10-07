@@ -1,4 +1,5 @@
 import { int4Column, textColumn } from '@internal/adapter-postgres/column-types';
+import { assembleDataTypes } from '@internal/framework-components/codec';
 import {
   buildSqlContractFromDefinition,
   type FieldNode,
@@ -36,6 +37,7 @@ function legacyKeyFields(shape: LegacyKeyShape): readonly FieldNode[] {
 }
 
 export function buildUnexposedStorageContract(legacyKey: LegacyKeyShape) {
+  const postgresDataTypes = assembleDataTypes([postgresPack]).lookup;
   return buildSqlContractFromDefinition(
     {
       warnings: undefined,
@@ -118,7 +120,8 @@ export function buildUnexposedStorageContract(legacyKey: LegacyKeyShape) {
         },
       ],
     },
-    assemblePostgresCodecRegistryWithBuiltins([]),
+    assemblePostgresCodecRegistryWithBuiltins([], postgresDataTypes),
+    postgresDataTypes,
   );
 }
 

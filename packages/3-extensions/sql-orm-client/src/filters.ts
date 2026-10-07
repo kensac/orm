@@ -15,6 +15,7 @@ import {
   resolveFieldColumn,
   resolveModelTableName,
 } from './collection-contract';
+import { hasTrait } from './column-codec';
 import { ormError } from './orm-errors';
 import { predicateComparison } from './predicate-comparison';
 import { predicateExpression } from './predicate-expression';
@@ -84,8 +85,7 @@ function assertFieldHasEqualityTrait(
 ): void {
   const fieldType = modelOf(context.contract, namespaceId, modelName)?.fields?.[fieldName]?.type;
   const codecId = fieldType?.kind === 'scalar' ? fieldType.codecId : undefined;
-  const traits = codecId ? (context.codecDescriptors.descriptorFor(codecId)?.traits ?? []) : [];
-  if (!traits.includes('equality')) {
+  if (codecId === undefined || !hasTrait(context, codecId, 'equality')) {
     throw ormError(
       'ORM.FILTER_UNSUPPORTED',
       `Shorthand filter on "${modelName}.${fieldName}": field does not support equality comparisons`,

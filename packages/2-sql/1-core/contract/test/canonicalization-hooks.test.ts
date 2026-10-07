@@ -135,7 +135,7 @@ describe('canonicalization of literal column defaults', () => {
                       name,
                       {
                         codecId: 'pg/bool@1',
-                        nativeType: 'bool',
+                        dataType: 'pg/bool',
                         nullable: false,
                         default: { kind: 'literal', value },
                       },

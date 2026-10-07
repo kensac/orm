@@ -7,6 +7,7 @@ import type { SqlStorage } from '@internal/sql-contract/types';
 import { validateSqlContractFully } from '@internal/sql-contract/validators';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { withTestTypes } from '../../../1-core/contract/test/test-type-lookups';
 import { buildSqlContractFromDefinition } from '../src/contract-builder';
 import type { FieldNode } from '../src/contract-definition';
 import { modelsOf } from './contract-test-helpers';
@@ -34,43 +35,46 @@ function column(
 }
 
 function build(options: { readonly legacyKeyExposed: boolean; readonly ledgerExposed: boolean }) {
-  return buildSqlContractFromDefinition({
-    warnings: undefined,
-    target: postgresTargetPack,
-    createNamespace: createTestSqlNamespace,
-    models: [
-      {
-        modelName: 'User',
-        tableName: 'user',
-        fields: [
-          column('id', 'id', int4),
-          column('email', 'email', text),
-          {
-            ...column('legacyKey', 'legacy_key', text, true),
-            ...(options.legacyKeyExposed ? {} : { unexposed: true }),
-          },
-        ],
-        id: { columns: ['id'] },
-      },
-      {
-        modelName: 'Ledger',
-        tableName: '_prisma_migrations',
-        ...(options.ledgerExposed ? {} : { unexposed: true }),
-        fields: [
-          column('id', 'id', text),
-          column('migrationName', 'migration_name', text),
-          column('userId', 'user_id', int4, true),
-        ],
-        id: { columns: ['id'] },
-        foreignKeys: [
-          {
-            columns: ['user_id'],
-            references: { model: 'User', table: 'user', columns: ['id'] },
-          },
-        ],
-      },
-    ],
-  });
+  return buildSqlContractFromDefinition(
+    {
+      warnings: undefined,
+      target: postgresTargetPack,
+      createNamespace: createTestSqlNamespace,
+      models: [
+        {
+          modelName: 'User',
+          tableName: 'user',
+          fields: [
+            column('id', 'id', int4),
+            column('email', 'email', text),
+            {
+              ...column('legacyKey', 'legacy_key', text, true),
+              ...(options.legacyKeyExposed ? {} : { unexposed: true }),
+            },
+          ],
+          id: { columns: ['id'] },
+        },
+        {
+          modelName: 'Ledger',
+          tableName: '_prisma_migrations',
+          ...(options.ledgerExposed ? {} : { unexposed: true }),
+          fields: [
+            column('id', 'id', text),
+            column('migrationName', 'migration_name', text),
+            column('userId', 'user_id', int4, true),
+          ],
+          id: { columns: ['id'] },
+          foreignKeys: [
+            {
+              columns: ['user_id'],
+              references: { model: 'User', table: 'user', columns: ['id'] },
+            },
+          ],
+        },
+      ],
+    },
+    ...withTestTypes(),
+  );
 }
 
 describe('storage the domain does not expose', () => {
@@ -109,26 +113,29 @@ describe('storage the domain does not expose', () => {
 
   it('refuses a generated default on an unexposed field, which the ORM never writes', () => {
     expect(() =>
-      buildSqlContractFromDefinition({
-        warnings: undefined,
-        target: postgresTargetPack,
-        createNamespace: createTestSqlNamespace,
-        models: [
-          {
-            modelName: 'User',
-            tableName: 'user',
-            fields: [
-              column('id', 'id', int4),
-              {
-                ...column('token', 'token', text),
-                unexposed: true,
-                executionDefaults: { onCreate: { kind: 'generator', id: 'uuidv4' } },
-              },
-            ],
-            id: { columns: ['id'] },
-          },
-        ],
-      }),
+      buildSqlContractFromDefinition(
+        {
+          warnings: undefined,
+          target: postgresTargetPack,
+          createNamespace: createTestSqlNamespace,
+          models: [
+            {
+              modelName: 'User',
+              tableName: 'user',
+              fields: [
+                column('id', 'id', int4),
+                {
+                  ...column('token', 'token', text),
+                  unexposed: true,
+                  executionDefaults: { onCreate: { kind: 'generator', id: 'uuidv4' } },
+                },
+              ],
+              id: { columns: ['id'] },
+            },
+          ],
+        },
+        ...withTestTypes(),
+      ),
     ).toThrow(
       expect.objectContaining({
         code: 'CONTRACT.DEFAULT_INVALID',
@@ -145,12 +152,15 @@ describe('storage the domain does not expose', () => {
 describe('combinations the builder refuses for storage the domain does not expose', () => {
   function buildModels(models: Parameters<typeof buildSqlContractFromDefinition>[0]['models']) {
     return () =>
-      buildSqlContractFromDefinition({
-        warnings: undefined,
-        target: postgresTargetPack,
-        createNamespace: createTestSqlNamespace,
-        models,
-      });
+      buildSqlContractFromDefinition(
+        {
+          warnings: undefined,
+          target: postgresTargetPack,
+          createNamespace: createTestSqlNamespace,
+          models,
+        },
+        ...withTestTypes(),
+      );
   }
 
   const user = {

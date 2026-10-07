@@ -35,10 +35,10 @@ describe('integration/polymorphism-key-only-variant', () => {
       await withPushedContractRuntime(contract, async (runtime) => {
         const db = ormFor(runtime, contract);
 
-        const chore = await db.public.Task.variant('Chore').create({ title: 'Sweep' });
+        const chore = await db.public.Task.variant('chore').create({ title: 'Sweep' });
         expect(chore).toEqual({ id: chore.id, title: 'Sweep', type: 'chore' });
 
-        const bug = await db.public.Task.variant('Bug').create({
+        const bug = await db.public.Task.variant('bug').create({
           title: 'Crash',
           severity: 'high',
         });
