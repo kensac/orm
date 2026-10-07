@@ -126,14 +126,16 @@ export function consentDescription(
   return `${verb} ${subject.kind} "${text}"`;
 }
 
-function lossText(subject: MigrationStatementSubject, text: string): string {
+function lossText(subject: MigrationStatementSubject, text: string, originKnown: boolean): string {
   switch (subject.kind) {
     case 'model':
       return `would lose the data of model "${text}"`;
     case 'field':
       return `would lose the values of field "${text}"`;
     case 'storage':
-      return `would lose the data in "${text}", which no model of the origin contract stores`;
+      return originKnown
+        ? `would lose the data in "${text}", which no model of the origin contract stores`
+        : `would lose the data in "${text}", named by its storage name because the origin contract is unknown`;
   }
 }
 
@@ -161,13 +163,16 @@ function namesSubject(verb: ConsentVerb, subject: string) {
  */
 export function dataLossQuestion(
   loss: PlannedSubject,
-  contracts: StatementContracts & { readonly destination: ContractWithDomain },
+  contracts: StatementContracts & {
+    readonly destination: ContractWithDomain;
+    readonly originKnown: boolean;
+  },
 ): PlanQuestion {
   const subject = subjectText(loss.subject, contracts);
   const renamable = loss.subject.kind !== 'storage';
   const deleteNames = namesSubject('delete', subject);
   return {
-    question: `${loss.label} ${lossText(loss.subject, subject)}.`,
+    question: `${loss.label} ${lossText(loss.subject, subject, contracts.originKnown)}.`,
     subject,
     verbs: renamable ? ['rename', 'delete'] : ['delete'],
     forms: renamable ? { rename: `${subject}:<new name>` } : {},
@@ -248,6 +253,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   readonly preAnswers: readonly StatementText[];
   readonly consentAll: boolean;
   readonly origin: ContractWithDomain;
+  readonly originKnown: boolean;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
   readonly replan: (renames: readonly StatementText[]) => Promise<Result<TPlan, TFailure>>;
@@ -265,7 +271,12 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   let renames = input.renames;
   const consented = new Map<string, ConsentedSubject>();
   for (let round = 0; ; round += 1) {
-    const contracts = { origin: input.origin, destination: input.destination, renames };
+    const contracts = {
+      origin: input.origin,
+      originKnown: input.originKnown,
+      destination: input.destination,
+      renames,
+    };
     const pending = (
       verb: ConsentVerb,
       planned: readonly PlannedSubject[],

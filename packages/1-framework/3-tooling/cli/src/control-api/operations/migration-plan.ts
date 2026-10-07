@@ -292,6 +292,7 @@ async function answerPlannedDataLoss(input: {
   readonly delta: PlannerSuccess | undefined;
   readonly renames: readonly StatementText[];
   readonly origin: ContractWithDomain;
+  readonly originKnown: boolean;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
   readonly planDelta: (
@@ -318,6 +319,7 @@ async function answerPlannedDataLoss(input: {
     preAnswers: [],
     consentAll: false,
     origin: input.origin,
+    originKnown: input.originKnown,
     destination: input.destination,
     answer: input.answer,
     replan: async (renames) => {
@@ -738,6 +740,7 @@ async function executeMigrationPlanCommandInner(
         delta,
         renames: statementTexts,
         origin: fromContract ?? EMPTY_ORIGIN,
+        originKnown: true,
         destination: toContract,
         answer: options.answerQuestions,
         planDelta: async (renames) => {

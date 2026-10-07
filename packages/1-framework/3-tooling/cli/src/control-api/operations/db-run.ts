@@ -319,6 +319,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       preAnswers: statementTexts.filter((statement) => statement.verb !== 'rename'),
       consentAll: options.acceptDataLoss,
       origin: fromContract ?? EMPTY_ORIGIN,
+      originKnown: fromContract !== null,
       destination: contract,
       answer: options.answerQuestions,
       replan: (renames) => plan(resolveRenames(renames)),
