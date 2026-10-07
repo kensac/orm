@@ -2,7 +2,15 @@
 
 **Slice:** [`../spec.md`](../spec.md) § "`--delete` and how statements consent", § "Access widening (`allow`)" · **Plan:** [`../plan.md`](../plan.md) dispatch 4 · **Builds on:** dispatch 3
 
-## Step 0 — bring the base in
+## Step 0 — already done in dispatch 3
+
+The slice 1 branch is merged (`0bf6536f64`). Skip to the outcome.
+
+## Carried from dispatch 3's review (D3-8)
+
+A delete is reported through the origin model (`delete field "Profile.nickname"`) although the question wrote it as `User.nickname`. Describe it the way the question writes it, in both commands' `Statements applied` and JSON, with a test.
+
+## Old step 0 (kept for the record)
 
 `bot/tml-3475-statement-renames` moved after this branch was cut (the merge-queue test fix, a merge of `main`, and two follow-ups). Merge it into `tml-3476-statement-refusal` with `git merge --no-ff`; do not rebase. Resolve conflicts keeping both sides; the base's rewritten test "writes nothing when the delta planner refuses after the baseline was planned" is the one dispatch 3 already satisfies. Run the gate on the merge before starting the rest.
 
