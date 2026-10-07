@@ -99,6 +99,26 @@ describe('Postgres planner, model statements', () => {
     ]);
   });
 
+  it('reads the statements against fromContract and asserts only the origin it is given', async () => {
+    const result = createPostgresMigrationPlanner(stubLowerer).plan({
+      contract: to,
+      schema: postgresContractToSchema(from, postgresTypeComponents),
+      policy: ALL_CLASSES,
+      fromContract: from,
+      origin: null,
+      statements: [renameModel('Profile', 'User')],
+      frameworkComponents: postgresTypeComponents,
+      spaceId: APP_SPACE_ID,
+      snapshotsImportPath: '../../snapshots',
+    });
+    if (result.kind !== 'success') throw new Error('expected a plan');
+    expect(result.appliedStatements).toHaveLength(1);
+    expect({ origin: result.plan.origin, from: result.plan.describe().from }).toEqual({
+      origin: null,
+      from: null,
+    });
+  });
+
   it('drops and creates the table without a statement', async () => {
     const labels = await labelsOf(plan(from, to, []));
     expect(labels).toContain('Create table "User"');
