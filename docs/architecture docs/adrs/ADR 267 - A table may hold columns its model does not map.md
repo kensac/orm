@@ -50,14 +50,14 @@ const AuditRows = table('audit_rows', {
 | Prisma 8 PSL | `sql { }` block inside the `model` | `table` block beside models |
 | TypeScript | `columns` in `.sql({ ... })` | `table(...)` beside models |
 
-A contract has two halves. Storage lists tables, columns, keys and constraints. Domain lists models, fields and relations, and each field names the column that holds it. The declarations above lower to:
+A contract has two planes (ADR 221). The storage plane lists tables, columns, keys and constraints. The domain plane lists models, fields and relations, and each field names the column that holds it. The declarations above lower to:
 
 | Storage | Domain |
 |---|---|
 | table `User`: `id`, `email`, `legacy_key` | model `User`: fields `id`, `email` |
 | table `audit_rows`: `id`, `recorded_at` | no model |
 
-Each consumer reads one half. Migrations, `db verify` and the storage hash read storage, so they create, verify and fingerprint `legacy_key` and `audit_rows`. The ORM and the emitted types read domain, so to them neither exists:
+Each consumer reads one plane. Migrations, `db verify` and the storage hash read storage, so they create, verify and fingerprint `legacy_key` and `audit_rows`. The ORM and the emitted types read domain, so to them neither exists:
 
 ```ts
 const users = await db.public.User.all();                     // [{ id: 1, email: '...' }]
@@ -73,17 +73,17 @@ The storage shape gains nothing. A column with no field, or a table with no mode
 
 ## Why
 
-Every database holds objects the application must not touch: a column kept for an audit process, a column in the middle of a rename, a table another process writes inside the schema Prisma migrates, and the record of applied migrations that an earlier Prisma version keeps in `_prisma_migrations`. A schema written for an earlier Prisma version marks these `@ignore` and `@@ignore`, and that schema is a contract source (ADR 252), so a Prisma 8 contract has to carry them with the same meaning: in the table, migrated with it, invisible to the application.
+Every database holds objects the application must not touch: a column kept for an audit process, a column in the middle of a rename, a table another process writes inside the schema Prisma migrates, and the record of applied migrations that an earlier Prisma version keeps in `_prisma_migrations`. A contract source written for an earlier Prisma version marks these `@ignore` and `@@ignore`, and that source is read into a Prisma 8 contract (ADR 252), so a Prisma 8 contract has to carry them with the same meaning: in the table, migrated with it, invisible to the application.
 
-The separation of storage from domain exists for this. Storage is what the migration system receives, and it must be complete and unambiguous on its own. Domain is what the application sees. A column the application must not see is a storage fact with no domain counterpart, and the authoring surface says exactly that: it describes the table, not a field the model is told to hide.
+The separation of the storage plane from the domain plane exists for this. Storage is what the migration system receives, and it must be complete and unambiguous on its own. Domain is what the application sees. A column the application must not see is a storage fact with no domain counterpart, and the authoring surface says exactly that: it describes the table, not a field the model is told to hide.
 
 ## The four forms
 
-A model's `.sql({ ... })` section already describes the model's table rather than the model: its name, its control policy, its indexes, checks and foreign keys. It gains `columns`, the columns the table holds beyond those the model's fields map. The PSL `sql { }` block inside a `model` is the same section in PSL. A column in either is written in storage terms: a column name, a storage type such as `pg/text`, nullability, an optional database default, and an optional control policy that defaults to the table's. It has no field name, because there is no field, and it never carries an execution default, because nothing writes it. The column type is a storage type, not a Prisma scalar, because there is no field to resolve a scalar through.
+A model's `.sql({ ... })` stage, the SQL overlay of ADR 181, already describes the model's table rather than the model: its name, its control policy, its indexes, checks and foreign keys. It gains `columns`, the columns the table holds beyond those the model's fields map. The PSL `sql { }` block inside a `model` is the same stage in PSL. A column in either is written in storage terms: a column name, a storage type such as `pg/text`, nullability, an optional database default, and an optional control policy that defaults to the table's. It has no field name, because there is no field, and it never carries an execution default, because nothing writes it. The column type is a storage type, not a Prisma scalar, because there is no field to resolve a scalar through.
 
 A table no model maps is declared with `table(...)` beside the models in TypeScript and with a `table` block in PSL, in the family of storage-only blocks such as `native_enum` and `role`. Both carry the same storage vocabulary: columns, primary key, uniques, indexes, checks, foreign keys and control policy. A foreign key from such a table to a modelled one, or from an extra column to anywhere, is a foreign key in storage, resolved by table and column name; it is never a relation, because there is no model to relate.
 
-Each PSL form must lower to the same storage as its TypeScript twin, under the parity rule of ADR 096. A `table` block or declaration naming a table a model maps is refused; a modelled table's extra columns go in that model's `sql` section, so one declaration owns each table's table-level properties.
+Each PSL form must lower to the same storage as its TypeScript twin, under the parity rule of ADR 096. A `table` block or declaration naming a table a model maps is refused; a modelled table's extra columns go in that model's `sql` stage, so one declaration owns each table's table-level properties.
 
 One rule holds across every surface: each column of a table is declared exactly once, either by a field or in the storage declaration, never both.
 
@@ -91,17 +91,26 @@ The other two forms that were considered for PSL are in the alternatives: a fiel
 
 ## How a contract is assembled
 
-Authoring lowers in two steps, which `buildSqlContractFromDefinition` performs today in one call:
+Every source lowers to one data structure, `ContractDefinition`, and one function, `buildSqlContractFromDefinition`, turns it into a contract. ADR 181 makes the definition the shared lowering target so that parity between PSL and TypeScript is structural: two sources that produce the same definition produce the same contract, and nothing has to be fixture-tested. That holds only if every input passes through the definition, so storage declared in storage terms goes into the definition too.
 
-1. **Derive.** Model-shaped input, a `ContractDefinition` of models with fields, relations, keys, indexes, checks and foreign keys, becomes the storage and domain halves it implies: column types from field codecs, tables from mappings, index and constraint names from the naming rules, inheritance materialised onto tables, junction tables for implicit many-to-many relations, foreign keys from relations, defaults encoded through codecs.
-2. **Assemble.** Storage and domain halves become a contract: foreign key targets resolved, entries canonicalized, validators run, hashes computed.
+The definition therefore has two parts:
 
-Storage declared as storage has nothing to derive, so it enters at the second step, in contract shape, merged with the derived storage of the models. The assemble step refuses a column present in both. The Prisma 7 reader therefore derives the models it maps, adds `@@ignore` tables and `@ignore` columns to the storage half directly, and assembles. `defineContract` and the Prisma 8 PSL interpreter lower `.sql({ columns })`, `table(...)` and their PSL twins to the same place. No new vocabulary enters the definition data, and every contract passes through one validation and one hashing.
+- **Models.** Each `ModelNode` carries fields, relations, keys, indexes, checks and foreign keys, as today.
+- **Storage.** Tables and columns declared in storage terms, in the contract's own storage input shapes, `StorageTableInput` and `StorageColumnInput`. A `table` declaration is one entry; a model's extra `columns` are entries addressed to the model's table.
+
+The function performs two steps, which today it performs in one call:
+
+1. **Derive** runs per model. A `ModelNode` becomes the storage and domain entries it implies: column types from field codecs, the table from the mapping, index and constraint names from the naming rules, inheritance materialised onto tables, junction tables for implicit many-to-many relations, foreign keys from relations, defaults encoded through codecs. This is the logic every source shares, and it is the step that lowers a model into contract components.
+2. **Assemble** takes the derived entries of every model together with the definition's storage part, as one set of storage inputs, and makes a contract: a column present twice is refused, foreign key targets are resolved by table and column name, entries are canonicalized, validators run, hashes are computed.
+
+The Prisma 7 reader lowers `@ignore` to a column entry on the model's table and `@@ignore` to a table entry, in the storage part, and lowers everything else to models as today. `defineContract` and the Prisma 8 PSL interpreter lower `.sql({ columns })`, `table(...)` and their PSL twins to the same part. Nothing enters the function anywhere but the definition, and every contract passes through one validation and one hashing.
 
 Derive is deterministic, and that gives two properties the design relies on:
 
 - **Exposure does not move the storage hash.** A column declared as a field and the same column declared in `columns` produce identical storage, so moving a column between the two, which is what adding or removing `@ignore` does, plans no migration and leaves the marker valid. This is one equation, derive with the field equals derive without it plus the declared column, and it is tested as such.
 - **`contract print` can separate the two.** It prints the models, derives their storage, and whatever the contract's storage holds beyond that is printed as `sql { }` and `table` blocks. `contract infer` does the same from a database: the tables it can model become models, and the rest becomes `table` blocks, so an inferred contract covers the whole schema.
+
+A junction table for an implicit many-to-many relation is always a model. Derive requires the junction to be a declared model and gives it the two key fields, so the ORM projects it like any table and the equation above holds for it. ADR 174 left open whether a junction table appears as a model; this decision answers it: a junction is a model, and a table with no model is declared with `table`, never through a relation.
 
 ## Keeping the ORM to the domain
 
@@ -121,26 +130,31 @@ The emitted `contract.d.ts` omits extra columns from the ORM's model, row and in
 
 Strict verify asks whether the contract declares each database object, and declaration is a storage fact, so extra columns and tables with no model are declared and never unclaimed.
 
-Who manages the storage is a separate question from whether the application sees it. An extra column or a table with no model carries a control policy like any storage, defaulting to `managed`: a Prisma 7 `@ignore` column is migrated and must survive a rebuild from `migrations/`. A legacy column another system owns is declared the same way with `external`, and then the planner emits no DDL for it. Exposure and policy are orthogonal, and both live in storage.
+Who manages the storage is a separate question from whether the application sees it. An extra column or a table with no model carries a control policy like any storage, defaulting to `managed`: a Prisma 7 `@ignore` column is migrated and must survive a rebuild from `migrations/`. A legacy column another system owns is declared the same way with `external`, and then the planner emits no DDL for it. Exposure and policy are orthogonal, and both live in the storage plane.
+
+This amends ADR 224, which rejected a per-column control policy because no consumer needed a `managed` table with an `external` column and said the field could be added when a real case appeared. The extra column is that case: a column kept in a modelled, managed table because another system owns it. A column declared in storage terms may carry a policy of its own, defaulting to its table's, and the verifier and planner resolve policy by column, then table, then default. A field's column still takes its table's policy; the override exists only where the column is declared as storage.
 
 ## Consequences
 
-- Adding or removing `@ignore` or `@@ignore` in a Prisma 7 schema changes no storage, no hash and no migration history.
-- A schema from an earlier Prisma version keeps every ignored object and declares `_prisma_migrations`, so strict verify passes on the database that version built.
+- Adding or removing `@ignore` or `@@ignore` in a Prisma 7 contract source changes no storage, no hash and no migration history.
+- A contract read from an earlier Prisma version's source keeps every ignored object and declares `_prisma_migrations`, so strict verify passes on the database that version built.
 - A column name passed where a field name belongs is an error at runtime as well as in the types.
-- `buildSqlContractFromDefinition` is two composable steps, and a source may enter at either.
+- Every source lowers to `ContractDefinition`, which carries models and storage declared in storage terms, and `buildSqlContractFromDefinition` is two steps, derive per model and assemble.
+- A junction table is a model, which closes the question ADR 174 left open.
+- ADR 224 is amended: a column declared in storage terms may carry its own control policy.
 - A column whose type has no codec is not covered: every storage column carries a storage type. That is its own decision.
-- MongoDB has no storage half distinct from its domain, so this decision is SQL-only.
+- MongoDB has no storage plane distinct from its domain plane, so this decision is SQL-only.
 
 ## Alternatives considered
 
-- **A field the model is told to hide.** A flag on a field node, or `@ignore` as a Prisma 8 attribute, describes storage as domain with a negation. It needs a model to carry it, so a table with no model becomes a model with invented field names, and the vocabulary names the thing by what the ORM refuses to do. Storage declared as storage needs neither.
+- **A field the model is told to hide.** A flag on a field node, or `@ignore` as a Prisma 8 attribute, describes storage as domain with a negation. It needs a model to carry it, so a table with no model becomes a model with invented field names, and the vocabulary names the thing by what the ORM refuses to do. Storage declared in storage terms needs neither.
 - **A field on the model with a column-level policy**, such as `legacy_id unknown @control(external)` among the fields. A field is part of the query API, so the column would appear in the client with no usable type; and it says nothing about a table with no model.
-- **A `table` block beside the model for a modelled table's extra columns.** Two blocks would then describe one table, each able to state table-level properties such as control policy, and both would have to be kept in step. The `sql { }` block inside the model keeps one declaration per table and mirrors the TypeScript `.sql({ ... })` section, so both surfaces keep one shape. The `table` block is kept for the case it is needed for: a table with no model.
-- **A flag on storage tables and columns.** Storage would record a decision the ORM makes, the two halves could disagree, and the storage hash would change when exposure changed, so every `@ignore` edit would plan a migration.
+- **A `table` block beside the model for a modelled table's extra columns.** Two blocks would then describe one table, each able to state table-level properties such as control policy, and both would have to be kept in step. The `sql { }` block inside the model keeps one declaration per table and mirrors the TypeScript `.sql({ ... })` stage, so both surfaces keep one shape. The `table` block is kept for the case it is needed for: a table with no model.
+- **A flag on storage tables and columns.** The storage plane would record a decision the ORM makes, the two planes could disagree, and the storage hash would change when exposure changed, so every `@ignore` edit would plan a migration.
 - **Control policy instead of exposure.** Marking the objects `tolerated` or `external` satisfies verify, but those policies mean migrations do not manage the object, and an ignored column is managed. The two answer different questions and both are needed.
 - **Leaving the objects out of the contract and verifying leniently.** The planner then treats them as foreign, dropping or re-creating them as the schema edits around them, and strict verify can never pass.
-- **A new node for tables in the definition data.** Storage declared as storage has nothing to derive, so a node vocabulary for it duplicates the contract's own storage shapes. Entering at the assemble step uses those shapes directly.
+- **Storage entering at the assemble step without passing through the definition.** The Prisma 7 reader would derive the models it maps and hand `@ignore` columns and `@@ignore` tables to assemble directly. That is a second lowering path beside the definition, and ADR 181's parity argument covers only what passes through the definition, so parity for this storage would have to be fixture-tested again. Putting the storage part in the definition keeps one path.
+- **A model-shaped node for tables with no model in the definition.** Storage declared as storage has nothing to derive, so a node vocabulary for it duplicates the contract's own storage shapes. The storage part uses those shapes directly.
 - **The Prisma 7 reader appending tables after the contract is built.** It would be a second assembler: it would re-hash, re-validate and resolve its own foreign keys, and a foreign key between an ignored table and a modelled one would need both assemblers to agree.
 - **A type-level guarantee only, keeping column-name fallbacks in the ORM.** `create(req.body)` and any JavaScript caller would write and read extra columns, which is the data the concept exists to protect.
 - **Exposure per table in the ORM.** A multi-table variant's table has no field describing its key, so its `RETURNING` list is empty and `create` fails, and two models over one table would see each other's columns.
