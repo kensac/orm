@@ -88,7 +88,7 @@ const SPAN_IDS = {
  * loader gathers the rest from disk + descriptors. The CLI is the
  * descriptor-import boundary; everything downstream is descriptor-free.
  */
-export interface ExecuteRunOptions<TFamilyId extends string, TTargetId extends string> {
+export interface ExecuteRunSharedOptions<TFamilyId extends string, TTargetId extends string> {
   readonly driver: ControlDriverInstance<TFamilyId, TTargetId>;
   readonly adapter: ControlAdapterInstance<TFamilyId, TTargetId>;
   readonly familyInstance: ControlFamilyInstance<TFamilyId, unknown>;
@@ -104,9 +104,6 @@ export interface ExecuteRunOptions<TFamilyId extends string, TTargetId extends s
   readonly extensions: ReadonlyArray<ControlExtensionDescriptor<TFamilyId, TTargetId>>;
   readonly targetId: TTargetId;
   readonly policy: MigrationOperationPolicy;
-  readonly action: 'dbInit' | 'dbUpdate';
-  /** The statements as the user wrote them, in the order given; empty for `db init`. */
-  readonly statements: readonly StatementText[];
   /**
    * Identity of the plan the caller consented to (`db update` only). When
    * set, the apply refuses with `CONSENT_PLAN_MISMATCH` if the freshly
@@ -118,6 +115,16 @@ export interface ExecuteRunOptions<TFamilyId extends string, TTargetId extends s
   readonly verifySnapshotContent?: SnapshotContentVerifier;
   readonly onProgress?: OnControlProgress;
 }
+
+/** `db init` takes no statements; `db update` takes the statements as the user wrote them, in order. */
+export type ExecuteRunOptions<
+  TFamilyId extends string,
+  TTargetId extends string,
+> = ExecuteRunSharedOptions<TFamilyId, TTargetId> &
+  (
+    | { readonly action: 'dbInit' }
+    | { readonly action: 'dbUpdate'; readonly statements: readonly StatementText[] }
+  );
 
 /**
  * Loader → planner → runner pipeline shared by `db init` and `db update`.
@@ -181,7 +188,8 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // read and the plan has no origin contract, as before statements existed.
   let fromContract: Contract | null = null;
   let statements: readonly ResolvedMigrationStatement[] = [];
-  if (options.statements.length > 0) {
+  const statementTexts = options.action === 'dbUpdate' ? options.statements : [];
+  if (statementTexts.length > 0) {
     const appOrigin = await readAppOrigin({
       marker: markerRows.get(aggregate.app.spaceId) ?? null,
       migrationsDir,
@@ -189,7 +197,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     });
     const resolved = resolveStatements({
-      statements: options.statements,
+      statements: statementTexts,
       origin: appOrigin.origin,
       destination: contract,
     });
@@ -263,11 +271,10 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     );
   }
   const appPlan = appResolution.entry.plan;
-  const appliedStatements = reportAppliedStatements(
-    appResolution.entry.appliedStatements,
-    fromContract,
-    contract,
-  );
+  const appliedStatements =
+    action === 'dbUpdate'
+      ? reportAppliedStatements(appResolution.entry.appliedStatements, fromContract, contract)
+      : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -505,12 +512,13 @@ function wrapPlanResult(args: {
   readonly preview: OperationPreview | undefined;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedStatementReport[];
+  /** `undefined` for `db init`, which reports no statements. */
+  readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'plan',
-    appliedStatements: args.appliedStatements,
+    ...ifDefined('appliedStatements', args.appliedStatements),
     plan: {
       operations: stripOperations(args.operations),
       ...ifDefined('preview', args.preview),
@@ -533,12 +541,13 @@ function wrapApplyResult(args: {
   readonly operationsExecuted: number;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedStatementReport[];
+  /** `undefined` for `db init`, which reports no statements. */
+  readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'apply',
-    appliedStatements: args.appliedStatements,
+    ...ifDefined('appliedStatements', args.appliedStatements),
     plan: { operations: stripOperations(args.operations) },
     destination: {
       storageHash: args.destination.storageHash,

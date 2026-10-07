@@ -159,7 +159,7 @@ function planBlocks(result: MigrationCommandResult): readonly Block[] {
     { kind: 'summary', status: 'ok', text: planSummaryText(result) },
     ...plannerWarningBlocks(result),
     ...operationBlocks(result),
-    ...appliedStatementBlocks(result.appliedStatements),
+    ...appliedStatementBlocks(result.appliedStatements ?? []),
     {
       kind: 'fields',
       rows: [
@@ -224,7 +224,7 @@ function applyBlocks(result: MigrationCommandResult): readonly Block[] {
     { kind: 'summary', status: 'ok', text: applySummaryText(result) },
     ...plannerWarningBlocks(result),
     ...operationBlocks(result),
-    ...appliedStatementBlocks(result.appliedStatements),
+    ...appliedStatementBlocks(result.appliedStatements ?? []),
     ...fallbackMarkerBlocks(result),
     ...(advanced === null || advanced === undefined
       ? []

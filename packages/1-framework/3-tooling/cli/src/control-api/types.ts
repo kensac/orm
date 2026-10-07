@@ -410,8 +410,6 @@ export interface DbInitSuccess {
    * See {@link PerSpaceExecutionEntry}.
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
-  /** The statements the application space's plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

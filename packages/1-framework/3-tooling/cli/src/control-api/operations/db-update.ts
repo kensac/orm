@@ -12,7 +12,7 @@ import { ifDefined } from '@internal/utils/defined';
 import { notOk } from '@internal/utils/result';
 import type { StatementText } from '../statements/statement-text';
 import type { DbUpdateResult, OnControlProgress } from '../types';
-import { executeRun } from './db-run';
+import { type ExecuteRunSharedOptions, executeRun } from './db-run';
 import { computePlanHash } from './plan-identity';
 
 export const DB_UPDATE_POLICY = {
@@ -107,7 +107,10 @@ export async function executeDbUpdate<TFamilyId extends string, TTargetId extend
  * run.
  */
 async function guardDestructiveChanges<TFamilyId extends string, TTargetId extends string>(
-  sharedInputs: Omit<Parameters<typeof executeRun<TFamilyId, TTargetId>>[0], 'mode'>,
+  sharedInputs: Omit<ExecuteRunSharedOptions<TFamilyId, TTargetId>, 'mode'> & {
+    readonly action: 'dbUpdate';
+    readonly statements: readonly StatementText[];
+  },
 ): Promise<DbUpdateResult | null> {
   const planResult = (await executeRun<TFamilyId, TTargetId>({
     ...sharedInputs,

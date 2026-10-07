@@ -86,7 +86,6 @@ export async function executeDbInit<TFamilyId extends string, TTargetId extends 
     extensions: options.extensions ?? [],
     policy: { allowedOperationClasses: ['additive'] },
     action: 'dbInit',
-    statements: [],
     ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     ...ifDefined('onProgress', options.onProgress),
   });
