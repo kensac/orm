@@ -5,9 +5,10 @@ import type { RuntimeScope } from '@internal/sql-relational-core/types';
 import {
   getColumnToFieldMap,
   getCompleteColumnToFieldMap,
-  getFieldToColumnMap,
+  getModelFieldColumns,
   POLYMORPHIC_DISCRIMINATOR_ALIAS,
   type PolymorphismInfo,
+  resolveFieldColumn,
 } from './collection-contract';
 import type { CollectionContext } from './types';
 
@@ -221,14 +222,13 @@ export function mapModelDataToStorageRow(
   modelName: string,
   row: Record<string, unknown>,
 ): Record<string, unknown> {
-  const fieldToColumn = getFieldToColumnMap(contract, namespaceId, modelName);
+  const fieldColumns = getModelFieldColumns(contract, namespaceId, modelName);
   const mapped: Record<string, unknown> = {};
   for (const [fieldName, value] of Object.entries(row)) {
     if (value === undefined) {
       continue;
     }
-    const columnName = fieldToColumn[fieldName] ?? fieldName;
-    mapped[columnName] = value;
+    mapped[resolveFieldColumn(fieldColumns, modelName, fieldName)] = value;
   }
   return mapped;
 }

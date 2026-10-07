@@ -153,13 +153,128 @@ export function resolvePolymorphismInfo(
   return result;
 }
 
+const modelFieldColumnsCache = new WeakMap<object, Map<string, Record<string, string>>>();
+const collectionFieldColumnsCache = new WeakMap<object, Map<string, Record<string, string>>>();
+
+function cachedFor(
+  cache: WeakMap<object, Map<string, Record<string, string>>>,
+  contract: Contract<SqlStorage>,
+  key: string,
+  build: () => Record<string, string>,
+): Record<string, string> {
+  let perContract = cache.get(contract);
+  if (!perContract) {
+    perContract = new Map();
+    cache.set(contract, perContract);
+  }
+  let cached = perContract.get(key);
+  if (!cached) {
+    cached = build();
+    perContract.set(key, cached);
+  }
+  return cached;
+}
+
+/**
+ * The columns a model's fields map, keyed by field name: its own fields and the fields it inherits from its base model. A field with no storage entry maps a column of its own name; a column no field maps has no entry.
+ */
+export function getModelFieldColumns(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  modelName: string,
+): Record<string, string> {
+  return cachedFor(
+    modelFieldColumnsCache,
+    contract,
+    metadataCacheKey(namespaceId, modelName),
+    () => {
+      const model = modelOf(contract, namespaceId, modelName);
+      const base = model?.base;
+      return {
+        ...(base === undefined ? {} : getModelFieldColumns(contract, base.namespace, base.model)),
+        ...Object.fromEntries(Object.keys(model?.fields ?? {}).map((field) => [field, field])),
+        ...getFieldToColumnMap(contract, namespaceId, modelName),
+      };
+    },
+  );
+}
+
+/**
+ * The columns a read over a model may name, keyed by field name: the model's fields, plus the fields of the variant the collection is narrowed to, or of every variant when it is not narrowed.
+ */
+export function getCollectionFieldColumns(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  modelName: string,
+  variantName: string | undefined,
+): Record<string, string> {
+  return cachedFor(
+    collectionFieldColumnsCache,
+    contract,
+    JSON.stringify([namespaceId, modelName, variantName ?? null]),
+    () => {
+      const variants = resolvePolymorphismInfo(contract, namespaceId, modelName)?.variants;
+      const variantNames =
+        variants === undefined
+          ? []
+          : variantName === undefined
+            ? [...variants.keys()]
+            : [variantName];
+      const columns: Record<string, string> = {};
+      for (const name of variantNames) {
+        Object.assign(columns, getFieldToColumnMap(contract, namespaceId, name));
+      }
+      return { ...columns, ...getModelFieldColumns(contract, namespaceId, modelName) };
+    },
+  );
+}
+
+/**
+ * The column `fieldName` maps in `fieldColumns`. A name that is not a field is refused, so a caller cannot reach a column by its column name, including a column no field maps.
+ */
+export function resolveFieldColumn(
+  fieldColumns: Readonly<Record<string, string>>,
+  modelName: string,
+  fieldName: string,
+): string {
+  const column = Object.hasOwn(fieldColumns, fieldName) ? fieldColumns[fieldName] : undefined;
+  if (column === undefined) {
+    throw ormError('ORM.FIELD_UNKNOWN', `Model "${modelName}" has no field "${fieldName}"`, {
+      meta: { model: modelName, field: fieldName },
+    });
+  }
+  return column;
+}
+
+/**
+ * The columns a relation's target fields name. A relation through a junction table names the junction's columns there, not fields of the target model.
+ */
+export function resolveRelationTargetColumns(
+  contract: Contract<SqlStorage>,
+  relation: {
+    readonly to: string;
+    readonly toNamespace: string;
+    readonly on: { readonly targetFields: readonly string[] };
+    readonly through?: unknown;
+  },
+): string[] {
+  if (relation.through !== undefined) return [...relation.on.targetFields];
+  return relation.on.targetFields.map((field) =>
+    resolveFieldToColumn(contract, relation.toNamespace, relation.to, field),
+  );
+}
+
 export function resolveFieldToColumn(
   contract: Contract<SqlStorage>,
   namespaceId: string,
   modelName: string,
   fieldName: string,
 ): string {
-  return getFieldToColumnMap(contract, namespaceId, modelName)[fieldName] ?? fieldName;
+  return resolveFieldColumn(
+    getModelFieldColumns(contract, namespaceId, modelName),
+    modelName,
+    fieldName,
+  );
 }
 
 export interface VariantColumnRef {
@@ -343,9 +458,7 @@ export function resolveIncludeRelation(
   const localColumns = localFields.map((field) =>
     resolveFieldToColumn(contract, namespaceId, declaringModelName, field),
   );
-  const targetColumns = targetFields.map((field) =>
-    resolveFieldToColumn(contract, relation.toNamespace, relation.to, field),
-  );
+  const targetColumns = resolveRelationTargetColumns(contract, relation);
 
   const relatedTableName = resolveModelTableName(contract, relation.toNamespace, relation.to);
 

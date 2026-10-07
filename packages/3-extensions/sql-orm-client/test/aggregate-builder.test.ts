@@ -36,20 +36,15 @@ describe('aggregate-builder', () => {
     });
   });
 
-  it('createAggregateBuilder() falls back to field name without mapping', () => {
-    const aggregate = createAggregateBuilder(
-      contract,
-      aggregates,
-      'public',
-      'UnknownModel' as never,
-    );
-    const numericField = 'custom_metric' as never;
+  it('createAggregateBuilder() refuses a name that is not a field of the model', () => {
+    const aggregate = createAggregateBuilder(contract, aggregates, 'public', 'Post');
 
-    expect(aggregate.sum(numericField)).toEqual({
-      kind: 'aggregate',
-      fn: 'sum',
-      column: 'custom_metric',
-    });
+    expect(() => aggregate.sum('user_id' as never)).toThrow(
+      expect.objectContaining({
+        code: 'ORM.FIELD_UNKNOWN',
+        meta: { model: 'Post', field: 'user_id' },
+      }),
+    );
   });
 
   it('isAggregateSelector() validates selector shape', () => {

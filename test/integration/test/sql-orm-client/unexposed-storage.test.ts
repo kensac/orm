@@ -130,6 +130,45 @@ describe('integration/unexposed-storage', () => {
     timeouts.spinUpPpgDev,
   );
 
+  it(
+    'refuses a name that is not a field, so an untyped caller cannot reach a column no field maps',
+    async () => {
+      const contract = unexposedContract();
+      await withPushedContractRuntime(contract, async (runtime) => {
+        const db = ormFor(runtime, contract);
+        await seed(runtime);
+        const unknownField = (field: string) =>
+          expect.objectContaining({
+            code: 'ORM.FIELD_UNKNOWN',
+            meta: expect.objectContaining({ field }),
+          });
+
+        await expect(
+          (async () =>
+            db.public.Post.create({
+              id: 13,
+              title: 'Leak',
+              userId: 1,
+              internal_note: 'written',
+            } as never))(),
+        ).rejects.toEqual(unknownField('internal_note'));
+        await expect(
+          (async () => db.public.User.where({ legacy_key: 'secret' } as never).all())(),
+        ).rejects.toEqual(unknownField('legacy_key'));
+        await expect(
+          (async () => db.public.User.select('legacy_key' as never).all())(),
+        ).rejects.toEqual(unknownField('legacy_key'));
+
+        expect(
+          await runtime.query<{ internal_note: string }>(
+            'SELECT internal_note FROM post ORDER BY id',
+          ),
+        ).toEqual([{ internal_note: 'flagged' }]);
+      });
+    },
+    timeouts.spinUpPpgDev,
+  );
+
   it('types no row field and no model for storage the domain does not expose', () => {
     type Db = ReturnType<typeof ormFor>;
     type UserRow = Awaited<ReturnType<Db['public']['User']['all']>>[number];

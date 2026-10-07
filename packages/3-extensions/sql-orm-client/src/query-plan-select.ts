@@ -189,7 +189,9 @@ function resolvePolymorphicProjectionSelection(
     }
 
     if (baseColumn === undefined && !matchedVariantField) {
-      appendUnique(baseSelectedFields, selectedField);
+      throw ormError('ORM.FIELD_UNKNOWN', `Model "${modelName}" has no field "${selectedField}"`, {
+        meta: { model: modelName, field: selectedField },
+      });
     }
   }
 

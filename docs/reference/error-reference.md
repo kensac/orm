@@ -930,7 +930,7 @@ A Mongo mutation payload attempts to write `_id`, which is immutable. Thrown by 
 
 ### ORM.FIELD_UNKNOWN
 
-A shorthand relation filter references a field that is not defined on the related model. Thrown by the SQL ORM client while resolving the filter. Payload: `model`, `field`.
+A name the SQL ORM client resolves as a field is not a field of the model: a key of `create` or `update` data, a `where` shorthand, a `select`, `distinct`, `groupBy`, `cursor`, aggregate or upsert `conflictOn` field, or a shorthand relation filter. A column name is refused too, including a column no field maps, so an untyped caller cannot read or write storage the model does not expose. Payload: `model`, `field`.
 
 ### ORM.FILTER_UNSUPPORTED
 

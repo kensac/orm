@@ -38,6 +38,7 @@ import {
   modelOf,
   type PolymorphismInfo,
   type PolymorphismVariantInfo,
+  resolveFieldColumn,
   resolveFieldToColumn,
   resolveIncludeRelation,
   resolveInsertConflictColumns,
@@ -827,6 +828,7 @@ class CollectionImpl<
       this.contract,
       this.namespaceId,
       this.modelName,
+      this.state.variantName,
       fields,
     );
 
@@ -916,6 +918,7 @@ class CollectionImpl<
       this.contract,
       this.namespaceId,
       this.modelName,
+      this.state.variantName,
       fields,
     );
 
@@ -1029,6 +1032,7 @@ class CollectionImpl<
       this.contract,
       this.namespaceId,
       this.modelName,
+      this.state.variantName,
       cursorValues,
     );
 
@@ -1062,6 +1066,7 @@ class CollectionImpl<
       this.contract,
       this.namespaceId,
       this.modelName,
+      this.state.variantName,
       fields,
     );
 
@@ -1105,6 +1110,7 @@ class CollectionImpl<
       this.contract,
       this.namespaceId,
       this.modelName,
+      this.state.variantName,
       fields,
     );
 
@@ -1743,8 +1749,7 @@ class CollectionImpl<
         const allMapped: Record<string, unknown> = {};
         for (const [fieldName, value] of Object.entries(row)) {
           if (value === undefined) continue;
-          const columnName = mergedFieldToColumn[fieldName] ?? fieldName;
-          allMapped[columnName] = value;
+          allMapped[resolveFieldColumn(mergedFieldToColumn, modelName, fieldName)] = value;
         }
         allMapped[polyInfo.discriminatorColumn] = variant.value;
 
@@ -1884,8 +1889,7 @@ class CollectionImpl<
       const mapped: Record<string, unknown> = {};
       for (const [fieldName, value] of Object.entries(row)) {
         if (value === undefined) continue;
-        const columnName = mergedFieldToColumn[fieldName] ?? fieldName;
-        mapped[columnName] = value;
+        mapped[resolveFieldColumn(mergedFieldToColumn, this.modelName, fieldName)] = value;
       }
       mapped[polyInfo.discriminatorColumn] = variant.value;
       return mapped;

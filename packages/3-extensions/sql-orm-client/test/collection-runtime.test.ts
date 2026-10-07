@@ -54,24 +54,22 @@ describe('collection-runtime', () => {
         id: 1,
         userId: 2,
         views: undefined,
-        custom: 'x',
       }),
     ).toEqual({
       id: 1,
       user_id: 2,
-      custom: 'x',
     });
   });
 
-  it('mapModelDataToStorageRow() falls back to input keys when model mappings are missing', () => {
-    expect(
-      mapModelDataToStorageRow(contract, 'public', 'UnknownModel', {
-        customField: 1,
-        optionalField: undefined,
+  it('mapModelDataToStorageRow() refuses a key that is not a field of the model', () => {
+    expect(() =>
+      mapModelDataToStorageRow(contract, 'public', 'Post', { id: 1, user_id: 2 }),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'ORM.FIELD_UNKNOWN',
+        meta: { model: 'Post', field: 'user_id' },
       }),
-    ).toEqual({
-      customField: 1,
-    });
+    );
   });
 
   it('stripHiddenMappedFields() removes mapped fields for hidden columns', () => {

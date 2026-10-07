@@ -21,6 +21,8 @@ import { describe, expect, it } from 'vitest';
 import { createModelAccessor } from '../src/model-accessor';
 import {
   buildMixedPolyContract,
+  buildTestContextFromContract,
+  buildUnexposedColumnContract,
   getTestContext,
   getTestContract,
   withPatchedDomainModels,
@@ -454,6 +456,17 @@ describe('createModelAccessor', () => {
         'User',
       )['name']!.isNull(),
     ).toEqual(NullCheckExpr.isNull(ColumnRef.of('users', 'name')));
+  });
+
+  it('has no accessor for a column no field maps, under its column or its field name', () => {
+    const contract = buildUnexposedColumnContract();
+    const accessor = createModelAccessor(buildTestContextFromContract(contract), 'public', 'User');
+
+    expect({
+      column: accessor['legacy_key'],
+      field: accessor['legacyKey'],
+      exposed: accessor['email'] === undefined,
+    }).toEqual({ column: undefined, field: undefined, exposed: false });
   });
 
   it('combines relation shorthand fields with and() and rejects missing join arrays', () => {

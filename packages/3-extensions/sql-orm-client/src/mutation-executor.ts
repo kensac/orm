@@ -16,6 +16,7 @@ import {
   resolveFieldToColumn,
   resolveModelRelations,
   resolveModelTableName,
+  resolveRelationTargetColumns,
   resolveRowIdentityColumns,
 } from './collection-contract';
 import { mapModelDataToStorageRow, mapStorageRowToModelFields } from './collection-runtime';
@@ -1309,9 +1310,7 @@ function getRelationDefinitions(
     localColumns: relation.on.localFields.map((f) =>
       resolveFieldToColumn(contract, namespaceId, modelName, f),
     ),
-    targetColumns: relation.on.targetFields.map((f) =>
-      resolveFieldToColumn(contract, relation.toNamespace, relation.to, f),
-    ),
+    targetColumns: resolveRelationTargetColumns(contract, relation),
     through: relation.through
       ? {
           table: relation.through.table,

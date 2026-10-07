@@ -1,31 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { mapCursorValuesToColumns, mapFieldsToColumns } from '../src/collection-column-mapping';
 import { resolveFieldToColumn } from '../src/collection-contract';
-import { getTestContract } from './helpers';
+import { buildMixedPolyContract, getTestContract } from './helpers';
+
+const unknownField = (model: string, field: string) =>
+  expect.objectContaining({
+    code: 'ORM.FIELD_UNKNOWN',
+    message: `Model "${model}" has no field "${field}"`,
+    meta: { model, field },
+  });
 
 describe('collection-column-mapping', () => {
   const contract = getTestContract();
 
-  it('resolveFieldToColumn() resolves known fields and falls back for unknown fields', () => {
+  it('resolveFieldToColumn() resolves known fields and refuses a name that is not a field', () => {
     expect(resolveFieldToColumn(contract, 'public', 'Post', 'userId')).toBe('user_id');
-    expect(resolveFieldToColumn(contract, 'public', 'Post', 'customField')).toBe('customField');
+    expect(() => resolveFieldToColumn(contract, 'public', 'Post', 'user_id')).toThrow(
+      unknownField('Post', 'user_id'),
+    );
+    expect(() => resolveFieldToColumn(contract, 'public', 'Post', 'constructor')).toThrow(
+      unknownField('Post', 'constructor'),
+    );
   });
 
-  it('mapFieldsToColumns() maps arrays by model mapping when available', () => {
-    expect(mapFieldsToColumns(contract, 'public', 'Post', ['id', 'userId', 'views'])).toEqual([
-      'id',
-      'user_id',
-      'views',
-    ]);
-    expect(mapFieldsToColumns(contract, 'public', 'UnknownModel', ['id', 'customField'])).toEqual([
-      'id',
-      'customField',
-    ]);
+  it('resolveFieldToColumn() resolves a field a variant inherits from its base model', () => {
+    expect(resolveFieldToColumn(buildMixedPolyContract(), 'public', 'Feature', 'title')).toBe(
+      'title',
+    );
+  });
+
+  it('mapFieldsToColumns() maps field names to columns and refuses a column name', () => {
+    expect(
+      mapFieldsToColumns(contract, 'public', 'Post', undefined, ['id', 'userId', 'views']),
+    ).toEqual(['id', 'user_id', 'views']);
+    expect(() =>
+      mapFieldsToColumns(contract, 'public', 'Post', undefined, ['id', 'user_id']),
+    ).toThrow(unknownField('Post', 'user_id'));
+  });
+
+  it("mapFieldsToColumns() accepts a narrowed variant's fields, or every variant's when not narrowed", () => {
+    const poly = buildMixedPolyContract();
+    expect({
+      narrowed: mapFieldsToColumns(poly, 'public', 'Task', 'Bug', ['id', 'assigneeId']),
+      unnarrowed: mapFieldsToColumns(poly, 'public', 'Task', undefined, ['severity', 'priority']),
+    }).toEqual({ narrowed: ['id', 'assignee_id'], unnarrowed: ['severity', 'priority'] });
+    expect(() => mapFieldsToColumns(poly, 'public', 'Task', 'Bug', ['priority'])).toThrow(
+      unknownField('Task', 'priority'),
+    );
   });
 
   it('mapCursorValuesToColumns() skips undefined values and maps field names to columns', () => {
     expect(
-      mapCursorValuesToColumns(contract, 'public', 'Post', {
+      mapCursorValuesToColumns(contract, 'public', 'Post', undefined, {
         id: 1,
         userId: 2,
         views: undefined,
@@ -36,21 +62,9 @@ describe('collection-column-mapping', () => {
     });
   });
 
-  it('mapCursorValuesToColumns() falls back when model or field mapping is missing', () => {
-    expect(
-      mapCursorValuesToColumns(contract, 'public', 'UnknownModel', {
-        custom: 1,
-      }),
-    ).toEqual({
-      custom: 1,
-    });
-
-    expect(
-      mapCursorValuesToColumns(contract, 'public', 'Post', {
-        unknownField: 2,
-      }),
-    ).toEqual({
-      unknownField: 2,
-    });
+  it('mapCursorValuesToColumns() refuses a name that is not a field', () => {
+    expect(() =>
+      mapCursorValuesToColumns(contract, 'public', 'Post', undefined, { user_id: 2 }),
+    ).toThrow(unknownField('Post', 'user_id'));
   });
 });

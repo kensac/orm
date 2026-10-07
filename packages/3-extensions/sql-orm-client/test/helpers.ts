@@ -14,6 +14,10 @@ import { dataTypeId } from '@internal/framework-components/codec';
 import type { RuntimeMutationDefaultGenerator } from '@internal/framework-components/runtime';
 import { AsyncIterableResult } from '@internal/framework-components/runtime';
 import type { SqlStorage } from '@internal/sql-contract/types';
+import {
+  buildSqlContractFromDefinition,
+  type FieldNode,
+} from '@internal/sql-contract-ts/contract-builder';
 import type { Codec, SelectAst, SqlStatementStats } from '@internal/sql-relational-core/ast';
 import type { SqlExecutionPlan, SqlQueryPlan } from '@internal/sql-relational-core/plan';
 import type { ExecutionContext } from '@internal/sql-relational-core/query-lane-context';
@@ -23,7 +27,10 @@ import {
   type RuntimeParameterizedCodecDescriptor,
   type SqlRuntimeExtensionDescriptor,
 } from '@internal/sql-runtime';
+import { assemblePostgresCodecRegistryWithBuiltins } from '@internal/target-postgres/codecs';
+import postgresPack from '@internal/target-postgres/pack';
 import postgresTarget, { PostgresContractSerializer } from '@internal/target-postgres/runtime';
+import { postgresCreateNamespace } from '@internal/target-postgres/types';
 import type { RuntimeQueryable } from '../src/types';
 import { defineContract, field, model, rel, type ScalarFieldBuilder } from './contract-builder';
 import type { Contract } from './fixtures/generated/contract';
@@ -733,6 +740,41 @@ export function buildExecutionDefaultJunctionContract() {
  * through the contract-builder DSL so `buildPrimaryKeyFilterFromRow` reads a
  * real emitted primary key rather than a hand-patched storage table.
  */
+function definitionColumn(
+  fieldName: string,
+  columnName: string,
+  descriptor: FieldNode['descriptor'],
+  unexposed = false,
+): FieldNode {
+  return { fieldName, columnName, descriptor, nullable: unexposed, many: false, unexposed };
+}
+
+/**
+ * Builds a contract whose `User` model (table `user`) maps `id` and `email`, while the column `legacy_key` between them is storage no field maps.
+ */
+export function buildUnexposedColumnContract() {
+  return buildSqlContractFromDefinition(
+    {
+      warnings: undefined,
+      target: postgresPack,
+      createNamespace: postgresCreateNamespace,
+      models: [
+        {
+          modelName: 'User',
+          tableName: 'user',
+          fields: [
+            definitionColumn('id', 'id', int4Column),
+            definitionColumn('legacyKey', 'legacy_key', textColumn, true),
+            definitionColumn('email', 'email', textColumn),
+          ],
+          id: { columns: ['id'] },
+        },
+      ],
+    },
+    assemblePostgresCodecRegistryWithBuiltins([]),
+  );
+}
+
 export function buildCustomPrimaryKeyContract() {
   const User = model('User', {
     fields: {

@@ -175,14 +175,14 @@ describe('collection-contract capability detection', () => {
     expect(resolveUpsertConflictColumns(contract, 'public', 'Post', {})).toEqual(['id']);
   });
 
-  it('resolveUpsertConflictColumns() falls back for unmapped fields and unknown models', () => {
-    const contract = getTestContract();
-
-    expect(resolveUpsertConflictColumns(contract, 'public', 'Post', { unknownField: 'x' })).toEqual(
-      ['unknownField'],
-    );
-    expect(resolveUpsertConflictColumns(contract, 'public', 'UnknownModel', { custom: 1 })).toEqual(
-      ['custom'],
+  it('resolveUpsertConflictColumns() refuses a name that is not a field of the model', () => {
+    expect(() =>
+      resolveUpsertConflictColumns(getTestContract(), 'public', 'Post', { user_id: 1 }),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'ORM.FIELD_UNKNOWN',
+        meta: { model: 'Post', field: 'user_id' },
+      }),
     );
   });
 

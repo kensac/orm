@@ -21,6 +21,7 @@ import { blindCast } from '@internal/utils/casts';
 import { InternalError } from '@internal/utils/internal-error';
 import { plainAggregateExpr } from './aggregate-codecs';
 import {
+  getCollectionFieldColumns,
   getFieldToColumnMap,
   isToOneCardinality,
   resolveFieldToColumn,
@@ -226,7 +227,7 @@ function createModelAccessorInScope<
   scope: ModelAccessorScope,
 ): VariantAwareModelAccessor<TContract, ModelName, VariantName, NsId> {
   const contract = context.contract;
-  const fieldToColumn = getFieldToColumnMap(contract, namespaceId, modelName);
+  const fieldColumns = getCollectionFieldColumns(contract, namespaceId, modelName, variantName);
   const tableName = resolveModelTableName(contract, namespaceId, modelName);
   const modelRelations = resolveModelRelations(contract, namespaceId, modelName);
   // When a variant is selected, MTI variant-owned fields resolve to a
@@ -311,13 +312,18 @@ function createModelAccessorInScope<
         const variantField = variantFieldColumns[prop];
         const resolvedTable = variantField?.table ?? tableName;
         const fieldBinding = scope.forJoinedSource(namespaceId, resolvedTable).current;
-        const columnName = variantField?.column ?? fieldToColumn[prop] ?? prop;
-        const column = resolveColumn(contract, namespaceId, resolvedTable, columnName);
+        const columnName =
+          variantField?.column ??
+          (Object.hasOwn(fieldColumns, prop) ? fieldColumns[prop] : undefined);
         // Unknown fields return `undefined`, matching plain JS object semantics.
         // The `ModelAccessor<TContract, ModelName>` type already rejects typos
         // at compile time for TS consumers, and contexts that iterate accessor
         // keys (e.g. relation-shorthand predicates) can detect missing fields
         // with an `undefined` check and raise their own, domain-specific error.
+        if (columnName === undefined) {
+          return undefined;
+        }
+        const column = resolveColumn(contract, namespaceId, resolvedTable, columnName);
         if (!column) {
           return undefined;
         }
