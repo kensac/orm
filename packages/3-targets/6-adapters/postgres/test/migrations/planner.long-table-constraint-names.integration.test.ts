@@ -139,6 +139,8 @@ describe('constraints of a table whose name is over 58 bytes', { concurrent: fal
       schema: contractSchema(from),
       policy,
       fromContract: from,
+      origin: null,
+      statements: [],
       frameworkComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',

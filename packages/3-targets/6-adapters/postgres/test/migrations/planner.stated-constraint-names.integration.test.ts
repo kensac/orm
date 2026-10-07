@@ -139,6 +139,8 @@ describe('a contract that starts stating constraint names', { concurrent: false 
       schema,
       policy,
       fromContract: from,
+      origin: null,
+      statements: [],
       frameworkComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
