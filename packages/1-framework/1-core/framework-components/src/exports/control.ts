@@ -121,12 +121,12 @@ export {
   extractQueryOperationTypeImports,
 } from '../control/control-stack';
 export type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   FieldCoordinate,
   ModelCoordinate,
-  ResolvedFieldRename,
-  ResolvedModelRename,
-  ResolvedStatement,
+  ResolvedFieldRenameStatement,
+  ResolvedMigrationStatement,
+  ResolvedModelRenameStatement,
 } from '../control/migration-statements';
 export { orderIssuesByDependencies } from '../control/order-issues-by-dependencies';
 export type {

@@ -17,10 +17,10 @@ import {
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   MigrationPlanner,
   MigrationScaffoldContext,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   SchemaDiffIssue,
   SchemaOwnership,
 } from '@internal/framework-components/control';
@@ -62,7 +62,7 @@ export type SqlitePlanResult =
   | {
       readonly kind: 'success';
       readonly plan: TypeScriptRenderableSqliteMigration;
-      readonly appliedStatements: readonly AppliedStatement[];
+      readonly appliedStatements: readonly AppliedMigrationStatement[];
     }
   | SqlPlannerFailureResult;
 
@@ -106,7 +106,7 @@ export class SqliteMigrationPlanner
      * `fromContract?.storage.storageHash ?? null`.
      */
     readonly fromContract: Contract | null;
-    readonly statements: readonly ResolvedStatement[];
+    readonly statements: readonly ResolvedMigrationStatement[];
     readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>;
     /**
      * Contract space this plan applies to. Stamped onto the produced

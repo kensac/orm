@@ -8,7 +8,7 @@ import type { CliStructuredError } from '@internal/errors/control';
 import type {
   FieldCoordinate,
   ModelCoordinate,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import {
@@ -361,7 +361,7 @@ function resolveModelRename(
   text: string,
   from: ModelCoordinate,
   to: ModelCoordinate,
-): Result<ResolvedStatement, CliStructuredError> {
+): Result<ResolvedMigrationStatement, CliStructuredError> {
   const fromKey = `${MODEL_RENAMES}:${qualifiedModel(from)}`;
   const toKey = `${MODEL_RENAMES}:${qualifiedModel(to)}`;
   if (state.renamedFrom.has(fromKey)) {
@@ -479,7 +479,7 @@ function resolveFieldRename(
   statement: ParsedRename,
   from: FieldReading,
   to: FieldReading,
-): Result<ResolvedStatement, CliStructuredError> {
+): Result<ResolvedMigrationStatement, CliStructuredError> {
   const text = statement.text;
   const toModel = qualifiedModel(to.coordinate);
   if (from.destinationModel === undefined) {
@@ -538,7 +538,7 @@ function resolveFieldRename(
 function resolveStatement(
   state: ResolutionState,
   statement: ParsedRename,
-): Result<ResolvedStatement, CliStructuredError> {
+): Result<ResolvedMigrationStatement, CliStructuredError> {
   const from = readSide(state, 'old', statement.from);
   if (!from.ok) return notOk(unresolved(statement.text, from.failure));
   const to = readSide(state, 'new', statement.to);
@@ -565,7 +565,7 @@ function resolveStatement(
  */
 export function resolveStatements(
   input: ResolveStatementsInput,
-): Result<readonly ResolvedStatement[], CliStructuredError> {
+): Result<readonly ResolvedMigrationStatement[], CliStructuredError> {
   if (input.renames.length === 0) return ok([]);
   if (input.origin.kind === 'missing') {
     return notOk(errorStatementOriginUnknown(input.origin));
@@ -577,7 +577,7 @@ export function resolveStatements(
     renamedFrom: new Set(),
     renamedTo: new Set(),
   };
-  const resolved: ResolvedStatement[] = [];
+  const resolved: ResolvedMigrationStatement[] = [];
   for (const text of input.renames) {
     const parsed = parseRenameStatement(text);
     if (!parsed.ok) return parsed;

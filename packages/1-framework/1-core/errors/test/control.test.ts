@@ -1,4 +1,4 @@
-import type { ResolvedStatement } from '@internal/framework-components/control';
+import type { ResolvedMigrationStatement } from '@internal/framework-components/control';
 import type { NextAction } from '@internal/utils/structured-error';
 import { docsUrlFor } from '@internal/utils/structured-error';
 import { describe, expect, it } from 'vitest';
@@ -369,7 +369,7 @@ describe('Config Errors', () => {
       entity: 'model',
       from: { namespace: 'app', model: 'Profile' },
       to: { namespace: 'app', model: 'User' },
-    } as unknown as ResolvedStatement;
+    } as unknown as ResolvedMigrationStatement;
     const conflicts = [{ kind: 'statementRejected', summary: 'Cannot rename', statement }];
     const error = errorMigrationPlanningFailed({ conflicts });
     expect(error.meta?.['conflicts']).toEqual([

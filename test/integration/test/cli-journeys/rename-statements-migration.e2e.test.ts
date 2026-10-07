@@ -41,7 +41,7 @@ interface PlannedOperation {
   readonly operationClass: string;
 }
 
-interface AppliedStatement {
+interface AppliedMigrationStatement {
   readonly description: string;
   readonly operationCount: number;
 }
@@ -98,7 +98,10 @@ function expectOnlyRenames(operations: readonly PlannedOperation[], label: strin
   ).toEqual(RENAME_OPERATIONS);
 }
 
-function expectAppliedStatements(applied: readonly AppliedStatement[], label: string): void {
+function expectAppliedStatements(
+  applied: readonly AppliedMigrationStatement[],
+  label: string,
+): void {
   expect(
     applied.map((entry) => entry.description),
     `${label}: both statements applied, in order`,
@@ -198,7 +201,7 @@ withTempDir(({ createTempDir }) => {
         const planned = parseJsonOutput<{
           ok: boolean;
           operations: readonly PlannedOperation[];
-          appliedStatements: readonly AppliedStatement[];
+          appliedStatements: readonly AppliedMigrationStatement[];
         }>(plan);
         expect(planned.ok, 'S1.05: plan succeeds').toBe(true);
         expectOnlyRenames(planned.operations, 'S1.05');
@@ -257,7 +260,7 @@ withTempDir(({ createTempDir }) => {
         const updated = parseJsonOutput<{
           ok: boolean;
           plan: { operations: readonly PlannedOperation[]; destination: { storageHash: string } };
-          appliedStatements: readonly AppliedStatement[];
+          appliedStatements: readonly AppliedMigrationStatement[];
         }>(update);
         expect(updated.ok, 'S2.04: db update succeeds without consent').toBe(true);
         expectOnlyRenames(updated.plan.operations, 'S2.04');

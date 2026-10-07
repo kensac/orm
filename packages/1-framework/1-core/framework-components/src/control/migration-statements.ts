@@ -9,14 +9,14 @@ export interface FieldCoordinate extends ModelCoordinate {
   readonly field: string;
 }
 
-export interface ResolvedModelRename {
+export interface ResolvedModelRenameStatement {
   readonly kind: 'rename';
   readonly entity: 'model';
   readonly from: ModelCoordinate;
   readonly to: ModelCoordinate;
 }
 
-export interface ResolvedFieldRename {
+export interface ResolvedFieldRenameStatement {
   readonly kind: 'rename';
   readonly entity: 'field';
   readonly from: FieldCoordinate;
@@ -28,15 +28,17 @@ export interface ResolvedFieldRename {
  * and destination contracts into domain coordinates. `from` is a coordinate of
  * the origin contract and `to` a coordinate of the destination contract.
  */
-export type ResolvedStatement = ResolvedModelRename | ResolvedFieldRename;
+export type ResolvedMigrationStatement =
+  | ResolvedModelRenameStatement
+  | ResolvedFieldRenameStatement;
 
 /**
  * A statement as a plan applied it: `description` is the family's text for it, written from the
  * statement's domain coordinates, and `operationCount` the number of operations it produced (zero
  * when the storage did not change).
  */
-export interface AppliedStatement {
-  readonly statement: ResolvedStatement;
+export interface AppliedMigrationStatement {
+  readonly statement: ResolvedMigrationStatement;
   readonly description: string;
   readonly operationCount: number;
 }

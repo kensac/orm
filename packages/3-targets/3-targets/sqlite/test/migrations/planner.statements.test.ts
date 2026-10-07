@@ -2,8 +2,8 @@ import { asNamespaceId, type Contract } from '@internal/contract/types';
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
-  type ResolvedModelRename,
-  type ResolvedStatement,
+  type ResolvedMigrationStatement,
+  type ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
@@ -24,7 +24,7 @@ import {
 
 const ALL_CLASSES = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
 
-function renameModel(from: string, to: string): ResolvedModelRename {
+function renameModel(from: string, to: string): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
@@ -38,7 +38,7 @@ const derivedIndex: ProfileSpec = { indexes: (tableName) => [handleIndex(tableNa
 function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
-  statements: readonly ResolvedStatement[],
+  statements: readonly ResolvedMigrationStatement[],
   schema: SqlSchemaIR = sqliteContractToSchema(from, sqliteTestTypes),
   policy: MigrationOperationPolicy = ALL_CLASSES,
 ) {

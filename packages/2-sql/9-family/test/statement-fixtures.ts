@@ -8,8 +8,8 @@ import {
 } from '@internal/contract/types';
 import type {
   MigrationOperationClass,
-  ResolvedFieldRename,
-  ResolvedModelRename,
+  ResolvedFieldRenameStatement,
+  ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { createTestSqlNamespace } from '../../1-core/contract/test/test-support';
@@ -127,7 +127,7 @@ export function renameModel(
   to: string,
   fromNs = 'app',
   toNs = fromNs,
-): ResolvedModelRename {
+): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
@@ -141,7 +141,7 @@ export function renameField(
   from: string,
   to: string,
   newModel = model,
-): ResolvedFieldRename {
+): ResolvedFieldRenameStatement {
   return {
     kind: 'rename',
     entity: 'field',
@@ -155,7 +155,7 @@ export function renameFieldIn(
   model: string,
   from: string,
   to: string,
-): ResolvedFieldRename {
+): ResolvedFieldRenameStatement {
   return {
     kind: 'rename',
     entity: 'field',

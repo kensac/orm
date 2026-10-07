@@ -6,12 +6,12 @@ import { readFile } from 'node:fs/promises';
 import type { PrismaNextConfig } from '@internal/config/config-types';
 import type { Contract, ContractWithDomain } from '@internal/contract/types';
 import {
-  type AppliedStatement,
+  type AppliedMigrationStatement,
   createControlStack,
   hasOperationPreview,
   type MigrationPlanOperation,
   type OperationPreview,
-  type ResolvedStatement,
+  type ResolvedMigrationStatement,
   type SchemaOwnership,
 } from '@internal/framework-components/control';
 import {
@@ -112,7 +112,7 @@ type PlannerSuccess = {
   readonly plannedOps: readonly MigrationPlanOperation[];
   readonly migrationTsContent: string;
   readonly hasPlaceholders: boolean;
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
 };
 
 /** The origin of a plan from an empty database: no models, so no statement resolves. */
@@ -126,7 +126,7 @@ async function runPlannerLeg(
   frameworkComponents: ReturnType<typeof assertFrameworkComponentsCompatible>,
   contract: Contract,
   fromContract: Contract | null,
-  statements: readonly ResolvedStatement[],
+  statements: readonly ResolvedMigrationStatement[],
   /**
    * True when the storage did not change and statements were given: a plan of
    * no operations then means the statements need none, not a planning failure.
@@ -346,7 +346,7 @@ export interface MigrationPlanResult {
    * family's description and its number of operations. Empty when no
    * `--rename` was given.
    */
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   readonly timings: {
     readonly total: number;
   };
@@ -535,7 +535,7 @@ async function executeMigrationPlanCommandInner(
 
   // Statements resolve against the two contracts now settled, before anything
   // is written. A plan from an empty database has no model to rename.
-  let statements: readonly ResolvedStatement[] = [];
+  let statements: readonly ResolvedMigrationStatement[] = [];
   const renames = options.renames ?? [];
   if (renames.length > 0) {
     const resolved = resolveStatements({

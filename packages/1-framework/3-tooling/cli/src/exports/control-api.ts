@@ -11,7 +11,7 @@
 // Re-export core control plane types for consumer convenience
 export type {
   ControlStack,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   VerifyDatabaseResult,
   VerifyDatabaseSchemaResult,
 } from '@internal/framework-components/control';

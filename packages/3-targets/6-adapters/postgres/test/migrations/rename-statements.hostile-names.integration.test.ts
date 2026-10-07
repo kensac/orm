@@ -2,7 +2,7 @@ import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/c
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
-  type ResolvedStatement,
+  type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import { SqlStorage } from '@internal/sql-contract/types';
 import type { SqlSchemaIRNode } from '@internal/sql-schema-ir/types';
@@ -93,7 +93,7 @@ function contractOf(
 
 const PUBLIC = asNamespaceId('public');
 
-function renameModel(from: string, to: string): ResolvedStatement {
+function renameModel(from: string, to: string): ResolvedMigrationStatement {
   return {
     kind: 'rename',
     entity: 'model',
@@ -107,7 +107,7 @@ function renameField(
   toModel: string,
   from: string,
   to: string,
-): ResolvedStatement {
+): ResolvedMigrationStatement {
   return {
     kind: 'rename',
     entity: 'field',
@@ -150,7 +150,7 @@ describe('rename statements with hostile identifiers on Postgres', { concurrent:
   async function renameThroughStatements(input: {
     readonly from: { model: string; table: string; field: string; column: string };
     readonly to: { model: string; table: string; field: string; column: string };
-    readonly statements: readonly ResolvedStatement[];
+    readonly statements: readonly ResolvedMigrationStatement[];
   }) {
     const origin = contractOf('hostile-from', input.from);
     const destination = contractOf('hostile-to', input.to);

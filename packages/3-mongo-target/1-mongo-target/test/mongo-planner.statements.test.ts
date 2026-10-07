@@ -1,7 +1,7 @@
 import { asNamespaceId } from '@internal/contract/types';
 import type {
   MigrationOperationPolicy,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import { MongoCollection, type MongoContract } from '@internal/mongo-contract';
 import { MongoSchemaCollection, MongoSchemaIR } from '@internal/mongo-schema-ir';
@@ -43,14 +43,14 @@ function contractWithModel(model: string, collection: string): MongoContract {
   } as unknown as MongoContract;
 }
 
-const modelRename: ResolvedStatement = {
+const modelRename: ResolvedMigrationStatement = {
   kind: 'rename',
   entity: 'model',
   from: { namespace: NAMESPACE, model: 'Profile' },
   to: { namespace: NAMESPACE, model: 'User' },
 };
 
-const fieldRename: ResolvedStatement = {
+const fieldRename: ResolvedMigrationStatement = {
   kind: 'rename',
   entity: 'field',
   from: { namespace: NAMESPACE, model: 'Profile', field: 'name' },
@@ -58,7 +58,7 @@ const fieldRename: ResolvedStatement = {
 };
 
 function plan(
-  statements: readonly ResolvedStatement[],
+  statements: readonly ResolvedMigrationStatement[],
   collections: { readonly from: string; readonly to: string } = { from: 'profiles', to: 'users' },
 ) {
   return new MongoMigrationPlanner().plan({

@@ -7,7 +7,7 @@ import type {
 import type { Contract, ContractMarkerRecord, LedgerEntryRecord } from '@internal/contract/types';
 import type { AuthoringPslBlockDescriptorNamespace } from '@internal/framework-components/authoring';
 import type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   ControlAdapterDescriptor,
   ControlDriverDescriptor,
   ControlExtensionDescriptor,
@@ -410,7 +410,7 @@ export interface DbInitSuccess {
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }
@@ -489,7 +489,7 @@ export interface DbUpdateSuccess {
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

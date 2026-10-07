@@ -22,7 +22,7 @@ Every dispatch runs on Opus. Validation gate unless stated: `pnpm typecheck`, `p
 
 **Builds on.** `main` (independent of dispatch 1).
 
-**Hands to.** `ResolvedStatement` and the resolver, exported from the CLI package's control API; `statements` on the planner input, empty everywhere it is constructed.
+**Hands to.** `ResolvedMigrationStatement` and the resolver, exported from the CLI package's control API; `statements` on the planner input, empty everywhere it is constructed.
 
 ### 3 — Model renames from statements on both SQL planners
 

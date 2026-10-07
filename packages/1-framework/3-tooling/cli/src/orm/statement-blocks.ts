@@ -1,4 +1,4 @@
-import type { AppliedStatement } from '@internal/framework-components/control';
+import type { AppliedMigrationStatement } from '@internal/framework-components/control';
 import type { Block } from '@prisma/cli-engine';
 
 function operationCountText(count: number): string {
@@ -11,7 +11,9 @@ function operationCountText(count: number): string {
  * each the family's description of it and the number of operations it
  * produced. Nothing when no statements were given.
  */
-export function appliedStatementBlocks(applied: readonly AppliedStatement[]): readonly Block[] {
+export function appliedStatementBlocks(
+  applied: readonly AppliedMigrationStatement[],
+): readonly Block[] {
   if (applied.length === 0) {
     return [];
   }

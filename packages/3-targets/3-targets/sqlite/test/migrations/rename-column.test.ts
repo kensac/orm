@@ -7,9 +7,9 @@ import type {
 import {
   APP_SPACE_ID,
   type ControlStack,
-  type ResolvedFieldRename,
-  type ResolvedModelRename,
-  type ResolvedStatement,
+  type ResolvedFieldRenameStatement,
+  type ResolvedMigrationStatement,
+  type ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
@@ -56,7 +56,7 @@ function renameField(
   from: string,
   to: string,
   newModel = model,
-): ResolvedFieldRename {
+): ResolvedFieldRenameStatement {
   return {
     kind: 'rename',
     entity: 'field',
@@ -65,7 +65,7 @@ function renameField(
   };
 }
 
-function renameModel(from: string, to: string): ResolvedModelRename {
+function renameModel(from: string, to: string): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
@@ -77,7 +77,7 @@ function renameModel(from: string, to: string): ResolvedModelRename {
 function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
-  statements: readonly ResolvedStatement[],
+  statements: readonly ResolvedMigrationStatement[],
 ) {
   const result = createSqliteMigrationPlanner(stubLowerer).plan({
     contract: to,

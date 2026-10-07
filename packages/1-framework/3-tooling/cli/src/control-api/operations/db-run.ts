@@ -5,7 +5,7 @@
 import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   ControlAdapterInstance,
   ControlDriverInstance,
   ControlExtensionDescriptor,
@@ -14,7 +14,7 @@ import type {
   MigrationPlannerConflict,
   MigrationPlanOperation,
   OperationPreview,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import {
@@ -176,7 +176,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // marker names, read from the snapshot store. Without statements nothing is
   // read and the plan has no origin contract, as before statements existed.
   let fromContract: Contract | null = null;
-  let statements: readonly ResolvedStatement[] = [];
+  let statements: readonly ResolvedMigrationStatement[] = [];
   if (options.renames.length > 0) {
     const appOrigin = await readAppOrigin({
       marker: markerRows.get(aggregate.app.spaceId) ?? null,
@@ -497,7 +497,7 @@ function wrapPlanResult(args: {
   readonly preview: OperationPreview | undefined;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
@@ -525,7 +525,7 @@ function wrapApplyResult(args: {
   readonly operationsExecuted: number;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {

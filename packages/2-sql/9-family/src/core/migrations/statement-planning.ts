@@ -1,13 +1,13 @@
 import type { Contract, ContractWithDomain, ModelStorageBase } from '@internal/contract/types';
 import type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   FieldCoordinate,
   MigrationOperationClass,
   MigrationOperationPolicy,
   ModelCoordinate,
-  ResolvedFieldRename,
-  ResolvedModelRename,
-  ResolvedStatement,
+  ResolvedFieldRenameStatement,
+  ResolvedMigrationStatement,
+  ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { type SqlModelStorage, type SqlStorage, StorageTable } from '@internal/sql-contract/types';
@@ -86,7 +86,7 @@ function modelTable(
  * model's. Equal tables mean the rename needs no storage change.
  */
 export function modelRenameStorageEffect(
-  statement: ResolvedModelRename,
+  statement: ResolvedModelRenameStatement,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
 ): Result<ModelStorageEffect, NoTable> {
@@ -117,7 +117,7 @@ function fieldColumn(
  * field's. A relation field has no column on either side, and equal columns need no change.
  */
 export function fieldRenameStorageEffect(
-  statement: ResolvedFieldRename,
+  statement: ResolvedFieldRenameStatement,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
 ): Result<FieldStorageEffect, NoTable | ColumnOnOneSide> {
@@ -143,7 +143,7 @@ function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): s
  * destination contract names it, as the statement itself is written.
  */
 export function describeStatement(
-  statement: ResolvedStatement,
+  statement: ResolvedMigrationStatement,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
 ): string {
@@ -173,7 +173,7 @@ export interface PlannedStatements<TCall> {
   readonly calls: readonly TCall[];
   readonly renames: readonly ResolvedTableRename[];
   readonly columnRenames: readonly ResolvedColumnRename[];
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
 }
 
 interface ConflictLocation extends ModelTable {
@@ -184,7 +184,7 @@ const DRIFTED =
   'so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.';
 
 function rejected(
-  statement: ResolvedStatement,
+  statement: ResolvedMigrationStatement,
   summary: string,
   why: string,
   location: ConflictLocation | undefined,
@@ -257,12 +257,12 @@ class StatementPlanner<TCall> {
   }
 
   /** Plans one statement; the result is its number of operations. */
-  plan(statement: ResolvedStatement): Result<number, SqlPlannerConflict> {
+  plan(statement: ResolvedMigrationStatement): Result<number, SqlPlannerConflict> {
     return statement.entity === 'model' ? this.#planModel(statement) : this.#planField(statement);
   }
 
   #controlPolicyRefusal(
-    statement: ResolvedStatement,
+    statement: ResolvedMigrationStatement,
     label: string,
     destinationTable: ModelTable,
   ): SqlPlannerConflict | undefined {
@@ -277,7 +277,7 @@ class StatementPlanner<TCall> {
   }
 
   #emit(
-    statement: ResolvedStatement,
+    statement: ResolvedMigrationStatement,
     label: string,
     location: ConflictLocation,
     call: TCall,
@@ -301,7 +301,7 @@ class StatementPlanner<TCall> {
     return ok(this.#target.operationCount(call));
   }
 
-  #planModel(statement: ResolvedModelRename): Result<number, SqlPlannerConflict> {
+  #planModel(statement: ResolvedModelRenameStatement): Result<number, SqlPlannerConflict> {
     const worked = modelRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok) {
       return notOk(
@@ -365,7 +365,7 @@ class StatementPlanner<TCall> {
     return planned;
   }
 
-  #planField(statement: ResolvedFieldRename): Result<number, SqlPlannerConflict> {
+  #planField(statement: ResolvedFieldRenameStatement): Result<number, SqlPlannerConflict> {
     const worked = fieldRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok && worked.failure.kind === 'noTable') {
       return notOk(
@@ -457,7 +457,7 @@ class StatementPlanner<TCall> {
  * plan with a `statementRejected` conflict that carries the statement.
  */
 export function planStatements<TCall>(input: {
-  readonly statements: readonly ResolvedStatement[];
+  readonly statements: readonly ResolvedMigrationStatement[];
   readonly fromContract: Contract<SqlStorage> | null;
   readonly contract: Contract<SqlStorage>;
   readonly policy: MigrationOperationPolicy;
@@ -479,7 +479,7 @@ export function planStatements<TCall>(input: {
     );
   }
   const planner = new StatementPlanner({ ...input, fromContract });
-  const appliedStatements: AppliedStatement[] = [];
+  const appliedStatements: AppliedMigrationStatement[] = [];
   for (const statement of input.statements) {
     const operationCount = planner.plan(statement);
     if (!operationCount.ok) return operationCount;

@@ -10,7 +10,7 @@ import type {
   MigrationPlanWithAuthoringSurface,
   MigrationScaffoldContext,
   ModelCoordinate,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import type { MongoContract } from '@internal/mongo-contract';
 import type {
@@ -213,7 +213,7 @@ export type PlanCallsResult =
   | { readonly kind: 'success'; readonly calls: OpFactoryCall[] }
   | { readonly kind: 'failure'; readonly conflicts: MigrationPlannerConflict[] };
 
-function describeStatement(statement: ResolvedStatement): string {
+function describeStatement(statement: ResolvedMigrationStatement): string {
   if (statement.entity === 'model') {
     return `rename model "${statement.from.model}" to "${statement.to.model}"`;
   }
@@ -243,7 +243,7 @@ function shellString(name: string): string {
  * the names a `$rename` needs.
  */
 function keepTheData(
-  statement: ResolvedStatement,
+  statement: ResolvedMigrationStatement,
   fromContract: ContractWithDomain | null,
   contract: ContractWithDomain,
 ): string {
@@ -261,7 +261,7 @@ function keepTheData(
 }
 
 function statementNotApplied(
-  statement: ResolvedStatement,
+  statement: ResolvedMigrationStatement,
   fromContract: ContractWithDomain | null,
   contract: ContractWithDomain,
 ): MigrationPlannerConflict {
@@ -425,7 +425,7 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
      */
     readonly fromContract: Contract | null;
     /** The `--rename` statements, resolved; MongoDB refuses any statement in this release. */
-    readonly statements: readonly ResolvedStatement[];
+    readonly statements: readonly ResolvedMigrationStatement[];
     readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'mongo', 'mongo'>>;
     /**
      * POSIX-relative path from the migration package dir to

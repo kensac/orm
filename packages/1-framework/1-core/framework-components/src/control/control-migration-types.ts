@@ -20,7 +20,7 @@ import type {
   ControlFamilyInstance,
 } from './control-instances';
 import type { OperationContext } from './control-operation-results';
-import type { AppliedStatement, ResolvedStatement } from './migration-statements';
+import type { AppliedMigrationStatement, ResolvedMigrationStatement } from './migration-statements';
 
 // ============================================================================
 // Migration Package Metadata
@@ -275,7 +275,7 @@ export interface MigrationPlannerConflict {
   /** Set when the conflict is an operation the policy does not allow: the class of that operation. */
   readonly refusedOperationClass?: MigrationOperationClass;
   /** Set when the conflict refuses a statement: the statement, in domain coordinates. */
-  readonly statement?: ResolvedStatement;
+  readonly statement?: ResolvedMigrationStatement;
 }
 
 /**
@@ -289,7 +289,7 @@ export interface MigrationPlannerSuccessResult {
   readonly plan: MigrationPlanWithAuthoringSurface;
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied, one per statement it was given, in order. */
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
 }
 
 /**
@@ -469,7 +469,7 @@ export interface MigrationPlanner<
      * Statements the user gave, resolved against `fromContract` and `contract`,
      * in the order given. Empty when the user gave none.
      */
-    readonly statements: readonly ResolvedStatement[];
+    readonly statements: readonly ResolvedMigrationStatement[];
     /**
      * Active framework components participating in this composition.
      * Families/targets can interpret this list to derive family-specific metadata.

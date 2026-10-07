@@ -1,14 +1,14 @@
 import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
-  AppliedStatement,
+  AppliedMigrationStatement,
   ControlAdapterInstance,
   ControlFamilyInstance,
   MigrationOperationPolicy,
   MigrationPlan,
   MigrationPlannerConflict,
   MigrationPlanOperation,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import type { Result } from '@internal/utils/result';
@@ -97,7 +97,7 @@ export interface PlannerInput<TFamilyId extends string, TTargetId extends string
 /** See {@link PlannerInput.appSpace}. */
 export interface AppSpacePlanningInputs {
   readonly fromContract: Contract | null;
-  readonly statements: readonly ResolvedStatement[];
+  readonly statements: readonly ResolvedMigrationStatement[];
 }
 
 /**
@@ -153,7 +153,7 @@ export interface PerSpacePlan {
   readonly strategy: 'resolve-recorded-path' | 'plan-from-diff' | 'declared-state';
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied; empty for a space planned without statements. */
-  readonly appliedStatements: readonly AppliedStatement[];
+  readonly appliedStatements: readonly AppliedMigrationStatement[];
   /**
    * Per-edge breakdown of the chain. `resolve-recorded-path` plans carry
    * one entry per authored edge; `plan-from-diff` and `declared-state`

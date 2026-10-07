@@ -7,7 +7,7 @@ import type {
   MigrationPlan,
   MigrationPlannerConflict,
   MigrationPlannerResult,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   SchemaOwnership,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
@@ -40,7 +40,7 @@ export interface PlanFromDiffInputs<TFamilyId extends string, TTargetId extends 
   readonly operationPolicy: MigrationOperationPolicy;
   /** The contract the database is at, when the caller knows it. */
   readonly fromContract: Contract | null;
-  readonly statements: readonly ResolvedStatement[];
+  readonly statements: readonly ResolvedMigrationStatement[];
 }
 
 export type PlanFromDiffOutcome =

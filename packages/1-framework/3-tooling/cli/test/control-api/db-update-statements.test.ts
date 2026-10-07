@@ -5,7 +5,7 @@ import type {
   ControlDriverInstance,
   ControlFamilyInstance,
   MigrationPlannerResult,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import {
@@ -83,7 +83,7 @@ function familyWithMarker(
 
 interface PlannerCall {
   readonly fromContract: unknown;
-  readonly statements: readonly ResolvedStatement[];
+  readonly statements: readonly ResolvedMigrationStatement[];
 }
 
 function recordingMigrations(operationClass: 'additive' | 'destructive' = 'additive') {

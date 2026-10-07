@@ -6,7 +6,7 @@ import type {
   MigrationPlanner,
   MigrationPlannerResult,
   MigrationPlanWithAuthoringSurface,
-  ResolvedStatement,
+  ResolvedMigrationStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import { createSqlContract } from '@repo/test-utils';
@@ -128,13 +128,15 @@ describe('planMigration', () => {
       entity: 'model',
       from: { namespace: 'app', model: 'Profile' },
       to: { namespace: 'app', model: 'User' },
-    } as unknown as ResolvedStatement;
+    } as unknown as ResolvedMigrationStatement;
     const applied = {
       statement,
       description: 'rename model "Profile" to "User"',
       operationCount: 1,
     };
-    let received: { fromContract: unknown; statements: readonly ResolvedStatement[] } | undefined;
+    let received:
+      | { fromContract: unknown; statements: readonly ResolvedMigrationStatement[] }
+      | undefined;
     const planner: MigrationPlanner<'sql', 'postgres'> = {
       plan: (options) => {
         received = { fromContract: options.fromContract, statements: options.statements };
@@ -175,7 +177,7 @@ describe('planMigration', () => {
       entity: 'model',
       from: { namespace: 'app', model: 'Profile' },
       to: { namespace: 'app', model: 'User' },
-    } as unknown as ResolvedStatement;
+    } as unknown as ResolvedMigrationStatement;
     const received: { spaceId: string; fromContract: unknown; statements: unknown }[] = [];
     const planner: MigrationPlanner<'sql', 'postgres'> = {
       plan: (options) => {

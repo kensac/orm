@@ -2,7 +2,7 @@ import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/c
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
-  type ResolvedStatement,
+  type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage } from '@internal/sql-contract/types';
@@ -123,7 +123,7 @@ describe('rename statements with hostile identifiers on SQLite', {
     };
     const origin = contractOf('hostile-from', from);
     const destination = contractOf('hostile-to', to);
-    const statements: readonly ResolvedStatement[] = [
+    const statements: readonly ResolvedMigrationStatement[] = [
       {
         kind: 'rename',
         entity: 'model',

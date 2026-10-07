@@ -2,8 +2,8 @@ import { asNamespaceId, type Contract } from '@internal/contract/types';
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
-  type ResolvedModelRename,
-  type ResolvedStatement,
+  type ResolvedMigrationStatement,
+  type ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { type SqlStorage, StorageTable } from '@internal/sql-contract/types';
@@ -27,7 +27,7 @@ function renameModel(
   to: string,
   fromNs: string = UNBOUND_NAMESPACE_ID,
   toNs: string = fromNs,
-): ResolvedModelRename {
+): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
@@ -57,7 +57,7 @@ function postTableNamed(postTableName: string, profileTableName: string): Storag
 function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
-  statements: readonly ResolvedStatement[],
+  statements: readonly ResolvedMigrationStatement[],
   schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, postgresTypeComponents),
   policy: MigrationOperationPolicy = ALL_CLASSES,
 ) {
