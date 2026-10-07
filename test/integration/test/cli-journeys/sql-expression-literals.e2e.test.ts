@@ -3,9 +3,10 @@
  *
  * A PSL contract declares a partial index, an expression index, a CHECK whose text spans several
  * lines, and a policy with `using` (an `EXISTS (SELECT … FROM … WHERE …)` predicate) and
- * `withCheck`. Emit → plan → apply → verify clean. Then `contract infer` prints every text as a
- * `sql` literal; the inferred schema emits and verifies clean against the same database; a second
- * inference equals the first.
+ * `withCheck`. The partial index, the CHECK and `withCheck` end their last line in a `--` comment.
+ * Emit → plan → apply → verify clean. Then `contract infer` prints every text as a `sql` literal;
+ * the inferred schema emits and verifies clean against the same database; a second inference
+ * equals the first.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -36,11 +37,11 @@ namespace public {
 
     @@map("profile")
     @@rls
-    @@index([ownerId], where: sql\`owner_id > 0\`, name: "profile_owner_active")
+    @@index([ownerId], where: sql\`owner_id > 0 -- active owners only\`, name: "profile_owner_active")
     @@index(expression: sql\`lower(email)\`, name: "profile_email_lower")
     @@check(expression: sql\`
       owner_id > 0
-        AND char_length(email) > 0
+        AND char_length(email) > 0 -- an owner needs an email
     \`, name: "profile_valid")
   }
 
@@ -56,7 +57,7 @@ namespace public {
     target    = Post
     roles     = [app_user]
     using     = sql\`EXISTS (SELECT 1 FROM profile WHERE profile.id = post.author_id AND profile.owner_id = 1)\`
-    withCheck = sql\`author_id > 0\`
+    withCheck = sql\`author_id > 0 -- an author is required\`
   }
 }
 `;
