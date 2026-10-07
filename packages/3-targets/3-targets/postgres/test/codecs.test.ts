@@ -148,6 +148,23 @@ describe('adapter-postgres codecs', () => {
       expect(await codec.decode(value, {})).toBe(value);
     });
 
+    it.each([
+      'sql/int@1',
+      'sql/float@1',
+      'pg/int@1',
+      'pg/float@1',
+      'pg/int2@1',
+      'pg/int4@1',
+      'pg/float4@1',
+      'pg/float8@1',
+    ])('%s reads the decimal text of a list element as a number', async (codecId) => {
+      const descriptor = postgresCodecRegistry.descriptorFor(codecId);
+      const codec = descriptor?.factory(undefined as never)(SYNTH_CTX) as {
+        decode: (input: string, ctx: SqlCodecCallContext) => Promise<unknown>;
+      };
+      expect(await codec.decode('-7', {})).toBe(-7);
+    });
+
     it('keeps boolean values unchanged', async () => {
       const boolCodec = codecForScalar('bool') as {
         encode: (input: boolean, ctx: SqlCodecCallContext) => Promise<boolean>;
@@ -354,9 +371,28 @@ describe('adapter-postgres codecs', () => {
       expect(await codec.decode('P13M', {})).toEqual(fields({ months: 13 }));
     });
 
-    it('rejects a text wire value that is not an ISO-8601 duration', async () => {
-      await expect(codec.decode('1 day', {})).rejects.toThrow(
-        'pg/interval@1 value must be an ISO-8601 duration, got 1 day',
+    it('reads the interval text PostgreSQL prints into the three fields', async () => {
+      expect(await codec.decode('1 day 02:03:04', {})).toEqual(
+        fields({ days: 1, micros: 7_384_000_000n }),
+      );
+      expect(await codec.decode('-1 years -2 mons +3 days -04:00:00', {})).toEqual(
+        fields({ months: -14, days: 3, micros: -14_400_000_000n }),
+      );
+    });
+
+    it('rounds interval text past six fractional digits to microseconds as ISO-8601 text does', async () => {
+      expect(await codec.decode('00:00:00.1234567', {})).toEqual(
+        await codec.decode('PT0.1234567S', {}),
+      );
+      expect(await codec.decode('00:00:00.1234567', {})).toEqual(fields({ micros: 123_457n }));
+      expect(await codec.decode('-00:00:00.1234565', {})).toEqual(
+        await codec.decode('PT-0.1234565S', {}),
+      );
+    });
+
+    it('rejects a text wire value that is neither an ISO-8601 duration nor interval text', async () => {
+      await expect(codec.decode('one day', {})).rejects.toThrow(
+        'pg/interval@1 value must be an ISO-8601 duration or PostgreSQL interval text, got one day',
       );
     });
 
@@ -446,7 +482,6 @@ describe('adapter-postgres codecs', () => {
     it('resolves pgTsqueryDescriptor by codec id, so a bound tsquery parameter renders', () => {
       const resolved = postgresCodecRegistry.descriptorFor('pg/tsquery@1');
       expect(resolved).toBe(pgTsqueryDescriptor);
-      expect(resolved?.targetTypes).toEqual(['tsquery']);
     });
 
     it('claims no traits, so no comparison, ordering or text operation applies to a tsquery', () => {

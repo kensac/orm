@@ -58,11 +58,11 @@ export function buildColumnDefault(input: {
   const { context } = input;
   const result = mapDefault(columnDefault, {
     dataTypeEntries: context.authoringContributions.dataTypes,
-    dataTypes: context.dataTypeLookup,
-    columnDataType: context.codecLookup.descriptorFor(
+    dataTypeLookup: context.dataTypeLookup,
+    columnCodec: context.codecLookup.descriptorFor(
       input.isEnum ? PG_TEXT_CODEC_ID : input.column.codecId,
-    )?.dataType,
-    list: input.column.many === true,
+    ),
+    list: input.column.many !== false,
   });
   if (result === undefined) {
     refuseUnwritableLiteralDefault({

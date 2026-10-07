@@ -8,15 +8,22 @@
 
 import type { Contract } from '@internal/contract/types';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
+import type { AuthoringTypeConstructorDescriptor } from '@internal/framework-components/authoring';
 import { createDataTypeLookup } from '@internal/framework-components/codec';
 import {
   APP_SPACE_ID,
   assembleAuthoringContributions,
 } from '@internal/framework-components/control';
-import { buildSymbolTable } from '@internal/psl-parser';
-import { parse } from '@internal/psl-parser/syntax';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
+import { bindPslSchema } from '@internal/psl-parser/test';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
+import { opaqueSql } from '@internal/sql-relational-core/ast';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import { blindCast } from '@internal/utils/casts';
 import { describe, expect, it } from 'vitest';
@@ -25,6 +32,7 @@ import {
   postgresAuthoringModelAttributes,
   postgresAuthoringPslBlockDescriptors,
 } from '../../src/core/authoring';
+import { createPostgresBuiltinCodecLookup } from '../../src/core/codec-registry';
 import { PostgresCreateIndex } from '../../src/core/ddl/nodes';
 import { postgresTargetDescriptorMeta } from '../../src/core/descriptor-meta';
 import { createPostgresMigrationPlanner } from '../../src/core/migrations/planner';
@@ -32,8 +40,10 @@ import { postgresCreateNamespace } from '../../src/core/postgres-schema';
 import { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
 import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-namespace-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 
 const postgresDataTypeLookup = createDataTypeLookup(postgresDataTypes);
+const postgresCodecLookup = createPostgresBuiltinCodecLookup();
 
 const TYPED_ATTRIBUTE_SCHEMA = `
 model Message {
@@ -58,34 +68,57 @@ const assembled = assembleAuthoringContributions([
       pslBlockDescriptors: postgresAuthoringPslBlockDescriptors,
       modelAttributes: postgresAuthoringModelAttributes,
       type: {
-        Int: { kind: 'typeConstructor', output: { codecId: 'pg/int4@1', nativeType: 'int4' } },
-        String: { kind: 'typeConstructor', output: { codecId: 'pg/text@1', nativeType: 'text' } },
+        Int: { kind: 'typeConstructor', output: { codecId: 'pg/int4@1' } },
+        String: { kind: 'typeConstructor', output: { codecId: 'pg/text@1' } },
       },
     },
   },
 ]);
 
-function authoredContract(schema: string): Contract<SqlStorage> {
-  const { document, sources } = parse(schema, 'full-text-index-planning.test.psl');
-  const { symbolTable } = buildSymbolTable({
-    documents: [document],
-    sources,
-  });
-  const result = interpretPslDocumentToSqlContract({
-    documents: [document],
-    symbolTable,
-    sources,
-    capabilities: {},
-    target: postgresTargetDescriptorMeta,
-    dataTypeLookup: postgresDataTypeLookup,
-    scalarColumnDescriptors: new Map([
-      ['Int', { codecId: 'pg/int4@1', nativeType: 'int4' }],
-      ['String', { codecId: 'pg/text@1', nativeType: 'text' }],
+const scalarTypeDescriptors = new Map<string, { codecId: string }>([
+  ['Int', { codecId: 'pg/int4@1' }],
+  ['String', { codecId: 'pg/text@1' }],
+]);
+
+const scalarTypeConstructors: Record<string, AuthoringTypeConstructorDescriptor> =
+  Object.fromEntries(
+    [...scalarTypeDescriptors].map(([name, output]) => [
+      name,
+      { kind: 'typeConstructor' as const, output },
     ]),
-    authoringContributions: assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
+  );
+
+function authoredContract(schema: string): Contract<SqlStorage> {
+  const bound = bindPslSchema(schema, {
+    sourceId: 'full-text-index-planning.test.psl',
+    context: {
+      composedExtensions: [],
+      composedExtensionContracts: new Map(),
+      authoringContributions: {
+        ...assembled,
+        type: { ...scalarTypeConstructors, ...assembled.type },
+        attributeSpecs: sqlAttributeSpecs,
+      },
+      pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+      codecLookup: postgresCodecLookup,
+      controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+      dataTypeLookup: postgresDataTypeLookup,
+      resolvedInputs: [],
+      capabilities: {},
+    },
   });
+  const result = withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target: postgresTargetDescriptorMeta,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error('PSL interpretation failed');
   return blindCast<
@@ -137,7 +170,7 @@ async function plannedCreateIndexNodes(schema: string): Promise<readonly Postgre
     schema: liveSchemaWithoutTheIndex(),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract: null,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -153,7 +186,7 @@ describe('a GIN index over to_tsvector, authored in PSL', () => {
     expect(nodes).toHaveLength(1);
     const node = nodes[0]!;
     expect(node.type).toBe('gin');
-    expect(node.elements).toEqual({ expression: `to_tsvector('english', "text")` });
+    expect(node.elements).toEqual({ expression: opaqueSql(`to_tsvector('english', "text")`) });
     expect(node.table).toBe('Message');
     expect(node.name.startsWith('message_text_search')).toBe(true);
   });
@@ -163,7 +196,7 @@ describe('a GIN index over to_tsvector, authored in PSL', () => {
     expect(nodes).toHaveLength(1);
     const node = nodes[0]!;
     expect(node.type).toBe('gin');
-    expect(node.elements).toEqual({ expression: `to_tsvector('english', "text")` });
+    expect(node.elements).toEqual({ expression: opaqueSql(`to_tsvector('english', "text")`) });
     expect(node.table).toBe('Message');
     expect(node.name.startsWith('message_text_search')).toBe(true);
   });

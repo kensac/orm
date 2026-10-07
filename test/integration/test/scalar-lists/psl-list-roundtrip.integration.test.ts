@@ -119,10 +119,9 @@ describe('PSL scalar-list end-to-end', { concurrent: false }, () => {
       const tagsColumn = findStorageColumn(contract, 'tags');
       expect(tagsColumn).toMatchObject({
         codecId: 'pg/text@1',
-        nativeType: 'text',
-        many: true,
+        many: { elementNullable: false },
       });
-      expect(tagsColumn?.['nativeType']).not.toBe('jsonb');
+      expect(tagsColumn?.['dataType']).toBe('pg/text');
 
       await withClient(database.connectionString, async (client) => {
         await client.query('DROP SCHEMA IF EXISTS public CASCADE');
@@ -187,15 +186,15 @@ model Reading {
 
       expect(findStorageColumn(contract, 'dates')).toMatchObject({
         codecId: 'pg/timestamptz-temporal@1',
-        many: true,
+        many: { elementNullable: false },
       });
       expect(findStorageColumn(contract, 'payloads')).toMatchObject({
         codecId: 'pg/bytea@1',
-        many: true,
+        many: { elementNullable: false },
       });
       expect(findStorageColumn(contract, 'amounts')).toMatchObject({
         codecId: 'pg/numeric@1',
-        many: true,
+        many: { elementNullable: false },
       });
 
       await withClient(database.connectionString, async (client) => {
@@ -288,11 +287,11 @@ model Reading {
 
       expect(findStorageColumn(contract, 'tags')).toMatchObject({
         codecId: 'pg/text@1',
-        many: true,
+        many: { elementNullable: false },
       });
       expect(findStorageColumn(contract, 'scores')).toMatchObject({
         codecId: 'pg/int4@1',
-        many: true,
+        many: { elementNullable: false },
       });
 
       await withClient(database.connectionString, async (client) => {

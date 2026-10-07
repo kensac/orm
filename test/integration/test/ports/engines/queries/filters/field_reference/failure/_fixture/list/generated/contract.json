@@ -34,7 +34,9 @@
                 }
               },
               "str_list": {
-                "many": true,
+                "many": {
+                  "elementNullable": false
+                },
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
@@ -103,7 +105,9 @@
                 }
               },
               "str_list": {
-                "many": true,
+                "many": {
+                  "elementNullable": false
+                },
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
@@ -164,23 +168,25 @@
               "columns": {
                 "id": {
                   "codecId": "pg/int4@1",
-                  "nativeType": "int4",
+                  "dataType": "pg/int4",
                   "nullable": false
                 },
                 "str": {
                   "codecId": "pg/text@1",
-                  "nativeType": "text",
+                  "dataType": "pg/text",
                   "nullable": false
                 },
                 "str_list": {
                   "codecId": "pg/text@1",
-                  "many": true,
-                  "nativeType": "text",
+                  "dataType": "pg/text",
+                  "many": {
+                    "elementNullable": false
+                  },
                   "nullable": false
                 },
                 "testId": {
                   "codecId": "pg/int4@1",
-                  "nativeType": "int4",
+                  "dataType": "pg/int4",
                   "nullable": false
                 }
               },
@@ -230,18 +236,20 @@
               "columns": {
                 "id": {
                   "codecId": "pg/int4@1",
-                  "nativeType": "int4",
+                  "dataType": "pg/int4",
                   "nullable": false
                 },
                 "str": {
                   "codecId": "pg/text@1",
-                  "nativeType": "text",
+                  "dataType": "pg/text",
                   "nullable": false
                 },
                 "str_list": {
                   "codecId": "pg/text@1",
-                  "many": true,
-                  "nativeType": "text",
+                  "dataType": "pg/text",
+                  "many": {
+                    "elementNullable": false
+                  },
                   "nullable": false
                 }
               },
@@ -260,11 +268,13 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "d74a90f74ac49c30bc305c83666241c2328c0bcee396f67682d348778381641e"
+    "storageHash": "65d7ca758c9b1959e07dda51e79ea2f0c9de09f07025cd032c04eed338a84e90"
   },
   "capabilities": {
     "postgres": {
       "distinctOn": true,
+      "forKeyShare": true,
+      "forNoKeyUpdate": true,
       "jsonAgg": true,
       "lateral": true,
       "limit": true,
@@ -275,9 +285,14 @@
       "checkConstraint": true,
       "defaultInInsert": true,
       "enums": true,
+      "forShare": true,
+      "forUpdate": true,
       "insertOnConflictSkip": true,
       "insertOnConflictWithoutTarget": true,
       "lateral": true,
+      "lockNowait": true,
+      "lockOf": true,
+      "lockSkipLocked": true,
       "returning": true,
       "scalarList": true
     }

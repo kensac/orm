@@ -12,12 +12,20 @@
  */
 
 import type { Contract } from '@internal/contract/types';
+import type { AuthoringTypeConstructorDescriptor } from '@internal/framework-components/authoring';
 import { createDataTypeLookup } from '@internal/framework-components/codec';
 import { assembleAuthoringContributions } from '@internal/framework-components/control';
 import { buildSymbolTable, createBinder, interpretExtensionBlocks } from '@internal/psl-parser';
+import { withSeedDiagnostics } from '@internal/psl-parser/interpret';
 import { parse } from '@internal/psl-parser/syntax';
+import { type BoundPslSchema, bindPslSchema } from '@internal/psl-parser/test';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import { interpretPslDocumentToSqlContract } from '@internal/sql-contract-psl';
+import {
+  describeUnsupportedSqlAttribute,
+  sqlAttributeSpecs,
+} from '@internal/sql-contract-psl/attribute-specs';
+import { sqlContextInput } from '@internal/sql-contract-psl/test';
 import { postgresDataTypes } from '@internal/target-postgres/data-types';
 import { createSqlContract } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
@@ -26,6 +34,7 @@ import {
   postgresAuthoringModelAttributes,
   postgresAuthoringPslBlockDescriptors,
 } from '../src/core/authoring';
+import { createPostgresBuiltinCodecLookup } from '../src/core/codec-registry';
 import { PostgresContractSerializer } from '../src/core/postgres-contract-serializer';
 import { PostgresRlsEnablement } from '../src/core/postgres-rls-enablement';
 import { PostgresRlsPolicy } from '../src/core/postgres-rls-policy';
@@ -33,6 +42,7 @@ import { PostgresRole } from '../src/core/postgres-role';
 import { PostgresSchema, postgresCreateNamespace } from '../src/core/postgres-schema';
 
 const postgresDataTypeLookup = createDataTypeLookup(postgresDataTypes);
+const postgresCodecLookup = createPostgresBuiltinCodecLookup();
 
 const assembled = assembleAuthoringContributions([
   {
@@ -51,10 +61,13 @@ function blockResolutionBinder(
   return createBinder({
     sources,
     symbolTable,
-    typeConstructors: {},
-    attributeSpecs: { model: {}, field: {} },
-    controlMutationDefaults: { defaultFunctionRegistry: new Map(), dataTypeEntries: {} },
-    pslBlockDescriptors: assembled.pslBlockDescriptors,
+    context: {
+      authoringContributions: {
+        ...assembleAuthoringContributions([]),
+        pslBlockDescriptors: assembled.pslBlockDescriptors,
+      },
+      controlMutationDefaults: { defaultFunctionRegistry: new Map() },
+    },
   }).binder;
 }
 
@@ -68,10 +81,36 @@ const postgresTarget = {
   defaultNamespaceId: 'public',
 };
 
-const scalarTypeDescriptors = new Map<string, { codecId: string; nativeType: string }>([
-  ['String', { codecId: 'pg/text@1', nativeType: 'text' }],
-  ['Int', { codecId: 'pg/int4@1', nativeType: 'int4' }],
+const scalarTypeDescriptors = new Map<string, { codecId: string }>([
+  ['String', { codecId: 'pg/text@1' }],
+  ['Int', { codecId: 'pg/int4@1' }],
 ]);
+
+const scalarTypeConstructors: Record<string, AuthoringTypeConstructorDescriptor> =
+  Object.fromEntries(
+    [...scalarTypeDescriptors].map(([name, output]) => [
+      name,
+      { kind: 'typeConstructor' as const, output },
+    ]),
+  );
+
+function contextFor(authoringContributions: typeof assembled): BoundPslSchema['context'] {
+  return {
+    composedExtensions: [],
+    composedExtensionContracts: new Map(),
+    authoringContributions: {
+      ...authoringContributions,
+      type: { ...scalarTypeConstructors, ...authoringContributions.type },
+      attributeSpecs: sqlAttributeSpecs,
+    },
+    pslDiagnostics: { describeUnsupportedAttribute: describeUnsupportedSqlAttribute },
+    codecLookup: postgresCodecLookup,
+    controlMutationDefaults: { defaultFunctionRegistry: new Map(), generatorDescriptors: [] },
+    dataTypeLookup: postgresDataTypeLookup,
+    resolvedInputs: [],
+    capabilities: { sql: { scalarList: true } },
+  };
+}
 
 function interpretWithSymbolDiagnostics(
   source: string,
@@ -92,20 +131,25 @@ function interpretWithSymbolDiagnostics(
     }).diagnostics,
   ];
 
-  const result = interpretPslDocumentToSqlContract({
-    documents: [document],
-    dataTypeLookup: postgresDataTypeLookup,
-    symbolTable,
-    sources,
-    target: postgresTarget,
-    scalarColumnDescriptors: scalarTypeDescriptors,
-    authoringContributions: options?.withoutModelAttributes
-      ? { ...assembled, modelAttributes: {} }
-      : assembled,
-    composedExtensionContracts: new Map(),
-    createNamespace: postgresCreateNamespace,
-    capabilities: { sql: { scalarList: true } },
+  const authoringContributions = options?.withoutModelAttributes
+    ? { ...assembled, modelAttributes: {} }
+    : assembled;
+  const bound = bindPslSchema(source, {
+    sourceId: 'psl-rls-authoring.test.psl',
+    context: contextFor(authoringContributions),
   });
+  const result = withSeedDiagnostics(
+    interpretPslDocumentToSqlContract({
+      documents: bound.documents,
+      sources: bound.sources,
+      symbolTable: bound.symbolTable,
+      binder: bound.binder,
+      ...sqlContextInput(bound.context),
+      target: postgresTarget,
+      createNamespace: postgresCreateNamespace,
+    }),
+    bound.seedDiagnostics,
+  );
   return { result, symbolTableDiagnostics: diagnostics };
 }
 
@@ -397,7 +441,7 @@ describe('PostgresContractSerializer rls round-trip survives serialize → deser
               table: {
                 profile: {
                   columns: {
-                    id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
+                    id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
                   },
                   primaryKey: { columns: ['id'] },
                   uniques: [],

@@ -1,3 +1,4 @@
+import { type as arktype } from 'arktype';
 /**
  * Op-lowering coverage for the Postgres migration IR call classes:
  *
@@ -18,11 +19,20 @@
  */
 
 import type { CodecControlHooks } from '@internal/family-sql/control';
+import {
+  type AnyCodecDescriptor,
+  createDataTypeLookup,
+} from '@internal/framework-components/codec';
 import { APP_SPACE_ID } from '@internal/framework-components/control';
 import { keepInternalSpecifiers } from '@internal/framework-components/emission';
+import { type SqlTypeLookups, sqlDataType } from '@internal/sql-contract/data-type';
 import type { StorageColumn } from '@internal/sql-contract/types';
 import { col, fn } from '@internal/sql-relational-core/contract-free';
-import { createPostgresBuiltinCodecLookup } from '@internal/target-postgres/codecs';
+import {
+  createPostgresBuiltinCodecLookup,
+  postgresCodecDescriptorRegistry,
+} from '@internal/target-postgres/codecs';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import {
   AddColumnCall,
   AddForeignKeyCall,
@@ -57,7 +67,10 @@ const META = {
   from: 'a'.repeat(64),
   to: 'b'.repeat(64),
 } as const;
-const testAdapter = new PostgresControlAdapter(createPostgresBuiltinCodecLookup());
+const testAdapter = new PostgresControlAdapter(
+  createPostgresBuiltinCodecLookup(),
+  createPostgresBuiltinDataTypeLookup(),
+);
 
 describe('renderOps', () => {
   it('lowers each variant via its pure factory, pinning id/operationClass/target.details', async () => {
@@ -274,24 +287,31 @@ describe('TypeScriptRenderablePostgresMigration', () => {
 
 describe('AddNotNullColumnWithTempDefaultCall', () => {
   it('renders the exact ADD COLUMN SQL for a parameterized codec type with its temp-default backfill', async () => {
+    const vectorType = sqlDataType('test/vector', {
+      params: arktype({ length: 'number.integer > 0' }),
+      texts: [{ text: 'vector({length})', written: true }],
+    });
+    const types: SqlTypeLookups = {
+      codecLookup: {
+        descriptorFor: (codecId) =>
+          codecId === 'pg/vector@1'
+            ? ({ codecId, dataType: vectorType.id } as AnyCodecDescriptor)
+            : postgresCodecDescriptorRegistry.descriptorFor(codecId),
+      },
+      dataTypeLookup: createDataTypeLookup([vectorType]),
+    };
     const codecHooks = new Map<string, CodecControlHooks>([
-      [
-        'pg/vector@1',
-        {
-          expandNativeType: ({ nativeType, typeParams }) =>
-            `${nativeType}(${typeParams?.['length']})`,
-          resolveIdentityValue: () => "'[0,0,0]'",
-        },
-      ],
+      ['pg/vector@1', { resolveIdentityValue: () => "'[0,0,0]'" }],
     ]);
     const column: StorageColumn = {
-      nativeType: 'vector',
+      many: false,
+      dataType: 'pgvector/vector',
       codecId: 'pg/vector@1',
       nullable: false,
       typeParams: { length: 3 },
     };
 
-    const temporaryDefault = resolveIdentityValue(column, codecHooks, {});
+    const temporaryDefault = resolveIdentityValue(column, codecHooks, types);
     if (temporaryDefault === null) {
       throw new Error('expected the pg/vector@1 codec hook to resolve an identity value');
     }
@@ -302,7 +322,7 @@ describe('AddNotNullColumnWithTempDefaultCall', () => {
       tableName: 'doc',
       columnName: 'embedding',
       column,
-      codecHooks,
+      types,
       storageTypes: {},
       temporaryDefault,
     });
@@ -312,4 +332,34 @@ describe('AddNotNullColumnWithTempDefaultCall', () => {
       `ALTER TABLE "public"."doc" ADD COLUMN "embedding" vector(3) DEFAULT ('[0,0,0]') NOT NULL`,
     );
   });
+});
+
+describe('SetDefaultCall', () => {
+  it('refuses a column with no default, which SET DEFAULT has nothing to write for', async () => {
+    await expect(
+      new SetDefaultCall('public', 'user', col('name', 'text')).toOp(testAdapter),
+    ).rejects.toMatchObject({
+      code: 'CONTRACT.DEFAULT_INVALID',
+      message:
+        'setDefault on column "name" of table "user" has no default. Pass the column with its default, as in col(name, type, { default: lit(value) }) or col(name, type, { default: fn(expression) }).',
+      meta: { table: 'user', column: 'name', reason: 'set-default-without-default' },
+    });
+  });
+
+  it.each(['serial', 'int4'])(
+    'refuses an autoincrement() default on a %s column, which SET DEFAULT cannot write',
+    async (type) => {
+      await expect(
+        new SetDefaultCall(
+          'public',
+          'user',
+          col('id', type, { default: fn('autoincrement()') }),
+        ).toOp(testAdapter),
+      ).rejects.toMatchObject({
+        code: 'CONTRACT.DEFAULT_INVALID',
+        message: `setDefault cannot give the existing column "id" of table "user" an autoincrement() default, because autoincrement() is written as the column's SERIAL type when the column is created. Set a sequence default instead, as in fn("nextval('<sequence>'::regclass)").`,
+        meta: { table: 'user', column: 'id', reason: 'set-default-autoincrement' },
+      });
+    },
+  );
 });
