@@ -28,8 +28,9 @@ export function errorUnfilledPlaceholder(slot: string): CliStructuredError {
 
 /**
  * The operation of a planner-stubbed data transform: a promise that rejects with
- * `MIGRATION.UNFILLED_PLACEHOLDER`. A plan's other operations stay readable beside it, and the
- * rejection is marked handled so a plan nobody awaits does not raise an unhandled rejection.
+ * `MIGRATION.UNFILLED_PLACEHOLDER`. A plan's other operations stay readable beside it. The
+ * rejection is marked handled, and so is any promise a target wraps it in, so reading a plan's
+ * operations without awaiting each one does not raise an unhandled rejection.
  */
 export function unfilledPlaceholderOperation(slot: string): Promise<never> {
   const operation = Promise.reject(errorUnfilledPlaceholder(slot));

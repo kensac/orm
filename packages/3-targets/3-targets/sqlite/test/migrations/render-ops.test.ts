@@ -2,6 +2,7 @@ import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter
 import { describe, expect, it } from 'vitest';
 import {
   CreateIndexCall,
+  DataTransformCall,
   DropIndexCall,
   RenameTableCall,
 } from '../../src/core/migrations/op-factory-call';
@@ -33,5 +34,30 @@ describe('renderOps with a call that produces several ops', () => {
       'Create index b_handle_idx on b',
     ]);
     expect(received.length).toBeGreaterThan(0);
+  });
+});
+
+describe('renderOps with a placeholder', () => {
+  it('raises no unhandled rejection when the operations are read without awaiting each one', async () => {
+    const unhandled: unknown[] = [];
+    const listener = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', listener);
+    try {
+      expect(
+        renderOps([new DataTransformCall('data_migration.backfill', 'Backfill', 'user', 'email')]),
+      ).toHaveLength(1);
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+    } finally {
+      process.off('unhandledRejection', listener);
+    }
+    expect(unhandled).toEqual([]);
+  });
+
+  it('still rejects with MIGRATION.UNFILLED_PLACEHOLDER for a reader that awaits it', async () => {
+    const [operation] = renderOps([
+      new DataTransformCall('data_migration.backfill', 'Backfill', 'user', 'email'),
+    ]);
+    await expect(operation).rejects.toMatchObject({ code: 'MIGRATION.UNFILLED_PLACEHOLDER' });
   });
 });

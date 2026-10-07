@@ -2,7 +2,11 @@ import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { isStructuredError } from '@internal/utils/structured-error';
 import { describe, expect, it } from 'vitest';
-import { RenameConstraintCall, RenameTableCall } from '../../src/core/migrations/op-factory-call';
+import {
+  DataTransformCall,
+  RenameConstraintCall,
+  RenameTableCall,
+} from '../../src/core/migrations/op-factory-call';
 import { renderOps } from '../../src/core/migrations/render-ops';
 
 function makeCall(targetId: string, opId: string, factoryName = 'noop'): OpFactoryCall {
@@ -75,5 +79,26 @@ describe('renderOps with a call that produces several ops', () => {
       'Rename primary key "a_pkey" to "b_pkey" on "b"',
     ]);
     expect(received.length).toBeGreaterThan(0);
+  });
+});
+
+describe('renderOps with a placeholder', () => {
+  it('raises no unhandled rejection when the operations are read without awaiting each one', async () => {
+    const unhandled: unknown[] = [];
+    const listener = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', listener);
+    try {
+      expect(renderOps([new DataTransformCall('Backfill', 'check', 'run')])).toHaveLength(1);
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+    } finally {
+      process.off('unhandledRejection', listener);
+    }
+    expect(unhandled).toEqual([]);
+  });
+
+  it('still rejects with MIGRATION.UNFILLED_PLACEHOLDER for a reader that awaits it', async () => {
+    const [operation] = renderOps([new DataTransformCall('Backfill', 'check', 'run')]);
+    await expect(operation).rejects.toMatchObject({ code: 'MIGRATION.UNFILLED_PLACEHOLDER' });
   });
 });

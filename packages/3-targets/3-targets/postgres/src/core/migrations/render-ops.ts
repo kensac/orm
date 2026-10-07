@@ -35,10 +35,13 @@ function checkedOp(
   callFactoryName: string,
 ): Op | Promise<Op> {
   if (isThenable(opOrPromise)) {
-    return opOrPromise.then((op) => {
+    const checked = opOrPromise.then((op) => {
       assertPostgresOp(op, callFactoryName);
       return op;
     });
+    // A reader may take a plan's operations without awaiting each one, as with a placeholder's.
+    checked.catch(() => undefined);
+    return checked;
   }
   assertPostgresOp(opOrPromise, callFactoryName);
   return opOrPromise;
