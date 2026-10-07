@@ -616,7 +616,7 @@ export function errorStatementUnresolved(
  * new name, so any advice to run without them says so.
  */
 const WITHOUT_STATEMENTS_DROPS =
-  'A plan made without statements drops each renamed table or column with its data and creates it again under the new name, and asks for consent before it does.';
+  'A plan made without statements drops the storage of each renamed model or field with its data and creates it again under the new name, and asks for consent before it does.';
 
 /** How to store the snapshot of the contract the database is at, so statements can resolve. */
 const STORE_ORIGIN_SNAPSHOT_STEPS = [
@@ -640,7 +640,7 @@ export function errorStatementOriginUnknown(origin: {
       'Cannot resolve statements: the database has no marker',
       {
         why: 'The database has no marker: Prisma has never initialised or updated it, so there is no earlier contract whose names a statement could rename.',
-        fix: `Leave out the statements. If the database already holds tables under the old names, preview the plan with --dry-run first. ${WITHOUT_STATEMENTS_DROPS}`,
+        fix: `Leave out the statements. If the database already holds data under the old names, preview the plan with --dry-run first. ${WITHOUT_STATEMENTS_DROPS}`,
         nextActions: [
           chooseAction('Leave out the statements, and preview the plan with --dry-run first'),
         ],

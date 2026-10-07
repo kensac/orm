@@ -102,6 +102,8 @@ const LISTED_LIMIT = 20;
 
 const CHECK_NAMES_FIX =
   'The old name must exist in the origin contract and not in the destination contract, and the new name the other way round. Names match exactly, including case.';
+const STORED_NAME_ONLY =
+  'If only the stored name changed (@map or @@map), a statement cannot state that in this release: plan without the statement, and edit the planned migration.ts so that it renames the stored name instead of dropping and creating it.';
 const VALUE_OBJECT_FIX = 'Leave value objects and their fields out of the statements.';
 const REPEATED_NAME_FIX =
   'Give each model or field at most one statement, and each new name to one model or field only.';
@@ -404,7 +406,7 @@ function resolveModelRename(
       errorStatementInvalid(
         statement,
         `The statement renames model "${qualifiedModel(from)}" to itself.`,
-        `Leave out --${statement.verb} ${statement.text}. If only the model's @@map changed, a statement cannot state that in this release: plan without the statement, and replace the drop and create of the table in migration.ts with ...this.renameTable({ table: "<old table>", to: "<new table>" }).`,
+        `Leave out --${statement.verb} ${statement.text}. ${STORED_NAME_ONLY}`,
       ),
     );
   }
@@ -550,7 +552,7 @@ function resolveFieldRename(
       errorStatementInvalid(
         statement,
         `The statement renames field "${toModel}.${to.coordinate.field}" to itself.`,
-        `Leave out --${statement.verb} ${statement.text}. If only the field's @map changed, a statement cannot state that in this release: plan without the statement, and replace the drop and add of the column in migration.ts with ...this.renameColumn({ table: "<table>", column: "<old column>", to: "<new column>" }).`,
+        `Leave out --${statement.verb} ${statement.text}. ${STORED_NAME_ONLY}`,
       ),
     );
   }

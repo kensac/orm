@@ -35,7 +35,7 @@ describe('errorStatementOriginUnknown', () => {
     (_, error) => {
       const advice = adviceOf(error);
       if (/without (the )?statements|leave out the statements/i.test(advice)) {
-        expect(advice).toContain('drops each renamed table or column with its data');
+        expect(advice).toContain('drops the storage of each renamed model or field with its data');
       }
     },
   );

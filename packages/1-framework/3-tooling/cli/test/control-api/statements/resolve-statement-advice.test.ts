@@ -78,16 +78,16 @@ describe('statement errors say what to type', () => {
     );
   });
 
-  it('says a model renamed to itself renames nothing, and how to state a changed @@map', () => {
+  it('says a model renamed to itself renames nothing, and what to do when only its stored name changed', () => {
     expect(adviceOf(resolve(['Profile:Profile'], profile, profile), INVALID)).toEqual({
       why: 'The statement renames model "Profile" to itself.',
-      fix: 'Leave out --rename Profile:Profile. If only the model\'s @@map changed, a statement cannot state that in this release: plan without the statement, and replace the drop and create of the table in migration.ts with ...this.renameTable({ table: "<old table>", to: "<new table>" }).',
+      fix: 'Leave out --rename Profile:Profile. If only the stored name changed (@map or @@map), a statement cannot state that in this release: plan without the statement, and edit the planned migration.ts so that it renames the stored name instead of dropping and creating it.',
     });
   });
 
-  it('says a field renamed to itself renames nothing, and how to state a changed @map', () => {
+  it('says a field renamed to itself renames nothing, and what to do when only its stored name changed', () => {
     expect(adviceOf(resolve(['Profile.name:Profile.name'], profile, profile), INVALID).fix).toBe(
-      'Leave out --rename Profile.name:Profile.name. If only the field\'s @map changed, a statement cannot state that in this release: plan without the statement, and replace the drop and add of the column in migration.ts with ...this.renameColumn({ table: "<table>", column: "<old column>", to: "<new column>" }).',
+      'Leave out --rename Profile.name:Profile.name. If only the stored name changed (@map or @@map), a statement cannot state that in this release: plan without the statement, and edit the planned migration.ts so that it renames the stored name instead of dropping and creating it.',
     );
   });
 
