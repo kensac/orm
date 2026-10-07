@@ -66,3 +66,9 @@ Hovering a model, field, or block attribute shows the same signature label signa
 Hovering a named argument's key — in an attribute call, a function call, or a struct-block entry — shows that key with its type, e.g. `fields: field name`, followed by the parameter's documentation. Hovering a function call's name, such as `autoincrement()` or `uuid((4 | 7)?)`, shows its signature label followed by the function's documentation. Hovering a fixed-identifier constant, such as `Cascade` in a referential-action argument, shows the constant's name followed by its documentation.
 
 A declaration, attribute, contributed type, parameter, function, or constant with no documentation to show omits that section rather than leaving a blank one; a block keyword with no contributed documentation shows no hover at all. Closed or unmanaged documents, and positions with nothing to show, also receive no hover.
+
+## Go to definition
+
+In an open, configured PSL input, clients can jump from a name to the declaration it refers to. A type reference leads to the model, composite type, named type, or generic block it names. A field or entity reference in an attribute argument or a generic block's value leads to that field or declaration. The qualifier of a qualified name, such as `auth` in `auth.User`, leads to every `namespace auth { … }` block, including those in other files of the project.
+
+A name with no declaration in the schema has no definition: a contributed type or namespace, a cross-space reference, an attribute name, a named argument's key, a function name, or a fixed-identifier constant. A declaration's own name and a name that does not resolve have none either.

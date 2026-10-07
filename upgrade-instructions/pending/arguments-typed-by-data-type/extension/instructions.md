@@ -141,7 +141,7 @@ A test that passed a lookup without entries passes `{ entries: {}, lookup }`. Co
 -   dataTypeEntries: context.authoringContributions.dataTypes,
 -   dataTypes: context.dataTypeLookup,
 +   dataTypes: context.dataTypes,
-    columnDataType,
+    columnCodec,
   });
 ```
 
@@ -158,8 +158,6 @@ An alternative of your own that accepts call expressions, placed beside a `funcC
 `@internal/framework-components/authoring` exports the ADR 254 cast rule for one written value: `WrittenValue`, `WrittenScalar`, `DataTypeSupport`, `TypedValue`, `ReadRefusal`, `CastRefusal`, `entryForTag`, `entryForPlain`, `knownTags`, `readWrittenValue`, `castTypedValue`, `admittedTags`, `admittedForms`, `tagForm` and `describeAdmittedForms`, and the wording of a refusal: `WrittenForm`, `RefusalGuidance`, `describeRefusal`, which words a refusal as a PSL code and message, `describeExpected`, `describeRefusedValueType` and `exactRewrite`. `@internal/sql-contract-psl/resolution` no longer exports `entryForTag`, `WrittenValue` or `DataTypeSupport`; change those imports to `@internal/framework-components/authoring`.
 
 `readDataTypeDefault`, `DefaultRefusal` and `DefaultColumn` stay in `@internal/sql-contract-psl/resolution`. `readDataTypeDefault` takes the stack's data types as `dataTypes`, not `support`, and a refused result carries `suggestedTypes`, the types whose written forms a message suggests. `DefaultRefusal` is the framework's `ReadRefusal` and `CastRefusal` with `elementIndex`, plus `not-a-list`, `no-list-cast`, `no-element-cast` and `undecodable`. Code that read `refusal.columnType` on a `no-cast` refusal reads `refusal.receivingType`. A list written on a column whose type has no list cast is now `no-list-cast`, where it was a `no-cast` whose `valueType` was `'a list'`. An element of a written list that the column type's list cast does not take is now `no-element-cast`, with `receivingType`, `valueType` and the cast's `elementTypes`, where it was a `no-cast` whose `casts` were the list cast's element types.
-
-`entryForTag` now returns the key as a `DataTypeId`.
 
 `@internal/psl-parser` adds the argument type `dataTypeValue(dataType, support)`, which admits any literal the cast rule admits for `dataType`, and `readWrittenScalar`. No built-in attribute uses `dataTypeValue` yet. Its label is the type's tag, as in ``sql`...` ``, or the forms the type admits, as in `a number`.
 

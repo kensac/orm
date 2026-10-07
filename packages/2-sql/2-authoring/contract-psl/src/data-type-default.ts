@@ -1,8 +1,9 @@
 /**
  * Reading a `@default(...)` value: a written value is read by the authoring entry for the syntax it
  * is written in, which gives it a data type; the column's type takes it directly or through a cast;
- * and the column's codec, built with the column's type parameters, reads the canonical form with
- * `decodeJson`, which refuses a value the column would not store, before it is stored.
+ * the column's codec, built with the column's type parameters, reads it with `decodeJson`, which
+ * refuses a value the column would not store; and it is stored in the canonical form of the
+ * column's values, which `canonicalFormOf` gives.
  *
  * No per-type code and no per-codec branch live here. ADR 254.
  */
@@ -30,8 +31,13 @@ import type {
   AnyCodecDescriptor,
   CodecLookupWithDescriptors,
   DataTypeId,
+  DataTypeLookup,
 } from '@internal/framework-components/codec';
-import { codecForRef } from '@internal/framework-components/codec';
+import {
+  canonicalFormOf,
+  codecForRef,
+  type ToCanonicalForm,
+} from '@internal/framework-components/codec';
 import type { ContributedPslDiagnosticCode, PslSpan } from '@internal/framework-components/psl-ast';
 import { SQL_EXPRESSION_TAG } from '@internal/sql-contract/sql-expression';
 import { blindCast } from '@internal/utils/casts';
@@ -97,11 +103,20 @@ export type ReadDefaultResult =
       readonly suggestedTypes: readonly DataTypeId[];
     };
 
+/** A value in its stored JSON form that has no canonical form of the column's values. */
+type CanonicalFormRefusal = {
+  readonly kind: 'unreadable';
+  readonly message: string;
+  readonly elementIndex: number | undefined;
+};
+
+type StoredRefusal = CodecRefusal | CanonicalFormRefusal;
+
 type StoredReadResult =
   | { readonly ok: true; readonly value: JsonValue }
   | {
       readonly ok: false;
-      readonly refusal: CodecRefusal;
+      readonly refusal: StoredRefusal;
       readonly suggestedTypes: readonly DataTypeId[];
     };
 
@@ -122,6 +137,16 @@ export type DefaultDiagnosticResult =
       readonly message: string;
       readonly span: PslSpan;
     };
+
+/** A refusal worded as a PSL diagnostic's code and message, for a caller that reports it at its own span. */
+interface RefusalMessage {
+  readonly code: string;
+  readonly message: string;
+}
+
+type ReadValueResult =
+  | { readonly ok: true; readonly value: JsonValue }
+  | ({ readonly ok: false } & RefusalMessage);
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -154,12 +179,33 @@ function codecRefTypeParams(
       );
 }
 
+/** A value in the canonical form of the column's values, when they have one. */
+function inCanonicalForm(
+  toCanonicalForm: ToCanonicalForm | undefined,
+  value: JsonValue,
+  elementIndex: number | undefined,
+  suggestedTypes: readonly DataTypeId[],
+): StoredReadResult {
+  if (toCanonicalForm === undefined) return { ok: true, value };
+  try {
+    return { ok: true, value: toCanonicalForm(value) };
+  } catch (error) {
+    if (isInternalError(error)) throw error;
+    return {
+      ok: false,
+      refusal: { kind: 'unreadable', message: messageOf(error), elementIndex },
+      suggestedTypes,
+    };
+  }
+}
+
 /**
- * The column's codec descriptor, and `read`, which reads a value in its stored JSON form with the column's codec, built with the column's type parameters.
+ * The column's codec descriptor, and `read`, which reads a value in its stored JSON form with the column's codec, built with the column's type parameters, and gives it the canonical form of the column's values.
  */
 function storedValueReader(input: {
   readonly column: DefaultColumn;
   readonly codecLookup: CodecLookupWithDescriptors;
+  readonly dataTypeLookup: DataTypeLookup;
   readonly fieldPath: string;
 }): {
   readonly descriptor: AnyCodecDescriptor;
@@ -176,10 +222,10 @@ function storedValueReader(input: {
     );
   }
   const suggestedTypes = [descriptor.dataType];
-  const read = (value: JsonValue, elementIndex: number | undefined): StoredReadResult => {
+  const toCanonicalForm = canonicalFormOf(descriptor, input.dataTypeLookup);
+  const read = (written: JsonValue, elementIndex: number | undefined): StoredReadResult => {
     try {
-      codec.decodeJson(value);
-      return { ok: true, value };
+      codec.decodeJson(written);
     } catch (error) {
       if (isInternalError(error)) throw error;
       return {
@@ -193,25 +239,25 @@ function storedValueReader(input: {
         suggestedTypes,
       };
     }
+    return inCanonicalForm(toCanonicalForm, written, elementIndex, suggestedTypes);
   };
   return { descriptor, read };
 }
 
 /**
- * Reads a value already in its stored JSON form, such as one member of a JSON document default, with the column's codec. Worded as {@link lowerDataTypeDefault} words a codec refusal.
+ * Reads a value already in its stored JSON form, such as one member of a JSON document default, with the column's codec, and gives it the canonical form of the column's values. Worded as {@link lowerDataTypeDefault} words the same refusals.
  */
 export function readStoredValue(input: {
   readonly value: JsonValue;
   readonly column: DefaultColumn;
   readonly codecLookup: CodecLookupWithDescriptors;
+  readonly dataTypeLookup: DataTypeLookup;
   readonly fieldPath: string;
-}):
-  | { readonly ok: true; readonly value: JsonValue }
-  | { readonly ok: false; readonly code: string; readonly message: string } {
+}): ReadValueResult {
   const reading = storedValueReader(input).read(input.value, undefined);
   return reading.ok
     ? reading
-    : { ok: false, ...codecRefusalMessage(reading.refusal, input.fieldPath) };
+    : { ok: false, ...storedRefusalMessage(reading.refusal, `Field "${input.fieldPath}"`) };
 }
 
 /**
@@ -228,7 +274,10 @@ export function readDataTypeDefault(input: {
   readonly dataTypes: DataTypeSupport;
   readonly fieldPath: string;
 }): ReadDefaultResult {
-  const { descriptor, read: readStored } = storedValueReader(input);
+  const { descriptor, read: readStored } = storedValueReader({
+    ...input,
+    dataTypeLookup: input.dataTypes.lookup,
+  });
   const columnType = descriptor.dataType;
   const suggestedTypes = [columnType];
 
@@ -320,10 +369,8 @@ function readListIntoScalar(input: {
 }
 
 /** Where a diagnostic is about, for a message: `Field "N.count" at element 2`. */
-function location(fieldPath: string, elementIndex: number | undefined): string {
-  return elementIndex === undefined
-    ? `Field "${fieldPath}"`
-    : `Field "${fieldPath}" at element ${elementIndex + 1}`;
+function location(subject: string, elementIndex: number | undefined): string {
+  return elementIndex === undefined ? subject : `${subject} at element ${elementIndex + 1}`;
 }
 
 /**
@@ -368,18 +415,62 @@ export function lowerDataTypeDefault(input: {
   readonly sourceElementIndexes: readonly number[] | undefined;
 }): DefaultDiagnosticResult {
   const read = readDataTypeDefault(input);
+  if (read.ok) return read;
+  const refusal = atSourceElement(read.refusal, input.sourceElementIndexes);
+  return {
+    ok: false,
+    ...refusalMessage(
+      refusal,
+      `Field "${input.fieldPath}"`,
+      input.dataTypes,
+      guidanceFor(read, input.written, input.dataTypes),
+    ),
+    span: refusalSpan(refusal, input.spans, input.fieldPath),
+  };
+}
+
+/**
+ * Reads one number literal written in a contract source outside a default, such as an enum member's value, from its source text for a codec, as {@link lowerDataTypeDefault} reads a default: the number's entry gives it a data type, the codec's data type takes it directly or through a cast, and the codec checks it. A refusal is worded for `subject`, and the caller reports it at its own span.
+ */
+export function readWrittenNumberForCodec(input: {
+  readonly text: string;
+  readonly codecId: string;
+  readonly codecLookup: CodecLookupWithDescriptors;
+  readonly dataTypes: DataTypeSupport;
+  readonly subject: string;
+}): ReadValueResult {
+  const written: WrittenValue = { kind: 'number', text: input.text };
+  const read = readDataTypeDefault({
+    written,
+    isList: false,
+    column: { codecId: input.codecId },
+    codecLookup: input.codecLookup,
+    dataTypes: input.dataTypes,
+    fieldPath: input.subject,
+  });
   return read.ok
     ? read
-    : refusalDiagnostic(
-        atSourceElement(read.refusal, input.sourceElementIndexes),
-        input.fieldPath,
-        input.dataTypes,
-        {
-          forms: formsOf(input.dataTypes, read.suggestedTypes),
-          rewrite: rewriteOf(read.refusal, input.written, input.dataTypes),
-        },
-        input.spans,
-      );
+    : {
+        ok: false,
+        ...refusalMessage(
+          read.refusal,
+          input.subject,
+          input.dataTypes,
+          guidanceFor(read, written, input.dataTypes),
+        ),
+      };
+}
+
+/** What a refusal of `written` tells the author to write instead. */
+function guidanceFor(
+  failure: DefaultFailure,
+  written: WrittenValue,
+  dataTypes: DataTypeSupport,
+): RefusalGuidance {
+  return {
+    forms: formsOf(dataTypes, failure.suggestedTypes),
+    rewrite: rewriteOf(failure.refusal, written, dataTypes),
+  };
 }
 
 function atSourceElement(
@@ -391,56 +482,61 @@ function atSourceElement(
   return elementIndex === undefined ? refusal : { ...refusal, elementIndex };
 }
 
-type DefaultDiagnostic = Extract<DefaultDiagnosticResult, { readonly ok: false }>;
-
-function codecRefusalMessage(
-  refusal: CodecRefusal,
-  fieldPath: string,
-): { readonly code: string; readonly message: string } {
+function codecRefusalMessage(refusal: CodecRefusal, subject: string): RefusalMessage {
   return {
     code: PSL_INVALID_DEFAULT_LITERAL,
-    message: `${location(fieldPath, refusal.elementIndex)}: ${refusal.message}`,
+    message: `${location(subject, refusal.elementIndex)}: ${refusal.message}`,
   };
 }
 
-/** A refusal worded as a PSL diagnostic's code, message and span; `guidance` says what to write instead. */
-function refusalDiagnostic(
+function storedRefusalMessage(refusal: StoredRefusal, subject: string): RefusalMessage {
+  if (refusal.kind === 'refused-by-codec') return codecRefusalMessage(refusal, subject);
+  return {
+    code: 'PSL_INVALID_LITERAL',
+    message: `${location(subject, refusal.elementIndex)}: ${refusal.message}`,
+  };
+}
+
+/** A refusal worded as a PSL diagnostic's code and message; `guidance` says what to write instead. */
+function refusalMessage(
   refusal: DefaultRefusal,
-  fieldPath: string,
+  subject: string,
   dataTypes: DataTypeSupport,
   guidance: RefusalGuidance,
-  spans: DefaultSpans,
-): DefaultDiagnostic {
-  const where = location(fieldPath, refusal.elementIndex);
-  const atWrittenValue = writtenValueSpan(spans, refusal.elementIndex, fieldPath);
+): RefusalMessage {
+  const where = location(subject, refusal.elementIndex);
   switch (refusal.kind) {
     case 'not-a-list':
       return {
-        ok: false,
         code: PSL_DEFAULT_LIST_EXPECTED,
         message: `${where}: this column holds a list, so its default is a list literal, as in [1, 2]`,
-        span: spans.attribute,
       };
     case 'refused-by-codec':
-      return { ok: false, ...codecRefusalMessage(refusal, fieldPath), span: spans.attribute };
+      return codecRefusalMessage(refusal, subject);
     case 'no-list-cast':
       return {
-        ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
         message: `${where}: ${describeExpected(guidance.forms)}; got a list`,
-        span: atWrittenValue,
       };
     case 'no-element-cast':
       return {
-        ok: false,
         code: PSL_VALUE_TYPE_INCOMPATIBLE,
         message: `${where}: ${describeRefusedValueType(refusal, dataTypes, guidance)}`,
-        span: atWrittenValue,
       };
     default: {
       const { code, message } = describeRefusal(refusal, dataTypes, guidance);
-      return { ok: false, code, message: `${where}: ${message}`, span: atWrittenValue };
+      return { code, message: `${where}: ${message}` };
     }
+  }
+}
+
+function refusalSpan(refusal: DefaultRefusal, spans: DefaultSpans, fieldPath: string): PslSpan {
+  switch (refusal.kind) {
+    case 'not-a-list':
+    case 'refused-by-codec':
+      return spans.attribute;
+    default:
+      return writtenValueSpan(spans, refusal.elementIndex, fieldPath);
   }
 }
 

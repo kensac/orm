@@ -18,9 +18,13 @@ import type {
   DataTypeAuthoringEntry,
   DataTypeSupport,
 } from '@internal/framework-components/authoring';
-import { printTaggedLiteral } from '@internal/framework-components/authoring';
-import type { DataTypeId, DataTypeLookup } from '@internal/framework-components/codec';
-import { dataTypeId } from '@internal/framework-components/codec';
+import { authoringEntryType, printTaggedLiteral } from '@internal/framework-components/authoring';
+import type {
+  CodecDescriptor,
+  DataTypeId,
+  DataTypeLookup,
+} from '@internal/framework-components/codec';
+import { canonicalFormOf, dataTypeId } from '@internal/framework-components/codec';
 import { numeralText } from '@internal/sql-contract/data-type';
 import { escapePslString } from '@internal/sql-contract/data-type-support';
 import { SQL_EXPRESSION_TAG } from '@internal/sql-contract/sql-expression';
@@ -35,8 +39,8 @@ export interface DefaultMappingOptions {
   readonly functionAttributes?: Readonly<Record<string, string>>;
   /** The stack's data types, whose casts say which other types' values each one takes, with the authoring entries that write them. */
   readonly dataTypes?: DataTypeSupport | undefined;
-  /** The data type of the column's codec. */
-  readonly columnDataType?: DataTypeId | undefined;
+  /** The column's codec: the data type a default is written in, and the canonical form of its values. */
+  readonly columnCodec?: Pick<CodecDescriptor, 'dataType' | 'toCanonicalForm'> | undefined;
   /**
    * Whether the column is a list, whose elements each carry the column's own data type. A written
    * list on a scalar column goes through that type's list cast instead.
@@ -99,8 +103,9 @@ function writingSurface(entries: Readonly<Record<string, DataTypeAuthoringEntry>
   for (const [key, entry] of Object.entries(entries)) {
     const written = entry.written;
     if (written.kind === 'tag') {
-      entryOf.set(key, entry);
-      tagTypes.push(dataTypeId(key));
+      const type = dataTypeId(authoringEntryType(key, entry));
+      if (!entryOf.has(type)) entryOf.set(type, entry);
+      tagTypes.push(type);
       continue;
     }
     if (written.syntax === 'number') {
@@ -271,12 +276,13 @@ function writeDefaultLiteral(
   options: DefaultMappingOptions | undefined,
 ): string | undefined {
   if (stored instanceof Date) return undefined;
-  const { dataTypes, columnDataType } = options ?? {};
-  if (dataTypes === undefined || columnDataType === undefined) return undefined;
+  const { dataTypes, columnCodec } = options ?? {};
+  if (dataTypes === undefined || columnCodec === undefined) return undefined;
   const { entries, lookup } = dataTypes;
+  const columnDataType = columnCodec.dataType;
   const { value } = defaultInCanonicalForm(
     stored,
-    lookup.get(columnDataType)?.toCanonicalForm,
+    canonicalFormOf(columnCodec, lookup),
     options?.list === true,
   );
   if (value instanceof Date) return undefined;

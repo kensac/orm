@@ -81,11 +81,11 @@ import {
 import { isAuthoredIndexInput } from '@internal/sql-contract/index-naming';
 import { sqlTextFromCanonical } from '@internal/sql-contract/sql-expression';
 import {
+  type AuthoredStorageTypeInstance,
   resolvedTypeParams,
   type SqlModelStorage,
   type SqlNamespaceBase,
   type SqlNamespaceInput,
-  type StorageTypeInstance,
 } from '@internal/sql-contract/types';
 import { deriveValueSetFromEntity } from '@internal/sql-contract/value-set-derivation-hook';
 import {
@@ -110,6 +110,7 @@ import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { contractError } from './contract-errors';
+import { readWrittenNumberForCodec } from './data-type-default';
 import { defaultTableName } from './default-table-name';
 import {
   getAttribute,
@@ -1517,7 +1518,7 @@ interface BuildValueObjectNodesInput {
   readonly enumHandles: ReadonlyMap<BlockSymbol, EnumTypeHandle>;
   readonly namedTypeDescriptors: ReadonlyMap<NamedTypeSymbol, ColumnDescriptor>;
   /** The named types; a member typed by one takes its parameters inline. */
-  readonly namedTypes: Record<string, StorageTypeInstance>;
+  readonly namedTypes: Record<string, AuthoredStorageTypeInstance>;
   readonly diagnostics: PslDiagnosticCollector;
   readonly sources: PslSources;
   /** Composite types are placed in the default namespace, so their members resolve against it. */
@@ -2237,6 +2238,17 @@ export function interpretPslDocumentToSqlContract(
           );
         },
       },
+      readWrittenNumber: ({ text, codecId, subject }) => {
+        if (input.codecLookup.descriptorFor(codecId) === undefined) return undefined;
+        const reading = readWrittenNumberForCodec({
+          text,
+          codecId,
+          codecLookup: input.codecLookup,
+          dataTypes: input.dataTypes,
+          subject,
+        });
+        return reading.ok ? reading : { ok: false, message: reading.message };
+      },
       ...ifDefined('enumInferenceCodecs', input.enumInferenceCodecs),
     },
     diagnostics,
@@ -2411,7 +2423,6 @@ export function interpretPslDocumentToSqlContract(
     binder,
     enumTypeDescriptors: allEnumTypeDescriptors,
     codecLookup: input.codecLookup,
-    dataTypeLookup: input.dataTypes.lookup,
     diagnostics,
   });
 

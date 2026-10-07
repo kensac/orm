@@ -1,6 +1,6 @@
 # ADR 231 — Declarative attribute specifications: composable argument combinators with typed inference
 
-**Status:** Accepted. Amended 2026-09-22: top-level extension-block member values are declared through this same combinator kit via block specs (`structBlock` / `mapBlock`), and the shared `jsonValue()` rule reads native JSON-compatible literals from the AST — see [ADR 255 — Block specs bind top-level block values](ADR%20255%20-%20Block%20specs%20bind%20top-level%20block%20values.md). Central spec discovery and language-server consumption, listed below as follow-up, are delivered by [ADR 249 — Central attribute-spec registry](ADR%20249%20-%20Central%20attribute-spec%20registry.md). Amended 2026-09-30: `dataTypeValue` types the arguments that take raw SQL (`@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)` and a policy's `using` and `withCheck`) — see [ADR 260 — Raw SQL is a value of the data type `sql/expression`](ADR%20260%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md).
+**Status:** Accepted. Amended 2026-09-22: top-level extension-block member values are declared through this same combinator kit via block specs (`structBlock` / `mapBlock`), and the shared `jsonValue()` rule reads native JSON-compatible literals from the AST — see [ADR 262 — Block specs bind top-level block values](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md). Central spec discovery and language-server consumption, listed below as follow-up, are delivered by [ADR 249 — Central attribute-spec registry](ADR%20249%20-%20Central%20attribute-spec%20registry.md). Amended 2026-09-30: `dataTypeValue` types the arguments that take raw SQL (`@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)` and a policy's `using` and `withCheck`) — see [ADR 260 — Raw SQL is a value of the data type `sql/expression`](ADR%20260%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md).
 **Date:** 2026-06-29
 **Accepted:** 2026-08-27
 
@@ -50,7 +50,7 @@ The SQL and Mongo family interpreters are the first consumers. They define their
 
 The kit consumes `ExpressionAst` directly. No intermediate argument representation is introduced, and no combinator reparses flattened source text except `json()`, the deliberate quoted-JSON-object exception.
 
-Attributes are a PSL authoring concern, so the kit is in `psl-parser` rather than framework core. Field, model, and block attributes are all constructed through it. A block descriptor declares which attributes its block accepts. Symbol-table construction collects declarations without interpreting blocks; consumers then bind references and interpret block values and attributes against the complete snapshot, as described in ADR 255.
+Attributes are a PSL authoring concern, so the kit is in `psl-parser` rather than framework core. Field, model, and block attributes are all constructed through it. A block descriptor declares which attributes its block accepts. Symbol-table construction collects declarations without interpreting blocks; consumers then bind references and interpret block values and attributes against the complete snapshot, as described in ADR 262.
 
 ---
 
@@ -207,7 +207,7 @@ This is intentionally narrower than an arbitrary JSON value. Its shipped use is 
 
 `taggedLiteral(tags, { documentation })` reads a tagged literal (`` tag`...` ``, `tag"..."` or `tag'...'`) and returns its tag, its canonicalization and its span. It accepts any tag; `tags` and `documentation` describe the registered tags for completion. `@default` uses it, wrapped in `writtenScalar`, for its tagged-literal arms, and lowering reads the tag through the stack's authoring entries ([ADR 129](ADR%20129%20-%20Template-Tagged%20Literals%20for%20Extensions.md)).
 
-`jsonValue()` reads a native JSON-compatible literal (a string, a finite number, a boolean, `null`, a list or a record of such values) and returns it as JSON. Block specs use it for members whose value is arbitrary JSON ([ADR 255](ADR%20255%20-%20Block%20specs%20bind%20top-level%20block%20values.md)).
+`jsonValue()` reads a native JSON-compatible literal (a string, a finite number, a boolean, `null`, a list or a record of such values) and returns it as JSON. Block specs use it for members whose value is arbitrary JSON ([ADR 262](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md)).
 
 ### Values of a data type
 

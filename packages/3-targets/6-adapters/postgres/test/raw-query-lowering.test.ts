@@ -7,6 +7,7 @@ import { applicationDomainOf } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
 import { TestSqlContractSerializer as SqlContractSerializer } from '../../../../2-sql/9-family/test/test-sql-contract-serializer';
 import { postgresRawCodecInferer } from '../src/core/adapter';
+import { postgresAdapterCapabilities } from '../src/core/capabilities';
 import { renderLoweredSql } from '../src/core/sql-renderer';
 import type { PostgresContract } from '../src/core/types';
 
@@ -29,8 +30,8 @@ const contract = new SqlContractSerializer().deserializeContract({
           table: {
             user: {
               columns: {
-                id: { codecId: 'pg/int4@1', nativeType: 'int4', nullable: false },
-                email: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+                id: { codecId: 'pg/int4@1', dataType: 'pg/int4', nullable: false },
+                email: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               },
               uniques: [],
               indexes: [],
@@ -52,6 +53,7 @@ function lower(plan: { readonly ast: Parameters<typeof renderLoweredSql>[0] }) {
     contract,
     postgresCodecDescriptorRegistry,
     postgresDataTypeLookup,
+    postgresAdapterCapabilities,
   );
 }
 

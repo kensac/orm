@@ -58,9 +58,9 @@ export function buildColumnDefault(input: {
   const { context } = input;
   const result = mapDefault(columnDefault, {
     dataTypes: context.dataTypes,
-    columnDataType: context.codecLookup.descriptorFor(
+    columnCodec: context.codecLookup.descriptorFor(
       input.isEnum ? PG_TEXT_CODEC_ID : input.column.codecId,
-    )?.dataType,
+    ),
     list: input.column.many !== false,
   });
   if (result === undefined) {

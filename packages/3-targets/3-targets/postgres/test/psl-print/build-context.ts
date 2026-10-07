@@ -3,6 +3,7 @@ import type { AuthoringTypeNamespace } from '@internal/framework-components/auth
 import {
   type CodecDescriptorTemplate,
   createDataTypeLookup,
+  type DataType,
 } from '@internal/framework-components/codec';
 import { postgresAuthoringTypes } from '../../src/core/authoring';
 import { type AnyPostgresCodecDescriptor, postgresCodec } from '../../src/core/codec-descriptor';
@@ -35,6 +36,7 @@ export function testBuildContext(
   extra: {
     readonly types?: AuthoringTypeNamespace;
     readonly codecs?: readonly AnyPostgresCodecDescriptor[];
+    readonly dataTypes?: readonly DataType[];
   } = {},
 ): SqlPslBuildContext {
   const extraCodecs = new Map((extra.codecs ?? []).map((codec) => [codec.codecId, codec]));
@@ -54,7 +56,7 @@ export function testBuildContext(
     },
     dataTypes: {
       entries: postgresDataTypeEntries(),
-      lookup: createDataTypeLookup(postgresDataTypes),
+      lookup: createDataTypeLookup([...postgresDataTypes, ...(extra.dataTypes ?? [])]),
     },
   };
 }

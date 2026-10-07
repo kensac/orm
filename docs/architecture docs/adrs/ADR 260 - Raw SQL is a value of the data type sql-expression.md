@@ -2,7 +2,7 @@
 
 **Status:** Accepted. Built: the data type, the `sql` tag, and the six PSL places. Decided and not yet built: the TypeScript builder's `sql` values (the TypeScript examples below show that surface as planned) and the wire-name rule for line comments.
 **Date:** 2026-09-30
-**Builds on:** [ADR 129 — Tagged literals write values of data types](ADR%20129%20-%20Template-Tagged%20Literals%20for%20Extensions.md), [ADR 231 — Declarative attribute specifications](ADR%20231%20-%20Declarative%20attribute%20specifications.md), [ADR 254 — Data types and casts](ADR%20254%20-%20Data%20types%20and%20casts.md), [ADR 255 — Block specs bind top-level block values](ADR%20255%20-%20Block%20specs%20bind%20top-level%20block%20values.md)
+**Builds on:** [ADR 129 — Tagged literals write values of data types](ADR%20129%20-%20Template-Tagged%20Literals%20for%20Extensions.md), [ADR 231 — Declarative attribute specifications](ADR%20231%20-%20Declarative%20attribute%20specifications.md), [ADR 254 — Data types and casts](ADR%20254%20-%20Data%20types%20and%20casts.md), [ADR 262 — Block specs bind top-level block values](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md)
 
 ---
 
@@ -89,7 +89,7 @@ This is not the "family-level vocabulary of written types" ADR 254 rejects. That
 
 ## Specs name the data type an argument receives
 
-An argument in an attribute spec or a block spec declares the data type it receives with `dataTypeValue(dataType, ctx.dataTypes)` ([ADR 231](ADR%20231%20-%20Declarative%20attribute%20specifications.md)). It reads any literal, applies the cast rule while the argument is parsed, reports refusals at the written value, and returns the canonical value. The index and check specs build it from `AttributeSpecContext.dataTypes` ([ADR 249](ADR%20249%20-%20Central%20attribute-spec%20registry.md)); the policy specs build it from `BlockSpecContext.dataTypes` ([ADR 255](ADR%20255%20-%20Block%20specs%20bind%20top-level%20block%20values.md)):
+An argument in an attribute spec or a block spec declares the data type it receives with `dataTypeValue(dataType, ctx.dataTypes)` ([ADR 231](ADR%20231%20-%20Declarative%20attribute%20specifications.md)). It reads any literal, applies the cast rule while the argument is parsed, reports refusals at the written value, and returns the canonical value. The index and check specs build it from `AttributeSpecContext.dataTypes` ([ADR 249](ADR%20249%20-%20Central%20attribute-spec%20registry.md)); the policy specs build it from `BlockSpecContext.dataTypes` ([ADR 262](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md)):
 
 ```ts
 function checkModelSpec(ctx: AttributeSpecContext) {
@@ -143,7 +143,7 @@ Why: PSL removes the common indentation of a multi-line literal, and a TypeScrip
 - **Prefixed tags, `pg.sql` and `sqlite.sql`.** Rejected. They add nothing the stack does not say.
 - **Special handling of `--` inside `sql/expression` text.** Rejected. The problem is placing SQL inside a larger statement, so it is solved where DDL is rendered, not in the type.
 - **Wait for ADR 254's follow-up work to build typed arguments.** Rejected. Typed arguments are needed by the raw-SQL places, and that work has no specification.
-- **A separate step that types block values in the family interpreter.** Rejected. Block specs already parse values with the same combinators as attributes (ADR 255), so a second mechanism would duplicate it.
+- **A separate step that types block values in the family interpreter.** Rejected. Block specs already parse values with the same combinators as attributes (ADR 262), so a second mechanism would duplicate it.
 - **Leave the TypeScript builder on plain strings.** Rejected. PSL and TypeScript would stop emitting identical contracts for multi-line text.
 - **A `SqlExpression` class with a private constructor and no interpolation.** Rejected. Authors would repeat SQL text across policies, or find another way to build values and skip the canonicalization.
 
@@ -157,4 +157,4 @@ Why: PSL removes the common indentation of a multi-line literal, and a TypeScrip
 - [ADR 244 — Check constraints are opaque wire-named expressions](ADR%20244%20-%20Check%20constraints%20are%20opaque%20wire-named%20expressions.md)
 - [ADR 249 — Central attribute-spec registry](ADR%20249%20-%20Central%20attribute-spec%20registry.md)
 - [ADR 254 — Data types and casts](ADR%20254%20-%20Data%20types%20and%20casts.md)
-- [ADR 255 — Block specs bind top-level block values](ADR%20255%20-%20Block%20specs%20bind%20top-level%20block%20values.md)
+- [ADR 262 — Block specs bind top-level block values](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md)
