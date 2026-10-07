@@ -92,6 +92,19 @@ describe('resolveStatements, field renames', () => {
       );
     });
 
+    it('refuses a field statement that names the old model before the statement renaming it', () => {
+      const origin = contractOf({ app: { models: { Profile: { fields: ['name'] } } } });
+      const destination = contractOf({ app: { models: { User: { fields: ['fullName'] } } } });
+      const failure = expectFailure(
+        resolve(['Profile.name:User.fullName', 'Profile:User'], origin, destination),
+        INVALID,
+        '--rename Profile.name:User.fullName',
+      );
+      expect(failure.fix).toBe(
+        'Write the statements as --rename Profile:User --rename User.name:User.fullName.',
+      );
+    });
+
     it('gives no corrected statement when the old model was renamed to another model', () => {
       const origin = contractOf({
         app: { models: { A: { fields: ['x'] }, C: { fields: ['z'] } } },
