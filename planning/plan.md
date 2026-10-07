@@ -18,12 +18,12 @@ GA is the last chance to make breaking changes, so this stream decides the date.
 
 | # | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Finish ADR 254: data types own column types | Must | Will | 🔄 2 of 4 slices merged | The two backlog slices need an owner |
+| 1 | Finish ADR 254: data types own column types | Must | Will | 🔄 2 of 4 slices merged | Dispatch an agent on the two backlog slices |
 | 2 | One CLI and one config file | Must | Will | 🟡 Code done, public docs open | Merge the docs PR |
-| 3 | Early MySQL attempt, to find shared code that assumes PostgreSQL | Must | Will | ⏳ Not started, no ticket | Needs an owner |
+| 3 | Early MySQL attempt, to find shared code that assumes PostgreSQL | Must | Will | ⏳ Not started, no ticket | Dispatch an agent |
 | 4 | SQL expression literals | Must | Will | 🔄 3 slices merged, 3 in review | Review the three open PRs |
 | 5 | PSL mixins, then remove type aliases and field presets | Must | Serhii | ⏳ No spec | Write the spec |
-| 6 | Remove `@noCheck` and `.noCheck()` | Must | Will | ⏳ Not started, no ticket, unblocked | Needs an owner |
+| 6 | Remove `@noCheck` and `.noCheck()` | Must | Will | ⏳ Not started, no ticket, unblocked | Dispatch an agent |
 | 7 | Migration statements: the planner refuses data loss, the user states renames, deletes, conversions and backfills | Not decided | Will | 🔄 Slice 1 of 4 in progress. Slice 2 is breaking | ❓ Will: GA or after |
 
 ## Stream 2: Upgrade path from Prisma 7
@@ -32,11 +32,11 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 
 | # | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | Two reader gaps and three `contract print` gaps need an owner. One ticket only needs closing |
+| 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | Dispatch agents on the two reader gaps and the three `contract print` gaps. Close TML-3250 |
 | 2 | Prisma 8 owns migrations in a Prisma 7 project that still reads `schema.prisma` | Must | Will | 🟡 Proven. Follow-ups: 1 PR in review, 5 gaps open | Review the PR, then the two high planner gaps |
 | 3 | Unexposed storage: tables and columns migrations manage but the ORM never sees | Not decided | Will | ⏳ Planned, 2 slices | ❓ Will: GA or after |
 | 4 | Upgrade guide rewrite | Must | Will | ⏳ Not tracked. One known error in the guide | Needs a prisma/web PR |
-| 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog | Needs an owner |
+| 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog | Dispatch an agent |
 | 6 | Design: columns Prisma 8 does not manage, including unknown types | Must | Will | ⏳ Proposed, not designed | Design |
 | 7 | Adopt a Prisma 7 database without changing it: the enum membership check | Must | Will | ⏳ Not designed | Design |
 | 8 | Medium and low upgrade issues | Later | Will | ⏳ Backlog | |
@@ -74,7 +74,7 @@ In progress but not ranked here:
 | Collection classes and scopes | Will | 🔄 Collection classes merged. Scopes in review | Review |
 | `variant()` selects by discriminator value | Will | ✅ Merged 2026-10-06 | |
 | The Postgres driver returns every column as text | Will | ✅ Merged 2026-10-06 | |
-| Cache middleware | Will | 🔄 Invalidation, keys and the after-transaction stage merged. Invalidation after commit in backlog | Needs an owner |
+| Cache middleware | Will | 🔄 Invalidation, keys and the after-transaction stage merged. Invalidation after commit in backlog | Dispatch an agent |
 
 ## Stream 5: Docs and the new user's first hour
 
