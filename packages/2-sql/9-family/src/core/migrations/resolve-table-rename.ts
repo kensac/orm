@@ -83,11 +83,14 @@ export function resolveTableRenameAgainst(
       ),
     );
   }
-  if (previous.hasTable(namespaceId, rename.to)) {
+  const [taken] = previous
+    .tablesNamed(namespaceId, rename.to)
+    .filter((table) => table !== rename.from);
+  if (taken !== undefined) {
     return notOk(
       unmatchedTableRename(
         rename,
-        `table "${tableLabel(namespaceId, rename.to)}" already exists at this point of the migration`,
+        `table "${tableLabel(namespaceId, rename.to)}" already exists at this point of the migration${taken === rename.to ? '' : ` as "${taken}"`}`,
       ),
     );
   }

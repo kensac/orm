@@ -58,6 +58,8 @@ function schemaTables(
     hasTable: (namespaceId, table) => columnsOf(namespaceId, table) !== undefined,
     hasColumn: (namespaceId, table, column) =>
       columnsOf(namespaceId, table)?.includes(column) === true,
+    tablesNamed: (namespaceId, table) =>
+      columnsOf(namespaceId, table) === undefined ? [] : [table],
     columnsNamed: (namespaceId, table, column) =>
       (columnsOf(namespaceId, table) ?? []).filter(
         (existing) => existing.toLowerCase() === column.toLowerCase(),

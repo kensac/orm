@@ -186,6 +186,24 @@ describe('SqliteMigration.renameTable', () => {
     );
   });
 
+  it('refuses a new name another table holds in another case, since SQLite ignores case', () => {
+    expect(
+      () =>
+        renameMigration(
+          contractOf('userProfile', {}, 'from'),
+          contractOf('UserProfile', {}, 'to'),
+          { table: 'userProfile', to: 'Account' },
+        ).operations,
+    ).toThrow(
+      expect.objectContaining({
+        code: 'MIGRATION.TABLE_RENAME_UNMATCHED',
+        message: expect.stringContaining(
+          'table "Account" already exists at this point of the migration as "account"',
+        ),
+      }),
+    );
+  });
+
   it('renames a table twice in one migration when the end contract declares both new names, each rename from where the last left it', async () => {
     const ops = await Promise.all(
       renameMigration(

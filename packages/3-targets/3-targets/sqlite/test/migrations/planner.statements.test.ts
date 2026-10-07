@@ -166,4 +166,30 @@ describe('SQLite planner, model statements', () => {
       }),
     ]);
   });
+
+  it('refuses a rename onto a name another table holds in another case, since SQLite ignores case', () => {
+    const withUser = withModels(
+      contractOf('Profile', derivedIndex, 'from-with-user', { user: plainTable() }),
+      { Profile: 'Profile', Account: 'user' },
+    );
+    expect(conflictsOf(plan(withUser, to, [renameModel('Profile', 'User')]))).toEqual([
+      expect.objectContaining({
+        kind: 'statementRejected',
+        summary:
+          'Cannot rename table "Profile" to "User": the schema being planned from already has a table "User", as "user"',
+      }),
+    ]);
+  });
+
+  it('plans a rename that changes only the case of the table name', async () => {
+    const lower = withModels(contractOf('profile', derivedIndex, 'from-lower'), {
+      profile: 'profile',
+    });
+    const upper = withModels(contractOf('Profile', derivedIndex, 'to-upper'), {
+      Profile: 'Profile',
+    });
+    expect(await labelsOf(plan(lower, upper, [renameModel('profile', 'Profile')]))).toContain(
+      'Rename table profile to Profile',
+    );
+  });
 });

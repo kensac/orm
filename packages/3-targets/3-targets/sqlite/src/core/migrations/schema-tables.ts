@@ -5,7 +5,7 @@ import { sqliteIdentifiersCollide } from './identifier-case';
 
 /**
  * The tables of a SQLite schema. SQLite has one namespace, so the namespace id is ignored, and it
- * compares column names without regard to the case of ASCII letters.
+ * compares table and column names without regard to the case of ASCII letters.
  */
 export function sqliteSchemaTables(schema: SqlSchemaIR): SchemaTables {
   const hasTable = (_namespaceId: string, table: string) => Object.hasOwn(schema.tables, table);
@@ -13,6 +13,8 @@ export function sqliteSchemaTables(schema: SqlSchemaIR): SchemaTables {
     hasTable,
     hasColumn: (_namespaceId, table, column) =>
       Object.hasOwn(schema.tables[table]?.columns ?? {}, column),
+    tablesNamed: (_namespaceId, table) =>
+      Object.keys(schema.tables).filter((existing) => sqliteIdentifiersCollide(existing, table)),
     columnsNamed: (_namespaceId, table, column) =>
       Object.keys(schema.tables[table]?.columns ?? {}).filter((existing) =>
         sqliteIdentifiersCollide(existing, column),

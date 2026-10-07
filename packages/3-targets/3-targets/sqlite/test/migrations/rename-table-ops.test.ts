@@ -1,6 +1,6 @@
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import { describe, expect, it } from 'vitest';
-import { tableExistsAst } from '../../src/contract-free/checks';
+import { tableExistsAst, tableNameTakenAst } from '../../src/contract-free/checks';
 import {
   CreateIndexCall,
   DropIndexCall,
@@ -42,7 +42,7 @@ describe('RenameTableCall (sqlite)', () => {
 
     expect(received).toEqual([
       tableExistsAst('profile').tablePresent(),
-      tableExistsAst('account').tableAbsent(),
+      tableNameTakenAst('account').nameFree(),
       tableExistsAst('account').tablePresent(),
       tableExistsAst('profile').tableAbsent(),
     ]);
@@ -54,7 +54,11 @@ describe('RenameTableCall (sqlite)', () => {
       target: { id: 'sqlite', details: { schema: 'main', objectType: 'table', name: 'account' } },
       precheck: [
         { description: 'ensure table "profile" exists', sql: 'LOWERED 1', params: ['p1'] },
-        { description: 'ensure table "account" does not exist', sql: 'LOWERED 2', params: ['p2'] },
+        {
+          description: 'ensure no table or index is named "account" in any case',
+          sql: 'LOWERED 2',
+          params: ['p2'],
+        },
       ],
       execute: [
         {

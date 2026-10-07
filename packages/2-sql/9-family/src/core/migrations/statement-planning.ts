@@ -318,11 +318,14 @@ class StatementPlanner<TCall> {
         ),
       );
     }
-    if (tables.hasTable(rename.namespaceId, rename.to)) {
+    const [taken] = tables
+      .tablesNamed(rename.namespaceId, rename.to)
+      .filter((table) => table !== rename.from);
+    if (taken !== undefined) {
       return notOk(
         rejected(
           statement,
-          `${label}: the schema being planned from already has a table "${rename.to}"`,
+          `${label}: the schema being planned from already has a table "${rename.to}"${taken === rename.to ? '' : `, as "${taken}"`}`,
           'A rename cannot replace a table that already exists.',
           destinationTable,
         ),

@@ -22,6 +22,7 @@ export function postgresSchemaTables(
     hasTable,
     hasColumn: (namespaceId, table, column) =>
       Object.hasOwn(tableIn(namespaceId, table)?.columns ?? {}, column),
+    tablesNamed: (namespaceId, table) => (hasTable(namespaceId, table) ? [table] : []),
     columnsNamed: (namespaceId, table, column) =>
       Object.hasOwn(tableIn(namespaceId, table)?.columns ?? {}, column) ? [column] : [],
     namespacesWithTable: (table) =>

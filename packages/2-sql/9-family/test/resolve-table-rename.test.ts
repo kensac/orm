@@ -66,13 +66,19 @@ describe('resolveTableRenameAgainst', () => {
     [UNBOUND_NAMESPACE_ID]: { UserProfile: table(), Account: table() },
     auth: { Session: table() },
   });
-  const atThisPoint = (namespaces: Readonly<Record<string, readonly string[]>>): SchemaTables => ({
+  const atThisPoint = (
+    namespaces: Readonly<Record<string, readonly string[]>>,
+    sameName: (left: string, right: string) => boolean = (left, right) => left === right,
+  ): SchemaTables => ({
     hasTable: (namespaceId, tableName) => namespaces[namespaceId]?.includes(tableName) === true,
     hasColumn: () => false,
+    tablesNamed: (namespaceId, tableName) =>
+      (namespaces[namespaceId] ?? []).filter((existing) => sameName(existing, tableName)),
     columnsNamed: () => [],
     namespacesWithTable: (tableName) =>
       Object.keys(namespaces).filter((namespaceId) => namespaces[namespaceId]?.includes(tableName)),
   });
+  const ignoringCase = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
   const lookup = atThisPoint({
     [UNBOUND_NAMESPACE_ID]: ['userProfile', 'Account'],
     auth: ['login'],
@@ -83,6 +89,29 @@ describe('resolveTableRenameAgainst', () => {
     expect(result.ok).toBe(false);
     return result.ok ? undefined : result.failure;
   }
+
+  it('refuses a new name another table holds in another case where the database ignores case', () => {
+    const caseless = atThisPoint(
+      { [UNBOUND_NAMESPACE_ID]: ['userProfile', 'account'] },
+      ignoringCase,
+    );
+    expect(refusalFor(rename('userProfile', 'Account'), caseless)).toMatchObject({
+      code: 'MIGRATION.TABLE_RENAME_UNMATCHED',
+      message: expect.stringContaining(
+        'table "Account" already exists at this point of the migration as "account"',
+      ),
+    });
+  });
+
+  it('resolves a rename that changes only the case of the name where the database ignores case', () => {
+    const caseless = atThisPoint({ [UNBOUND_NAMESPACE_ID]: ['userProfile'] }, ignoringCase);
+    expect(
+      resolveTableRenameAgainst(caseless, endContract, rename('userProfile', 'UserProfile')),
+    ).toMatchObject({
+      ok: true,
+      value: { namespaceId: UNBOUND_NAMESPACE_ID, from: 'userProfile', to: 'UserProfile' },
+    });
+  });
 
   it('resolves the namespace the lookup finds the table in', () => {
     const result = resolveTableRenameAgainst(lookup, endContract, rename('login', 'Session'));

@@ -31,7 +31,12 @@ import {
   tsQuotedTextSource,
 } from '@internal/ts-render';
 import { ifDefined } from '@internal/utils/defined';
-import { columnExistsAst, indexExistsAst, tableExistsAst } from '../../contract-free/checks';
+import {
+  columnExistsAst,
+  indexExistsAst,
+  tableExistsAst,
+  tableNameTakenAst,
+} from '../../contract-free/checks';
 import * as contractFreeDdl from '../../contract-free/ddl';
 import { sqliteError } from '../errors';
 import { quoteIdentifier } from '../sql-utils';
@@ -337,9 +342,12 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
     const fromChecks = tableExistsAst(this.oldTableName);
     const toChecks = tableExistsAst(this.tableName);
     const fromPresent = await lowerer.lowerToExecuteRequest(fromChecks.tablePresent());
-    const toAbsent = await lowerer.lowerToExecuteRequest(toChecks.tableAbsent());
+    const onlyCase = renameChangesOnlyCase(this.oldTableName, this.tableName);
+    const toAbsent = await lowerer.lowerToExecuteRequest(
+      onlyCase ? toChecks.tableAbsent() : tableNameTakenAst(this.tableName).nameFree(),
+    );
     const viaName = renameTableViaName(this.tableName);
-    const viaAbsent = renameChangesOnlyCase(this.oldTableName, this.tableName)
+    const viaAbsent = onlyCase
       ? await lowerer.lowerToExecuteRequest(tableExistsAst(viaName).tableAbsent())
       : undefined;
     const toPresent = await lowerer.lowerToExecuteRequest(toChecks.tablePresent());
@@ -352,7 +360,13 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
       target: { id: 'sqlite', details: buildTargetDetails('table', this.tableName) },
       precheck: [
         step(`ensure table "${this.oldTableName}" exists`, fromPresent.sql, fromPresent.params),
-        step(`ensure table "${this.tableName}" does not exist`, toAbsent.sql, toAbsent.params),
+        step(
+          onlyCase
+            ? `ensure table "${this.tableName}" does not exist`
+            : `ensure no table or index is named "${this.tableName}" in any case`,
+          toAbsent.sql,
+          toAbsent.params,
+        ),
         ...(viaAbsent === undefined
           ? []
           : [

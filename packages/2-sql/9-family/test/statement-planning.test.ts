@@ -14,6 +14,8 @@ import {
   renameModel,
 } from './statement-fixtures';
 
+const ignoringCase = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
+
 describe('modelRenameStorageEffect', () => {
   it('is unchanged when both models map to the same table', () => {
     const origin = contractOf({ Profile: { table: 'profile' } });
@@ -197,6 +199,34 @@ describe('planStatements', () => {
       }),
     );
     expect(conflict.summary).toContain('already has a table "User"');
+  });
+
+  it('rejects a rename onto a name another table holds in another case where the target ignores case', () => {
+    const conflict = rejection(
+      planStatements({
+        policy: ALL_CLASSES,
+        statements: [renameModel('Profile', 'User')],
+        fromContract: contractOf({ Profile: { table: 'Profile' } }),
+        contract: contractOf({ User: { table: 'User' } }),
+        target: fakeTarget(['app.Profile', 'app.user'], {}, ['widening'], ignoringCase),
+      }),
+    );
+    expect(conflict.summary).toBe(
+      'Cannot rename table "Profile" to "User": the schema being planned from already has a table "User", as "user"',
+    );
+  });
+
+  it('plans a rename that changes only the case of the table name where the target ignores case', () => {
+    const result = planned(
+      planStatements({
+        policy: ALL_CLASSES,
+        statements: [renameModel('profile', 'Profile')],
+        fromContract: contractOf({ profile: { table: 'profile' } }),
+        contract: contractOf({ Profile: { table: 'Profile' } }),
+        target: fakeTarget(['app.profile'], {}, ['widening'], ignoringCase),
+      }),
+    );
+    expect(result.calls).toEqual(['table app.profile -> Profile']);
   });
 
   it('rejects a rename whose operations the policy does not allow', () => {
