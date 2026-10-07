@@ -345,7 +345,9 @@ describe('a GIN index over to_tsvector, authored in PSL', () => {
     const node = nodes[0]!;
     expect(node.type).toBe('gin');
     expect(node.elements).toEqual({
-      expression: `(setweight(to_tsvector('english', coalesce("text", '')), 'A') || setweight(to_tsvector('english', coalesce("note", '')), 'B'))`,
+      expression: opaqueSql(
+        `(setweight(to_tsvector('english', coalesce("text", '')), 'A') || setweight(to_tsvector('english', coalesce("note", '')), 'B'))`,
+      ),
     });
     expect(node.name.startsWith('message_search')).toBe(true);
   });
