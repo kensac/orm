@@ -15,6 +15,7 @@ import { constraintRenamesForColumnRename } from './column-rename-constraint-ren
 import { buildPostgresPlanDiff } from './diff-database-schema';
 import { pairCheckRenames, pairIndexRenames } from './index-and-check-renames';
 import { RenameColumnCall, RenameTableCall } from './op-factory-call';
+import { renameTableStatement } from './operations/tables';
 import { resolveDdlSchemaForNamespaceStorage } from './resolve-ddl-schema';
 import { constraintRenamesForTableRename } from './table-rename-constraint-renames';
 import { renameColumnInPostgresSchema, renameTableInPostgresSchema } from './working-schema';
@@ -41,6 +42,20 @@ export function renderRenameTableCall(rename: TableRenameRequest): string {
     rename.to,
     [],
   ).renderTypeScript();
+}
+
+/** The SQL a user runs against the database to rename the table by hand. */
+export function renameTableByHandStatements(
+  contract: Contract<SqlStorage>,
+  rename: TableRename,
+): readonly string[] {
+  return [
+    renameTableStatement(
+      emissionSchemaForNamespace(contract, rename.namespaceId),
+      rename.from,
+      rename.to,
+    ),
+  ];
 }
 
 function tableNode(

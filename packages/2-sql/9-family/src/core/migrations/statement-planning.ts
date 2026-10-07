@@ -167,6 +167,8 @@ export interface StatementPlanningTarget<TCall extends CallWithCompanions> {
   apply(call: TCall): void;
   /** The `renameTable` call a user writes in `migration.ts` to make `rename` by hand. */
   renderTableRename(rename: TableRename): string;
+  /** The SQL statements a user runs against the database to make `rename` by hand. */
+  tableRenameByHand(rename: TableRename): readonly string[];
 }
 
 function operationsOf(call: CallWithCompanions): readonly SingleOperationCall[] {
@@ -468,11 +470,18 @@ class StatementPlanner<TCall extends CallWithCompanions> {
       (destinationTable.namespaceId !== effect.table.namespaceId ||
         destinationTable.table !== table)
     ) {
+      const tableRename = {
+        namespaceId: effect.table.namespaceId,
+        from: table,
+        to: destinationTable.table,
+      };
+      const model = modelDisplayName(statement.to);
+      const fieldText = `${model}.${statement.from.field}:${model}.${statement.to.field}`;
       return notOk(
         statementRefused(
           statement,
           `Cannot rename column "${table}"."${effect.from}": the model's table changes from "${table}" to "${destinationTable.table}", and no statement renames the table`,
-          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Rename the table by hand in its own migration first. Change the contract so that only the table name changes, and run prisma contract emit. Run prisma migration new --name <name> --from <hash of the migration the database is at>, add ${this.#target.renderTableRename({ namespaceId: effect.table.namespaceId, from: table, to: destinationTable.table })} to the operations of its migration.ts, and run node on that migration.ts to write its ops.json. Then change the contract to its final form, emit it, and plan the field rename with --from that migration.`,
+          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. With migration plan, rename the table by hand in its own migration first. Change the contract so that only the table name changes, and run prisma contract emit. Run prisma migration new --name <name> --from <hash of the migration the database is at>, add ${this.#target.renderTableRename(tableRename)} to the operations of its migration.ts, and run node on that migration.ts to write its ops.json. Then change the contract to its final form, emit it, and plan the field rename with --from that migration. With db update, change the contract so that only the table name changes, and run prisma contract emit. Rename the table in the database yourself with ${this.#target.tableRenameByHand(tableRename).join('; ')}, check that prisma db update --dry-run plans no drop, and run prisma db update to store that contract. Then emit the final contract and run prisma db update --rename ${fieldText}.`,
           { namespaceId: effect.table.namespaceId, table, column: effect.from },
         ),
       );

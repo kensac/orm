@@ -75,15 +75,14 @@ import {
   RenamePostgresRlsPolicyCall,
   type RenameTableCall,
 } from './op-factory-call';
-import { renameTableStatement } from './operations/tables';
 import { TypeScriptRenderablePostgresMigration } from './planner-produced-postgres-migration';
 import { postgresPlannerStrategies } from './planner-strategies';
 import { resolveDdlSchemaForNamespaceStorage } from './resolve-ddl-schema';
 import { postgresSchemaTables } from './schema-tables';
 import {
-  emissionSchemaForNamespace,
   postgresColumnRenameCall,
   postgresTableRenameCall,
+  renameTableByHandStatements,
   renderRenameTableCall,
 } from './table-rename-calls';
 import { verifyPostgresNamespacePresence } from './verify-postgres-namespaces';
@@ -346,13 +345,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       },
       namespaceIdOf: (issue) =>
         resolveNamespaceIdForDdlSchema(options.contract, issueSchemaName(issue) ?? schemaName),
-      renameByHandStatements: (rename) => [
-        renameTableStatement(
-          emissionSchemaForNamespace(options.contract, rename.namespaceId),
-          rename.from,
-          rename.to,
-        ),
-      ],
+      renameByHandStatements: (rename) => renameTableByHandStatements(options.contract, rename),
       renameTableCall: renderRenameTableCall,
       contract: options.contract,
       defaultNamespaceId: DEFAULT_NAMESPACE_ID,
@@ -727,6 +720,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
           }),
         apply: (call) => working.apply(call),
         renderTableRename: renderRenameTableCall,
+        tableRenameByHand: (rename) => renameTableByHandStatements(options.contract, rename),
       },
     });
     if (!planned.ok) return planned;

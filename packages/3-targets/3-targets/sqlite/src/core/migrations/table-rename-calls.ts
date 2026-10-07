@@ -7,7 +7,13 @@ import { buildSqlitePlanDiff } from './diff-database-schema';
 import { pairIndexReplacements, renamedColumnIndex, renamedTableIndex } from './index-replacements';
 import { coalesceSubtreeIssues } from './issue-planner';
 import { RenameColumnCall, RenameTableCall } from './op-factory-call';
+import { renameTableSteps } from './operations/tables';
 import { renameColumnInSqliteSchema, renameTableInSqliteSchema } from './working-schema';
+
+/** The SQL a user runs against the database to rename the table by hand. */
+export function renameTableByHandStatements(rename: TableRenameRequest): readonly string[] {
+  return renameTableSteps(rename.from, rename.to).map((renameStep) => renameStep.sql);
+}
 
 /** The `renameTable` call a user writes in `migration.ts` for `rename`; SQLite has no namespaces. */
 export function renderRenameTableCall(rename: TableRenameRequest): string {

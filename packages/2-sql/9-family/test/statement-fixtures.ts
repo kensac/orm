@@ -200,6 +200,9 @@ export function fakeTarget(
       call(`column ${rename.namespaceId}.${rename.table}.${rename.from} -> ${rename.to}`),
     renderTableRename: (rename: TableRename) =>
       `renameTable ${rename.namespaceId}.${rename.from} -> ${rename.to}`,
+    tableRenameByHand: (rename: TableRename) => [
+      `RENAME ${rename.namespaceId}.${rename.from} TO ${rename.to}`,
+    ],
     apply: ({ text }) => {
       const [kind, from, , to] = text.split(' ');
       if (from === undefined || to === undefined) return;

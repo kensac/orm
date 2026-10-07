@@ -319,5 +319,8 @@ describe('SQLite planner, field statements', () => {
         ),
       }),
     ]);
+    expect(result.kind === 'failure' && result.conflicts[0]?.why).toContain(
+      'With db update, change the contract so that only the table name changes, and run prisma contract emit. Rename the table in the database yourself with ALTER TABLE "Profile" RENAME TO "User", check that prisma db update --dry-run plans no drop, and run prisma db update to store that contract. Then emit the final contract and run prisma db update --rename User.email:User.emailAddress.',
+    );
   });
 });
