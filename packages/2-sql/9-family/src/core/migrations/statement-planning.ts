@@ -142,20 +142,23 @@ export function fieldRenameStorageEffect(
   return ok({ kind: 'renameColumn', table, from, to });
 }
 
-/** A call a statement plans, or one of its companions: the one operation it lowers to. */
-export interface StatementOperationCall {
+/** A call that lowers to one operation, such as a companion of a rename. */
+export interface SingleOperationCall {
   readonly operationClass: MigrationOperationClass;
   /** The id of the operation the call lowers to. */
   readonly operationId: string;
 }
 
-/** A call a statement plans: its own operation, then each companion's, in that order. */
-export interface StatementCall extends StatementOperationCall {
-  readonly companions: readonly StatementOperationCall[];
+/**
+ * A call that lowers to its own operation, then each companion's, in that order: a table or column
+ * rename, whether a statement plans it or a hand-written migration calls it.
+ */
+export interface CallWithCompanions extends SingleOperationCall {
+  readonly companions: readonly SingleOperationCall[];
 }
 
 /** What a target supplies for planning statements against its working schema. */
-export interface StatementPlanningTarget<TCall extends StatementCall> {
+export interface StatementPlanningTarget<TCall extends CallWithCompanions> {
   /** The tables of the working schema as earlier statements have left it. */
   tables(): SchemaTables;
   /** The call that renames a table, with its companions, computed against the working schema. */
@@ -168,11 +171,11 @@ export interface StatementPlanningTarget<TCall extends StatementCall> {
   renderTableRename(rename: TableRename): string;
 }
 
-function operationsOf(call: StatementCall): readonly StatementOperationCall[] {
+function operationsOf(call: CallWithCompanions): readonly SingleOperationCall[] {
   return [call, ...call.companions];
 }
 
-export interface PlannedStatements<TCall extends StatementCall> {
+export interface PlannedStatements<TCall extends CallWithCompanions> {
   readonly calls: readonly TCall[];
   readonly tableRenames: readonly TableRename[];
   readonly columnRenames: readonly ColumnRename[];
@@ -307,7 +310,7 @@ function columnRenameRefused(
   }
 }
 
-class StatementPlanner<TCall extends StatementCall> {
+class StatementPlanner<TCall extends CallWithCompanions> {
   readonly #fromContract: Contract<SqlStorage>;
   readonly #contract: Contract<SqlStorage>;
   readonly #policy: MigrationOperationPolicy;
@@ -499,7 +502,7 @@ class StatementPlanner<TCall extends StatementCall> {
  * statements left, then applied to it. The first statement that cannot be planned fails the whole
  * plan with a `statementRefused` conflict that carries the statement.
  */
-export function planStatements<TCall extends StatementCall>(input: {
+export function planStatements<TCall extends CallWithCompanions>(input: {
   readonly statements: readonly ResolvedMigrationStatement[];
   readonly fromContract: Contract<SqlStorage> | null;
   readonly contract: Contract<SqlStorage>;

@@ -72,14 +72,14 @@ export type {
 export type { SchemaTables } from '../core/migrations/schema-tables';
 export { sqlTypeLookupsOf } from '../core/migrations/sql-type-lookups';
 export type {
+  CallWithCompanions,
   ColumnOnOneSide,
   FieldStorageEffect,
   ModelStorageEffect,
   ModelTable,
   NoTable,
   PlannedStatements,
-  StatementCall,
-  StatementOperationCall,
+  SingleOperationCall,
   StatementPlanningTarget,
 } from '../core/migrations/statement-planning';
 export {

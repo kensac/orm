@@ -17,8 +17,8 @@ import type { ColumnRename } from '../src/core/migrations/resolve-column-rename'
 import type { TableRename } from '../src/core/migrations/resolve-table-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
 import type {
+  CallWithCompanions,
   planStatements,
-  StatementCall,
   StatementPlanningTarget,
 } from '../src/core/migrations/statement-planning';
 
@@ -155,7 +155,7 @@ export function renameField(
 }
 
 /** A fake target's call: its text names the rename, and it carries one companion. */
-export interface FakeCall extends StatementCall {
+export interface FakeCall extends CallWithCompanions {
   readonly text: string;
 }
 
