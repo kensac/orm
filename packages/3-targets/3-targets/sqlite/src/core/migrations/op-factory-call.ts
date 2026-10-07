@@ -61,11 +61,19 @@ type Op = SqlMigrationPlanOperation<SqlitePlanTargetDetails>;
 // list.
 const TARGET_MIGRATION_MODULE = '@internal/sqlite/migration';
 
-abstract class SqliteOpFactoryCallNode extends TsExpression implements FrameworkOpFactoryCall {
+export abstract class SqliteOpFactoryCallNode
+  extends TsExpression
+  implements FrameworkOpFactoryCall
+{
   abstract readonly factoryName: string;
   abstract readonly operationClass: MigrationOperationClass;
   abstract readonly label: string;
   abstract toOp(lowerer?: Lowerer): Op | Promise<Op>;
+
+  /** The operations this call lowers to, in order: one, unless the call carries companions. */
+  toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
+    return [this.toOp(lowerer)];
+  }
 
   importRequirements(): readonly ImportRequirement[] {
     return [{ moduleSpecifier: TARGET_MIGRATION_MODULE, symbol: this.factoryName }];
@@ -327,7 +335,7 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
-  toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
+  override toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
 
@@ -434,7 +442,7 @@ export class RenameColumnCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
-  toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
+  override toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
 

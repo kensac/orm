@@ -4,6 +4,7 @@ import type { MigrationPlanOperation, OpFactoryCall } from '@internal/framework-
 import { blindCast } from '@internal/utils/casts';
 import { isThenable } from '@internal/utils/promise';
 import { sqliteError } from '../errors';
+import { SqliteOpFactoryCallNode } from './op-factory-call';
 import type { SqlitePlanTargetDetails } from './planner-target-details';
 
 type Op = SqlMigrationPlanOperation<SqlitePlanTargetDetails>;
@@ -42,14 +43,14 @@ export function renderOps(
 ): (Op | Promise<Op>)[] {
   return calls.flatMap((c) => {
     const lowered =
-      c.toOps === undefined
-        ? [
+      c instanceof SqliteOpFactoryCallNode
+        ? c.toOps(lowerer)
+        : [
             blindCast<
               { toOp(lowerer?: ExecuteRequestLowerer): Op | Promise<Op> },
               'SQLite OpFactoryCall.toOp accepts an optional ExecuteRequestLowerer; the framework interface omits it because not all targets need a lowerer — the SQLite target overrides with this extended signature'
             >(c).toOp(lowerer),
-          ]
-        : c.toOps(lowerer);
+          ];
     return lowered.map((opOrPromise) => checkedOp(opOrPromise, c.factoryName));
   });
 }

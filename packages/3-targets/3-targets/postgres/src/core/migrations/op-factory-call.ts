@@ -122,11 +122,19 @@ type Op = SqlMigrationPlanOperation<PostgresPlanTargetDetails>;
 // import list.
 const POSTGRES_MIGRATION_FACADE = '@internal/postgres/migration';
 
-abstract class PostgresOpFactoryCallNode extends TsExpression implements FrameworkOpFactoryCall {
+export abstract class PostgresOpFactoryCallNode
+  extends TsExpression
+  implements FrameworkOpFactoryCall
+{
   abstract readonly factoryName: string;
   abstract readonly operationClass: MigrationOperationClass;
   abstract readonly label: string;
   abstract toOp(lowerer?: Lowerer): Op | Promise<Op>;
+
+  /** The operations this call lowers to, in order: one, unless the call carries companions. */
+  toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
+    return [this.toOp(lowerer)];
+  }
 
   importRequirements(): readonly ImportRequirement[] {
     return [{ moduleSpecifier: POSTGRES_MIGRATION_FACADE, symbol: this.factoryName }];
@@ -404,7 +412,7 @@ export class RenameTableCall extends PostgresOpFactoryCallNode {
     this.freeze();
   }
 
-  toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
+  override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
 
@@ -542,7 +550,7 @@ export class RenameColumnCall extends PostgresOpFactoryCallNode {
     this.freeze();
   }
 
-  toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
+  override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
 

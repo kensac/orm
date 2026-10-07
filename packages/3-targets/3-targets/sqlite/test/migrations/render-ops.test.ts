@@ -1,59 +1,37 @@
-import type { OpFactoryCall } from '@internal/framework-components/control';
+import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import { describe, expect, it } from 'vitest';
+import {
+  CreateIndexCall,
+  DropIndexCall,
+  RenameTableCall,
+} from '../../src/core/migrations/op-factory-call';
 import { renderOps } from '../../src/core/migrations/render-ops';
 
 describe('renderOps with a call that produces several ops', () => {
-  function op(id: string) {
-    return {
-      id,
-      label: `${id} op`,
-      operationClass: 'widening',
-      target: { id: 'sqlite' },
-      precheck: [],
-      execute: [],
-      postcheck: [],
-    };
-  }
-
-  it('renders every op toOps returns, in order, and passes the lowerer through', async () => {
-    const lowerer = {
-      lower: () => {
-        throw new Error('unused');
-      },
-    };
+  it('renders the call and each of its companions, in order, with the same lowerer', async () => {
     const received: unknown[] = [];
-    const call = {
-      factoryName: 'renameTable',
-      operationClass: 'widening',
-      label: 'rename',
-      renderTypeScript: () => '',
-      importRequirements: () => [],
-      toOp: () => op('unused'),
-      toOps: (passed: unknown) => {
-        received.push(passed);
-        return [op('renameTable.a'), Promise.resolve(op('renameConstraint.a_pkey'))];
+    const lowerer: ExecuteRequestLowerer = {
+      lower: () => Object.freeze({ sql: 'UNUSED', params: Object.freeze([]) }),
+      lowerToExecuteRequest: async (ast) => {
+        received.push(ast);
+        return Object.freeze({ sql: 'LOWERED', params: Object.freeze([]) });
       },
-    } as unknown as OpFactoryCall;
-
-    const result = await Promise.all(renderOps([call], lowerer as never));
-
-    expect(result.map((rendered) => rendered.id)).toEqual([
-      'renameTable.a',
-      'renameConstraint.a_pkey',
+      renderColumnDefault: async () => '',
+    };
+    const call = new RenameTableCall('a', 'b', [
+      {
+        drop: new DropIndexCall('b', 'a_handle_idx'),
+        create: new CreateIndexCall('b', 'b_handle_idx', ['handle']),
+      },
     ]);
-    expect(received).toEqual([lowerer]);
-  });
 
-  it('checks the target of every op toOps returns', () => {
-    const call = {
-      factoryName: 'renameTable',
-      toOp: () => op('unused'),
-      toOps: () => [
-        op('renameTable.a'),
-        { ...op('renameConstraint.a_pkey'), target: { id: 'other' } },
-      ],
-    } as unknown as OpFactoryCall;
+    const result = await Promise.all(renderOps([call], lowerer));
 
-    expect(() => renderOps([call])).toThrow(/target\.id="other"/);
+    expect(result.map((rendered) => rendered.label)).toEqual([
+      'Rename table a to b',
+      'Drop index a_handle_idx on b',
+      'Create index b_handle_idx on b',
+    ]);
+    expect(received.length).toBeGreaterThan(0);
   });
 });

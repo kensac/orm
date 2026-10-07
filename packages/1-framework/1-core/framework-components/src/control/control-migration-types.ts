@@ -172,12 +172,6 @@ export interface OpFactoryCall {
    * the lowering requires async codec resolution (e.g. DDL with literal defaults).
    */
   toOp(): MigrationPlanOperation | Promise<MigrationPlanOperation>;
-  /**
-   * Lower this call to several runtime operations, in order, when one call stands for a change
-   * that takes more than one. Renderers use it instead of {@link toOp} when present, and pass it
-   * the same target lowerer.
-   */
-  toOps?(lowerer?: unknown): readonly (MigrationPlanOperation | Promise<MigrationPlanOperation>)[];
 }
 
 // ============================================================================
