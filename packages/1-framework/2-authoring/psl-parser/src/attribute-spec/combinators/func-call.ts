@@ -1,16 +1,28 @@
+import { blindCast } from '@internal/utils/casts';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import type { PslDiagnostic } from '../../diagnostic';
 import { nodePslSpan } from '../../resolve';
 import type { ExpressionAst } from '../../syntax/ast/expressions';
 import { FunctionCallAst } from '../../syntax/ast/expressions';
 import { interpretArgs } from '../interpret';
-import type { AttributeCtx, FuncCallArgType, FuncCallSig, TypedFuncCall } from '../types';
+import type {
+  AttributeCtx,
+  FieldAttributeCtx,
+  FuncCallArgType,
+  FuncCallContext,
+  FuncCallSig,
+  TypedFuncCall,
+} from '../types';
 import { leafDiagnostic } from './diagnostic';
 
-export function funcCall<const Name extends string, const Signature extends FuncCallSig>(
-  name: Name,
-  sig: Signature,
-): FuncCallArgType<Name, AttributeCtx, Signature> {
+export function funcCall<
+  const Name extends string,
+  const Signature extends FuncCallSig<FieldAttributeCtx>,
+>(name: Name, sig: Signature): FuncCallArgType<Name, FuncCallContext<Signature>, Signature> {
+  const signature = blindCast<
+    FuncCallSig<FuncCallContext<Signature>>,
+    'FuncCallContext selects the strongest context required by every parameter in the signature.'
+  >(sig);
   return {
     kind: 'funcCall',
     label: `${name}()`,
@@ -23,7 +35,7 @@ export function funcCall<const Name extends string, const Signature extends Func
       const span = nodePslSpan(guard.value.syntax, ctx.sources);
       const bound = interpretArgs(
         guard.value.args(),
-        { name, positional: sig.positional ?? [], named: sig.named ?? {} },
+        { name, positional: signature.positional ?? [], named: signature.named ?? {} },
         ctx,
         span,
         guard.value.syntax,

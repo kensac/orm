@@ -1595,7 +1595,7 @@ model Item {
         model Events {
           id       ObjectId @id @map("_id")
           wildcard String
-          @@index([wildcard(sort: Desc)])
+          @@index([sort(wildcard, Desc)])
         }
       `);
       const indexes = getIndexes(ir, 'Events');
@@ -1624,12 +1624,12 @@ model Item {
       ]);
     });
 
-    it('creates descending index from sort: Desc', () => {
+    it('creates descending index from sort(field, Desc)', () => {
       const ir = interpretOk(`
         model Events {
           id        ObjectId @id @map("_id")
           createdAt Date
-          @@index([createdAt(sort: Desc)])
+          @@index([sort(createdAt, Desc)])
         }
       `);
       const indexes = getIndexes(ir, 'Events');
@@ -1642,7 +1642,7 @@ model Item {
           id        ObjectId @id @map("_id")
           status    String
           createdAt Date
-          @@index([status, createdAt(sort: Desc)])
+          @@index([status, sort(createdAt, Desc)])
         }
       `);
       const indexes = getIndexes(ir, 'Events');

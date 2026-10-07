@@ -89,11 +89,20 @@ export interface ReferencedFieldRefArgType<Ctx extends FieldAttributeCtx = Field
   readonly kind: 'referencedFieldRef';
 }
 
-export interface FuncCallSig {
+export interface FuncCallSig<Ctx extends AttributeCtx = AttributeCtx> {
   readonly documentation: string;
-  readonly positional?: readonly PositionalParam<unknown, AttributeCtx>[];
-  readonly named?: Readonly<Record<string, Param<unknown, AttributeCtx>>>;
+  readonly positional?: readonly PositionalParam<unknown, Ctx>[];
+  readonly named?: Readonly<Record<string, Param<unknown, Ctx>>>;
 }
+
+export type FuncCallContext<Sig extends FuncCallSig<FieldAttributeCtx>> = ContextForRequirement<
+  RequiredContextFor<
+    CtxOf<
+      | NonNullable<Sig['positional']>[number]['type']
+      | NonNullable<Sig['named']>[keyof NonNullable<Sig['named']>]['type']
+    >
+  >
+>;
 
 export interface TypedFuncCall {
   readonly fn: string;
@@ -104,7 +113,7 @@ export interface TypedFuncCall {
 export interface FuncCallArgType<
   Name extends string = string,
   Ctx extends AttributeCtx = AttributeCtx,
-  Signature extends FuncCallSig = FuncCallSig,
+  Signature extends FuncCallSig<never> = FuncCallSig<Ctx>,
 > extends ArgTypeOutput<TypedFuncCall, Ctx> {
   readonly kind: 'funcCall';
   readonly name: Name;
