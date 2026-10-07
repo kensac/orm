@@ -109,7 +109,7 @@ const scenarios: readonly Scenario[] = [
       "() => db.public.user.select('id').where((f, fns) => fns.eq(f.name, null)).limit(1)",
     runReplacement: `() => db.public.user.update({ name: '${BACKFILLED_NAME}' }).where((f, fns) => fns.eq(f.name, null))`,
     assertOps: (ops) => {
-      const setNotNullOp = ops.find((op) => op.id.includes('setNotNull.user.name'));
+      const setNotNullOp = ops.find((op) => op.id.includes('setNotNull.public.user.name'));
       expect(setNotNullOp, 'setNotNull op exists').toBeDefined();
     },
     postApplySelect: `SELECT id, email, "name" FROM "public"."user" ORDER BY id`,
@@ -144,7 +144,7 @@ const scenarios: readonly Scenario[] = [
       "() => db.public.user.select('id').where((f, fns) => fns.eq(f.id, -1)).limit(1)",
     runReplacement: '() => db.public.user.update({ score: 0 }).where((f, fns) => fns.eq(f.id, -1))',
     assertOps: (ops) => {
-      const alterOp = ops.find((op) => op.id.startsWith('alterType.user.score'));
+      const alterOp = ops.find((op) => op.id.startsWith('alterType.public.user.score'));
       expect(alterOp, 'alterColumnType op exists').toBeDefined();
       expect(alterOp?.operationClass).toBe('destructive');
     },

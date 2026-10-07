@@ -10,7 +10,7 @@ import {
 import { postgresError } from '../../errors';
 import type { PostgresRlsPolicy } from '../../postgres-rls-policy';
 import { qualifyTableName } from '../planner-sql-checks';
-import { type Op, step, targetDetails } from './shared';
+import { type Op, qualifiedIdName, step, targetDetails } from './shared';
 
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/;
 
@@ -51,7 +51,7 @@ export async function createRlsPolicy(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const present = await lowerer.lowerToExecuteRequest(checks.policyPresent());
   return {
-    id: `rlsPolicy.${schemaName}.${tableName}.${policy.name}`,
+    id: `rlsPolicy.${qualifiedIdName(schemaName, tableName)}.${policy.name}`,
     label: `Create RLS policy "${policy.name}" on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('rlsPolicy', policy.name, schemaName, tableName),
@@ -75,7 +75,7 @@ export async function dropRlsPolicy(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const absent = await lowerer.lowerToExecuteRequest(checks.policyAbsent());
   return {
-    id: `rlsPolicy.${schemaName}.${tableName}.${policyName}.drop`,
+    id: `rlsPolicy.${qualifiedIdName(schemaName, tableName)}.${policyName}.drop`,
     label: `Drop RLS policy "${policyName}" on "${tableName}"`,
     operationClass: 'widening',
     target: targetDetails('rlsPolicy', policyName, schemaName, tableName),
@@ -94,7 +94,7 @@ export async function enableRowLevelSecurity(
   const disabled = await lowerer.lowerToExecuteRequest(checks.rlsDisabled());
   const enabled = await lowerer.lowerToExecuteRequest(checks.rlsEnabled());
   return {
-    id: `rowLevelSecurity.${schemaName}.${tableName}`,
+    id: `rowLevelSecurity.${qualifiedIdName(schemaName, tableName)}`,
     label: `Enable row-level security on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('rowLevelSecurity', tableName, schemaName),
@@ -124,7 +124,7 @@ export async function disableRowLevelSecurity(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const disabled = await lowerer.lowerToExecuteRequest(checks.rlsDisabled());
   return {
-    id: `rowLevelSecurity.${schemaName}.${tableName}.disable`,
+    id: `rowLevelSecurity.${qualifiedIdName(schemaName, tableName)}.disable`,
     label: `Disable row-level security on "${tableName}"`,
     operationClass: 'widening',
     target: targetDetails('rowLevelSecurity', tableName, schemaName),
@@ -169,7 +169,7 @@ export async function renameRlsPolicy(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const newPresent = await lowerer.lowerToExecuteRequest(newChecks.policyPresent());
   return {
-    id: `rlsPolicy.${schemaName}.${tableName}.${oldPolicyName}.rename`,
+    id: `rlsPolicy.${qualifiedIdName(schemaName, tableName)}.${oldPolicyName}.rename`,
     label: `Rename RLS policy "${oldPolicyName}" to "${newPolicyName}" on "${tableName}"`,
     operationClass: 'widening',
     target: targetDetails('rlsPolicy', newPolicyName, schemaName, tableName),

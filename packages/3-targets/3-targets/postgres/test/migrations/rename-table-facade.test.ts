@@ -279,7 +279,7 @@ describe('PostgresMigration.renameTable', () => {
       rlsContract('UserProfile', 'to'),
     );
 
-    expect(ops.map((op) => op.id)).toEqual(['renameTable.userProfile']);
+    expect(ops.map((op) => op.id)).toEqual(['renameTable.public.userProfile']);
   });
 
   it('renames in the schema that declares the table', async () => {

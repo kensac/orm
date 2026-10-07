@@ -33,7 +33,7 @@ describe('Postgres call classes - construction + toOp parity', () => {
     expect(call.label).toBe('Create table "user"');
 
     expect(await call.toOp(testAdapter)).toMatchObject({
-      id: 'table.user',
+      id: 'table.public.user',
       operationClass: 'additive',
       target: {
         id: 'postgres',

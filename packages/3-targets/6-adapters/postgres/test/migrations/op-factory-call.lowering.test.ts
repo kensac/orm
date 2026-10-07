@@ -131,9 +131,13 @@ describe('renderOps', () => {
       operationClass: string;
       details: Record<string, unknown> | undefined;
     }> = [
-      { id: 'table.user', operationClass: 'additive', details: schemaObject('table', 'user') },
       {
-        id: 'dropTable.stale',
+        id: 'table.public.user',
+        operationClass: 'additive',
+        details: schemaObject('table', 'user'),
+      },
+      {
+        id: 'dropTable.public.stale',
         operationClass: 'destructive',
         details: schemaObject('table', 'stale'),
       },
@@ -143,62 +147,62 @@ describe('renderOps', () => {
         details: schemaObject('column', 'email', 'user'),
       },
       {
-        id: 'dropColumn.user.legacy',
+        id: 'dropColumn.public.user.legacy',
         operationClass: 'destructive',
         details: schemaObject('column', 'legacy', 'user'),
       },
       {
-        id: 'alterType.user.age',
+        id: 'alterType.public.user.age',
         operationClass: 'destructive',
         details: schemaObject('column', 'age', 'user'),
       },
       {
-        id: 'alterNullability.setNotNull.user.email',
+        id: 'alterNullability.setNotNull.public.user.email',
         operationClass: 'destructive',
         details: schemaObject('column', 'email', 'user'),
       },
       {
-        id: 'alterNullability.dropNotNull.user.nickname',
+        id: 'alterNullability.dropNotNull.public.user.nickname',
         operationClass: 'widening',
         details: schemaObject('column', 'nickname', 'user'),
       },
       {
-        id: 'setDefault.user.created_at',
+        id: 'setDefault.public.user.created_at',
         operationClass: 'additive',
         details: schemaObject('column', 'created_at', 'user'),
       },
       {
-        id: 'dropDefault.user.updated_at',
+        id: 'dropDefault.public.user.updated_at',
         operationClass: 'widening',
         details: schemaObject('column', 'updated_at', 'user'),
       },
       {
-        id: 'primaryKey.user.user_pkey',
+        id: 'primaryKey.public.user.user_pkey',
         operationClass: 'additive',
         details: schemaObject('primaryKey', 'user_pkey', 'user'),
       },
       {
-        id: 'unique.user.user_email_key',
+        id: 'unique.public.user.user_email_key',
         operationClass: 'additive',
         details: schemaObject('unique', 'user_email_key', 'user'),
       },
       {
-        id: 'foreignKey.user.user_org_fk',
+        id: 'foreignKey.public.user.user_org_fk',
         operationClass: 'additive',
         details: schemaObject('foreignKey', 'user_org_fk', 'user'),
       },
       {
-        id: 'dropConstraint.user.user_email_key',
+        id: 'dropConstraint.public.user.user_email_key',
         operationClass: 'widening',
         details: schemaObject('unique', 'user_email_key', 'user'),
       },
       {
-        id: 'index.user.user_email_idx',
+        id: 'index.public.user.user_email_idx',
         operationClass: 'additive',
         details: schemaObject('index', 'user_email_idx', 'user'),
       },
       {
-        id: 'dropIndex.user.stale_idx',
+        id: 'dropIndex.public.user.stale_idx',
         operationClass: 'widening',
         details: schemaObject('index', 'stale_idx', 'user'),
       },
@@ -265,7 +269,7 @@ describe('TypeScriptRenderablePostgresMigration', () => {
 
     const operations = await Promise.all(migration.operations);
     expect(operations).toHaveLength(1);
-    expect(operations[0]).toMatchObject({ id: 'dropTable.stale' });
+    expect(operations[0]).toMatchObject({ id: 'dropTable.public.stale' });
   });
 
   it('renders TypeScript source mirroring renderCallsToTypeScript output', () => {

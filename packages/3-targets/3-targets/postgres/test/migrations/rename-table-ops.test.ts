@@ -32,7 +32,7 @@ describe('renameTable (postgres)', () => {
     const op = await renameTable('auth', 'userProfile', 'UserProfile', lowerer);
 
     expect(op).toMatchObject({
-      id: 'renameTable.userProfile',
+      id: 'renameTable.auth.userProfile',
       label: 'Rename table "userProfile" to "UserProfile"',
       operationClass: 'widening',
       target: {

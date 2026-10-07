@@ -92,7 +92,7 @@ describe('createIndex lowers a PostgresCreateIndex node', () => {
       { columns: ['email'] },
       lowerer,
     );
-    expect(op.id).toBe('index.user.user_email_idx');
+    expect(op.id).toBe('index.public.user.user_email_idx');
     expect(op.operationClass).toBe('additive');
     expect(op.precheck).toHaveLength(1);
     expect(op.execute).toHaveLength(1);
@@ -133,6 +133,6 @@ describe('dropIndex lowers a PostgresDropIndex node', () => {
     expect(node.schema).toBe('public');
     expect(node.name).toBe('user_email_idx');
     expect(op.operationClass).toBe('widening');
-    expect(op.id).toBe('dropIndex.user.user_email_idx');
+    expect(op.id).toBe('dropIndex.public.user.user_email_idx');
   });
 });

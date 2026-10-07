@@ -9,7 +9,7 @@
     "kind": "success",
     "operations": [
       {
-        "id": "createNativeEnumType.Mood",
+        "id": "createNativeEnumType.public.Mood",
         "label": "Create enum type \"Mood\"",
         "operationClass": "additive",
         "target": {
@@ -31,7 +31,7 @@
         "postcheck": []
       },
       {
-        "id": "table.alias",
+        "id": "table.public.alias",
         "label": "Create table \"alias\"",
         "summary": "Creates table \"alias\"",
         "operationClass": "additive",
@@ -70,7 +70,7 @@
         ]
       },
       {
-        "id": "table.list",
+        "id": "table.public.list",
         "label": "Create table \"list\"",
         "summary": "Creates table \"list\"",
         "operationClass": "additive",
@@ -109,7 +109,7 @@
         ]
       },
       {
-        "id": "table.other_codec",
+        "id": "table.public.other_codec",
         "label": "Create table \"other_codec\"",
         "summary": "Creates table \"other_codec\"",
         "operationClass": "additive",
@@ -148,7 +148,7 @@
         ]
       },
       {
-        "id": "table.scalar",
+        "id": "table.public.scalar",
         "label": "Create table \"scalar\"",
         "summary": "Creates table \"scalar\"",
         "operationClass": "additive",

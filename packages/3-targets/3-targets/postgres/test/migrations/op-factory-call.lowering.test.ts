@@ -69,7 +69,7 @@ describe('DropTableCall', () => {
 
     const checks = tableExistsAst('public', 'user');
     expect(received).toEqual([checks.tablePresent(), checks.tableAbsent()]);
-    expect(op.id).toBe('dropTable.user');
+    expect(op.id).toBe('dropTable.public.user');
     expect(op.operationClass).toBe('destructive');
     expect(op.target).toEqual({
       id: 'postgres',

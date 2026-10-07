@@ -109,7 +109,12 @@ export interface MigrationOperationPolicy {
  * Contains only the fields needed for CLI output (tree view, JSON envelope).
  */
 export interface MigrationPlanOperation {
-  /** Unique identifier for this operation (e.g., "table.users.create"). */
+  /**
+   * Identifies the operation within its plan (e.g., "table.public.users"): no two operations of
+   * one plan share an id, so an id names exactly one operation. A target builds ids from the
+   * qualified names of the objects an operation changes. Ids are written to `ops.json`, so they are
+   * part of a migration's hash, and nothing else persists or compares them.
+   */
   readonly id: string;
   /** Human-readable label for display in UI/CLI (e.g., "Create table users"). */
   readonly label: string;

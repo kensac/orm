@@ -374,8 +374,8 @@ describe('enum check-constraint — end-to-end PGlite', { concurrent: false }, (
     expect(v2Name).not.toBe(v1Name);
     const resolvedOps = await Promise.all(v2PlanResult.plan.operations);
     const opIds = resolvedOps.map((op) => op.id);
-    expect(opIds).toContain(`dropCheckConstraint.User.${v1Name}`);
-    expect(opIds).toContain(`checkConstraint.User.${v2Name}`);
+    expect(opIds).toContain(`dropCheckConstraint.public.User.${v1Name}`);
+    expect(opIds).toContain(`checkConstraint.public.User.${v2Name}`);
 
     const v2ExecResult = await runner.execute({
       driver: driver!,

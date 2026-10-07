@@ -197,7 +197,7 @@ describe('hash pairing (prefix-only rename)', () => {
     ]);
 
     const opIds = await planOpIds(contract, schema, ADDITIVE_ONLY_POLICY);
-    expect(opIds).toEqual([`index.${TABLE_NAME}.items_email_lookup_ab12cd34`]);
+    expect(opIds).toEqual([`index.public.${TABLE_NAME}.items_email_lookup_ab12cd34`]);
   });
 
   it('a content edit (same prefix, different hash, different content) stays create + drop', async () => {
@@ -210,8 +210,8 @@ describe('hash pairing (prefix-only rename)', () => {
 
     const opIds = await planOpIds(contract, schema, ALL_CLASSES_POLICY);
     expect(opIds).toEqual([
-      `dropIndex.${TABLE_NAME}.items_email_idx_00000000`,
-      `index.${TABLE_NAME}.items_email_idx_11111111`,
+      `dropIndex.public.${TABLE_NAME}.items_email_idx_00000000`,
+      `index.public.${TABLE_NAME}.items_email_idx_11111111`,
     ]);
   });
 
@@ -233,7 +233,7 @@ describe('hash pairing (prefix-only rename)', () => {
     ]);
 
     const opIds = await planOpIds(contract, schema, ADDITIVE_ONLY_POLICY);
-    expect(opIds).toEqual([`index.${TABLE_NAME}.items_email_eq_11111111`]);
+    expect(opIds).toEqual([`index.public.${TABLE_NAME}.items_email_eq_11111111`]);
   });
 
   it('multi-candidate groups pair deterministically by sorted name', async () => {
@@ -302,8 +302,8 @@ describe('content pairing (exact→wire convergence)', () => {
 
     const opIds = await planOpIds(contract, schema, ALL_CLASSES_POLICY);
     expect(opIds).toEqual([
-      `dropIndex.${TABLE_NAME}.legacy_email_expr`,
-      `index.${TABLE_NAME}.items_email_eq_ab12cd34`,
+      `dropIndex.public.${TABLE_NAME}.legacy_email_expr`,
+      `index.public.${TABLE_NAME}.items_email_eq_ab12cd34`,
     ]);
   });
 
@@ -325,8 +325,8 @@ describe('content pairing (exact→wire convergence)', () => {
 
     const opIds = await planOpIds(contract, schema, ALL_CLASSES_POLICY);
     expect(opIds).toEqual([
-      `dropIndex.${TABLE_NAME}.items_email_legacy`,
-      `index.${TABLE_NAME}.items_email_exact`,
+      `dropIndex.public.${TABLE_NAME}.items_email_legacy`,
+      `index.public.${TABLE_NAME}.items_email_exact`,
     ]);
   });
 
@@ -356,6 +356,6 @@ describe('content pairing (exact→wire convergence)', () => {
     ]);
 
     const opIds = await planOpIds(contract, schema, ALL_CLASSES_POLICY);
-    expect(opIds).toEqual([`dropIndex.${TABLE_NAME}.stray_value_idx`]);
+    expect(opIds).toEqual([`dropIndex.public.${TABLE_NAME}.stray_value_idx`]);
   });
 });

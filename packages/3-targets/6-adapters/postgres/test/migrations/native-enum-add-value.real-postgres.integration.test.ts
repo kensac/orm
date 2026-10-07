@@ -293,7 +293,7 @@ describe.runIf(await isRealPostgresAvailable())(
           INIT_ADDITIVE_POLICY,
         );
         const ids = await opIds(appendPlan);
-        expect(ids).toEqual(['addNativeEnumValue.order_status.done']);
+        expect(ids).toEqual(['addNativeEnumValue.public.order_status.done']);
         await applyPlan(driver!, appendPlan, appendedContract, INIT_ADDITIVE_POLICY);
 
         // 3. The new member is live.

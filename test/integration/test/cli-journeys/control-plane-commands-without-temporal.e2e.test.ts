@@ -293,7 +293,9 @@ withTempDir(({ createTempDir }) => {
           expect(run, childOutput(run)).toMatchObject({ exitCode: 0, ...NO_GLOBAL_TEMPORAL });
           const ops: readonly MigrationOperation[] = JSON.parse(readFileSync(opsPath, 'utf-8'));
           expect(
-            ops.find((op) => op.id === 'table.event')?.execute.map((step) => step.sql.split('\n')),
+            ops
+              .find((op) => op.id === 'table.public.event')
+              ?.execute.map((step) => step.sql.split('\n')),
           ).toEqual([
             [
               'CREATE TABLE "public"."event" (',

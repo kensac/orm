@@ -7,7 +7,7 @@ import {
   dropIndex as dropIndexDdl,
 } from '../../../contract-free/ddl';
 import type { CreateIndexElements } from '../../ddl/nodes';
-import { type Op, step, targetDetails } from './shared';
+import { type Op, qualifiedIdName, step, targetDetails } from './shared';
 
 type CheckStep = { sql: string; params?: readonly unknown[] };
 
@@ -60,7 +60,7 @@ export async function createIndex(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const { present, absent } = await indexExistsSteps(lowerer, schemaName, indexName);
   return {
-    id: `index.${tableName}.${indexName}`,
+    id: `index.${qualifiedIdName(schemaName, tableName)}.${indexName}`,
     label: `Create index "${indexName}" on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('index', indexName, schemaName, tableName),
@@ -81,7 +81,7 @@ export function renameIndexOperationId(
   tableName: string,
   fromName: string,
 ): string {
-  return `index.${schemaName}.${tableName}.${fromName}.rename`;
+  return `index.${qualifiedIdName(schemaName, tableName)}.${fromName}.rename`;
 }
 
 export async function renameIndex(
@@ -126,7 +126,7 @@ export async function dropIndex(
   const execute = await lowerer.lowerToExecuteRequest(ddlNode);
   const { present, absent } = await indexExistsSteps(lowerer, schemaName, indexName);
   return {
-    id: `dropIndex.${tableName}.${indexName}`,
+    id: `dropIndex.${qualifiedIdName(schemaName, tableName)}.${indexName}`,
     label: `Drop index "${indexName}"`,
     operationClass: 'widening',
     target: targetDetails('index', indexName, schemaName, tableName),

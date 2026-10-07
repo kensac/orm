@@ -472,7 +472,7 @@ describe('PostgresMigration op-builder methods with a ControlStack', () => {
       columns: [col('id', 'integer', { notNull: true })],
     });
 
-    expect(op.id).toBe('table.widget');
+    expect(op.id).toBe('table.public.widget');
     expect(op.operationClass).toBe('additive');
     expect(op.execute[0]?.description).toBe('create table "widget"');
     expect(typeof op.execute[0]?.sql).toBe('string');

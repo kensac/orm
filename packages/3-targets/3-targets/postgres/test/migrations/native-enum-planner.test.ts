@@ -590,6 +590,6 @@ describe('D2-F1: enum drop-safety resolves ownership by physical type name', () 
     if (result.kind !== 'success') return;
     const ops = await Promise.all(result.plan.operations);
     const dropIds = ops.filter((op) => op.id.startsWith('dropNativeEnumType.')).map((op) => op.id);
-    expect(dropIds).toEqual(['dropNativeEnumType.unowned_mood']);
+    expect(dropIds).toEqual(['dropNativeEnumType.public.unowned_mood']);
   });
 });

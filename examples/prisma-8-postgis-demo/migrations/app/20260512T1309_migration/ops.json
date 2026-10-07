@@ -1,6 +1,6 @@
 [
   {
-    "id": "table.cafe",
+    "id": "table.public.cafe",
     "label": "Create table \"cafe\"",
     "summary": "Creates table \"cafe\"",
     "operationClass": "additive",
@@ -35,7 +35,7 @@
     ]
   },
   {
-    "id": "table.neighborhood",
+    "id": "table.public.neighborhood",
     "label": "Create table \"neighborhood\"",
     "summary": "Creates table \"neighborhood\"",
     "operationClass": "additive",
@@ -70,7 +70,7 @@
     ]
   },
   {
-    "id": "table.route",
+    "id": "table.public.route",
     "label": "Create table \"route\"",
     "summary": "Creates table \"route\"",
     "operationClass": "additive",

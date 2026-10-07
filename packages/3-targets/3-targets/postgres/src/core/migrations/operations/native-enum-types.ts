@@ -3,7 +3,7 @@ import { ifDefined } from '@internal/utils/defined';
 import { createType, dropType } from '../../../contract-free/ddl';
 import { validateEnumValueLength } from '../../sql-utils';
 import { boundSchema } from '../bound-schema';
-import { type Op, step, targetDetails } from './shared';
+import { type Op, qualifiedIdName, step, targetDetails } from './shared';
 
 /**
  * `CREATE TYPE <qualified> AS ENUM (…)` for a managed native enum, built as a
@@ -29,7 +29,7 @@ export async function createNativeEnumType(
   });
   const statement = await lowerer.lowerToExecuteRequest(ddlNode);
   return {
-    id: `createNativeEnumType.${typeName}`,
+    id: `createNativeEnumType.${qualifiedIdName(schemaName, typeName)}`,
     label: `Create enum type "${typeName}"`,
     operationClass: 'additive',
     target: targetDetails('type', typeName, schemaName),
@@ -51,7 +51,7 @@ export async function dropNativeEnumType(
   });
   const statement = await lowerer.lowerToExecuteRequest(ddlNode);
   return {
-    id: `dropNativeEnumType.${typeName}`,
+    id: `dropNativeEnumType.${qualifiedIdName(schemaName, typeName)}`,
     label: `Drop enum type "${typeName}"`,
     operationClass: 'widening',
     target: targetDetails('type', typeName, schemaName),

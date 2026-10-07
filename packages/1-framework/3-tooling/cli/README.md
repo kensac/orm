@@ -903,7 +903,7 @@ Applying migration plan and verifying schema...
     },
     "operations": [
       {
-        "id": "table.user",
+        "id": "table.public.user",
         "label": "Create table user",
         "operationClass": "additive"
       }
