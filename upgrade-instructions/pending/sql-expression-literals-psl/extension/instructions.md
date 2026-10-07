@@ -17,7 +17,7 @@ changes:
       matches:
         - '\b(where|expression)\s*:\s*["'']'
         - '^\s*(using|withCheck)\s*=\s*["'']'
-  - id: spec-contexts-carry-data-types
+  - id: block-spec-context-carries-data-types
     summary: |
       `BlockSpecContext` gains `dataTypes`, and `interpretExtensionBlocks`, `interpretExtensionBlock` and `interpretExtensionBlockAttributes` take a required `dataTypes`. `ControlDefaultRegistries` is deleted: an attribute spec context, `createBinder` and the Mongo PSL interpreter take `defaultFunctionRegistry` directly. Every factory in `sqlAttributeSpecs` takes the spec context.
     detection:
@@ -89,7 +89,7 @@ function policyUsingParam(ctx: BlockSpecContext) {
 }
 ```
 
-- `BlockSpecContext` is `{ symbols, block, dataTypes }`. Code that builds one passes the stack's `DataTypeSupport`, or `EMPTY_DATA_TYPES` from `@internal/psl-parser` when the stack registers none.
+- `BlockSpecContext` is `{ symbols, dataTypes }`. It carries no block: a block attribute reads the block it belongs to from `BlockAttributeCtx.selfBlock` (ADR 262). Code that builds one passes the stack's `DataTypeSupport`, or `EMPTY_DATA_TYPES` from `@internal/psl-parser` when the stack registers none.
 - `interpretExtensionBlocks`, `interpretExtensionBlock` and `interpretExtensionBlockAttributes` take a required `dataTypes`. Pass the stack's data types, the same value the attribute spec context carries.
 - `ControlDefaultRegistries` is deleted. `AttributeSpecContext`, `CreateBinderOptions` and `InterpretPslDocumentToMongoContractInput` take `defaultFunctionRegistry: ControlMutationDefaultRegistry` in place of `controlMutationDefaults`:
 
@@ -100,9 +100,7 @@ function policyUsingParam(ctx: BlockSpecContext) {
 
 A spec factory that read `ctx.controlMutationDefaults.defaultFunctionRegistry` reads `ctx.defaultFunctionRegistry`.
 
-`blockSpecContext({ symbols, block, dataTypes })` from `@internal/psl-parser` builds a `BlockSpecContext`. Every factory in `sqlAttributeSpecs` (from `@internal/sql-contract-psl/attribute-specs`) takes the spec context, including those whose spec does not read it: call `sqlAttributeSpecs.model.map(ctx)`, not `sqlAttributeSpecs.model.map()`.
-
-This supersedes the `ControlDefaultRegistries` text of the `spec-contexts-carry-data-types` change in the pending `arguments-typed-by-data-type` extension instructions: `ControlDefaultRegistries` no longer exists, and its one field is on the context directly.
+`blockSpecContext({ symbols, dataTypes })` from `@internal/psl-parser` builds a `BlockSpecContext`. Every factory in `sqlAttributeSpecs` (from `@internal/sql-contract-psl/attribute-specs`) takes the spec context, including those whose spec does not read it: call `sqlAttributeSpecs.model.map(ctx)`, not `sqlAttributeSpecs.model.map()`.
 
 A spec that takes raw SQL can do what the SQL family and Postgres now do: declare `dataTypeValue(SQL_EXPRESSION_DATA_TYPE_ID, ctx.dataTypes)`, with `SQL_EXPRESSION_DATA_TYPE_ID` from `@internal/sql-contract/sql-expression`. The value it returns holds the canonical text; `sqlTextFromCanonical(value.value)` reads it.
 
