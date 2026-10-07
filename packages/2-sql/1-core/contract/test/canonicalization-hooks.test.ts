@@ -44,6 +44,20 @@ describe('sqlContractCanonicalizationHooks.shouldPreserveEmpty', () => {
     ).toBe(true);
   });
 
+  it("preserves a model's empty storage field map, as a multi-table variant with no field of its own has", () => {
+    expect(
+      sqlContractCanonicalizationHooks.shouldPreserveEmpty([
+        'domain',
+        'namespaces',
+        'public',
+        'models',
+        'Chore',
+        'storage',
+        'fields',
+      ]),
+    ).toBe(true);
+  });
+
   it('does not preserve arbitrary domain-side values', () => {
     expect(
       sqlContractCanonicalizationHooks.shouldPreserveEmpty([

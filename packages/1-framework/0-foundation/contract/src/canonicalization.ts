@@ -41,6 +41,14 @@ const DOMAIN_MODELS_CONTAINER_PATTERN = [
   '*',
   'models',
 ] as const satisfies PathPattern;
+const DOMAIN_MODEL_FIELDS_PATTERN = [
+  'domain',
+  'namespaces',
+  '*',
+  'models',
+  '*',
+  'fields',
+] as const satisfies PathPattern;
 const DOMAIN_MODEL_RELATIONS_PATTERN = [
   'domain',
   'namespaces',
@@ -143,6 +151,7 @@ function omitDefaults(
         'defaults',
       ]);
       const isExtensionNamespace = currentPath.length === 2 && currentPath[0] === 'extensions';
+      const isModelFields = matchesPathPattern(currentPath, DOMAIN_MODEL_FIELDS_PATTERN);
       const isModelRelations = matchesPathPattern(currentPath, DOMAIN_MODEL_RELATIONS_PATTERN);
       const isModelStorage = matchesPathPattern(currentPath, DOMAIN_MODEL_STORAGE_PATTERN);
 
@@ -163,6 +172,7 @@ function omitDefaults(
         !isRequiredMeta &&
         !isRequiredExecutionDefaults &&
         !isExtensionNamespace &&
+        !isModelFields &&
         !isModelRelations &&
         !isModelStorage &&
         !isNullableField &&

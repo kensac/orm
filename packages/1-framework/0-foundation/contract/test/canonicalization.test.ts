@@ -502,6 +502,21 @@ describe('default omission', () => {
     expect(user['relations']).toEqual({});
   });
 
+  it('preserves empty model fields, as a variant with no field of its own has', () => {
+    const result = canonicalizeContractToObject(
+      minimal({
+        models: {
+          Chore: {
+            fields: {},
+            storage: { namespaceId: '__unbound__', table: 'chores', fields: {} },
+            relations: {},
+          },
+        },
+      }),
+    );
+    expect(drillDomainModel(result, 'Chore')['fields']).toEqual({});
+  });
+
   it('preserves empty table uniques, indexes, and foreignKeys when shouldPreserveEmpty hook provided', () => {
     const result = canonicalizeContractToObject(
       minimal({

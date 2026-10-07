@@ -20,6 +20,9 @@ const preserveEmptyPatterns = [
   // default-omission walk or the emitted contract fails its own
   // validation on the next read (CONTRACT.VALIDATION_FAILED on `Boolean @default(false)`).
   ['storage', 'namespaces', '*', 'entries', 'table', '*', 'columns', '*', 'default', 'value'],
+  // A model's storage field map is required even when empty: a multi-table
+  // variant whose table holds only the key it inherits maps no column itself.
+  ['domain', 'namespaces', '*', 'models', '*', 'storage', 'fields'],
 ] as const satisfies readonly PathPattern[];
 
 // A literal column default's value is user data, not omittable structure:
