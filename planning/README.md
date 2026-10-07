@@ -23,6 +23,7 @@ If you work on language tools or queries, streams 3 and 4 are yours to read firs
 | Question | Read |
 | --- | --- |
 | Why is a project in the plan, or ruled out? | [decisions.md](decisions.md) |
+| Which pull request or ticket is behind a status in the plan? | [evidence.md](evidence.md) |
 | What did we find in the code, docs and tests? | [context.md](context.md) |
 | Which Prisma 7 query features does Prisma 8 lack? | [query-feature-gaps.md](query-feature-gaps.md) |
 | What did the getting-started eval find? | [eval-friction-2026-09-28.md](eval-friction-2026-09-28.md) |
@@ -35,8 +36,8 @@ If you work on language tools or queries, streams 3 and 4 are yours to read firs
 
 ## How much to trust it
 
-- [plan.md](plan.md) and [decisions.md](decisions.md) are kept current.
-- The states in the plan are as of 2026-09-29.
+- [plan.md](plan.md), [evidence.md](evidence.md) and [decisions.md](decisions.md) are kept current.
+- The states in the plan are as of 2026-10-07.
 - [query-feature-gaps.md](query-feature-gaps.md) and [open-projects.md](open-projects.md) are snapshots. Some entries are already out of date. Check the code before you act on one.
 
 ## How to change it

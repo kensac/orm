@@ -9,6 +9,7 @@ This file is for an agent picking up the planning discussion with Will. People s
 | File | What it holds | How current |
 | --- | --- | --- |
 | [plan.md](plan.md) | The projects in priority order, by stream | Kept current. This is the source of truth for order. |
+| [evidence.md](evidence.md) | The pull requests, tickets and dates behind each status in plan.md | Kept current with plan.md. |
 | [decisions.md](decisions.md) | Every decision Will has made, with reasons, and the principles | Kept current. |
 | [context.md](context.md) | Findings and reasoning behind the decisions, and the changes made in Linear and pull requests | Written 2026-09-29 |
 | [query-feature-gaps.md](query-feature-gaps.md) | What Prisma 7 queries can do that Prisma 8 cannot | Gathered 2026-09-28. Several entries were found to be stale. Check the code before relying on a line. |
