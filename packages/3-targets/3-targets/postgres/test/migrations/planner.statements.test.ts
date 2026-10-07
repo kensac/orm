@@ -147,6 +147,20 @@ describe('Postgres planner, model statements', () => {
     expect(labels.slice(2)).toContain('Create table "audit"');
   });
 
+  it('renames no constraint on a new table that takes the renamed table’s old name', async () => {
+    const toWithNewProfile = withModels(
+      contractOf('User', uniqueEmail, 'to', (profile) => ({
+        Profile: postTableNamed('Profile', profile),
+      })),
+      { User: 'User', Profile: 'Profile' },
+    );
+    const labels = await labelsOf(plan(from, toWithNewProfile, [renameModel('Profile', 'User')]));
+    expect(
+      labels.filter((label) => label.startsWith('Rename') && label.endsWith('on "Profile"')),
+    ).toEqual([]);
+    expect(labels).toContain('Create table "Profile"');
+  });
+
   it('applies a statement whose table does not change with no operations', async () => {
     const mapped = withModels(contractOf('profile', uniqueEmail, 'to'), { User: 'profile' });
     const fromMapped = withModels(contractOf('profile', uniqueEmail, 'from'), {

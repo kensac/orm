@@ -1,5 +1,5 @@
 /**
- * `this.renameTable` in a hand-written Postgres migration. It reads the migration's start and end contracts and emits the table rename, then a rename of each object on the table whose name the planner derived from the old table name: unnamed primary keys, unique constraints and foreign keys, and wire-named indexes and checks. Only objects the end contract leaves otherwise unchanged are renamed; a constraint the end contract also changes keeps its name. Explicitly named objects keep their names. A table missing from either contract is refused.
+ * `this.renameTable` in a hand-written Postgres migration. It reads the migration's start and end contracts and emits the table rename, then a rename of each primary key, unique constraint and foreign key whose name changes (stated, or derived from the table name), and of each wire-named index and check whose prefix derives from the table name. Only objects the end contract leaves otherwise unchanged are renamed; a constraint the end contract also changes keeps its name. A table missing from either contract is refused.
  */
 
 import { type Contract, coreHash, profileHash } from '@internal/contract/types';
@@ -191,7 +191,7 @@ describe('PostgresMigration.renameTable', () => {
     ]);
   });
 
-  it('renames an unnamed constraint to the explicit name the end contract gives it', async () => {
+  it('renames an unnamed constraint to the name the end contract states', async () => {
     expect(
       await renameLabels(
         { uniques: [{ columns: ['email'] }] },
@@ -251,7 +251,7 @@ describe('PostgresMigration.renameTable', () => {
     ).toEqual(['Rename table "userProfile" to "UserProfile"']);
   });
 
-  it('leaves explicitly named objects alone', async () => {
+  it('leaves objects whose stated names stay the same alone', async () => {
     const spec: ProfileSpec = {
       primaryKey: { columns: ['id'], name: 'profile_pk' },
       uniques: [{ columns: ['email'], name: 'profile_email_unique' }],
@@ -262,6 +262,57 @@ describe('PostgresMigration.renameTable', () => {
     };
 
     expect(await renameLabels(spec)).toEqual(['Rename table "userProfile" to "UserProfile"']);
+  });
+
+  it('renames a named primary key and foreign key to the different names the end contract states', async () => {
+    expect(
+      await renameLabels(
+        {
+          primaryKey: { columns: ['id'], name: 'userProfile_primary' },
+          foreignKeys: (tableName) => [
+            { ...accountForeignKey(tableName), name: 'userProfile_account_link' },
+          ],
+        },
+        {
+          primaryKey: { columns: ['id'], name: 'UserProfile_primary' },
+          foreignKeys: (tableName) => [
+            { ...accountForeignKey(tableName), name: 'UserProfile_account_link' },
+          ],
+        },
+      ),
+    ).toEqual([
+      'Rename table "userProfile" to "UserProfile"',
+      'Rename primary key "userProfile_primary" to "UserProfile_primary" on "UserProfile"',
+      'Rename foreign key "userProfile_account_link" to "UserProfile_account_link" on "UserProfile"',
+    ]);
+  });
+
+  it('renames a named foreign key to the derived name when the end contract stops stating one', async () => {
+    expect(
+      await renameLabels(
+        {
+          foreignKeys: (tableName) => [
+            { ...accountForeignKey(tableName), name: 'userProfile_account_link' },
+          ],
+        },
+        { foreignKeys: (tableName) => [accountForeignKey(tableName)] },
+      ),
+    ).toEqual([
+      'Rename table "userProfile" to "UserProfile"',
+      'Rename foreign key "userProfile_account_link" to "UserProfile_accountId_fkey" on "UserProfile"',
+    ]);
+  });
+
+  it('renames a named unique constraint to the different name the end contract states', async () => {
+    expect(
+      await renameLabels(
+        { uniques: [{ columns: ['email'], name: 'userProfile_email_unique' }] },
+        { uniques: [{ columns: ['email'], name: 'UserProfile_email_unique' }] },
+      ),
+    ).toEqual([
+      'Rename table "userProfile" to "UserProfile"',
+      'Rename unique constraint "userProfile_email_unique" to "UserProfile_email_unique" on "UserProfile"',
+    ]);
   });
 
   it('leaves a foreign key on another table that references the renamed table alone', async () => {
