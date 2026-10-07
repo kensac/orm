@@ -11,6 +11,7 @@ import {
   consentTokenFor,
   engineError,
   type JourneyContext,
+  parseJsonOutput,
   runContractEmit,
   runDbInit,
   runDbUpdate,
@@ -159,8 +160,11 @@ describe('Journey: Mongo db update asks for consent only to lose data', {
     copyFileSync(join(FIXTURES_DIR, 'contract-additive.ts'), join(ctx.testDir, 'contract.ts'));
     expect((await runContractEmit(ctx)).exitCode).toBe(0);
 
-    const unconfirmed = await runDbUpdate(ctx, ['--no-interactive']);
+    const unconfirmed = await runDbUpdate(ctx, ['--json', '--no-interactive']);
     expect(unconfirmed.exitCode).toBe(2);
+    expect(parseJsonOutput(unconfirmed)).toMatchObject({ code: 'CLI.CONSENT_REQUIRED' });
+    const kept = await client.db(dbName).listCollections({ name: 'events' }).toArray();
+    expect(kept.map(({ name }) => name)).toEqual(['events']);
 
     const destructive = await runDbUpdate(ctx, [
       '--no-interactive',
