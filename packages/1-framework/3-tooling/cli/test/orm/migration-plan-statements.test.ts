@@ -315,4 +315,37 @@ describe('migration plan --rename', () => {
       ],
     });
   });
+
+  it('writes nothing when the auto-baseline delta is refused, and only the baseline when it has no operations', async () => {
+    const refusedProject = await renamingProject({ history: false });
+    const refused = await harness(refusedProject, { refuseStatements: true }).run(
+      ['migration', 'plan', '--name', 'delta', '--rename', 'Profile:User', '--json'],
+      { cwd: refusedProject.dir },
+    );
+    const emptyProject = await renamingProject({ history: false });
+    const empty = await harness(emptyProject, { operationsByPlan: [[ADDITIVE_OP], []] }).run(
+      ['migration', 'plan', '--name', 'delta', '--json'],
+      { cwd: emptyProject.dir },
+    );
+
+    const conflictKind = (run: typeof refused) => {
+      const terminal = run.json.at(-1);
+      const error =
+        terminal !== undefined && terminal.kind === 'result' && !terminal.envelope.ok
+          ? terminal.envelope.error
+          : undefined;
+      const conflicts = error?.meta?.['conflicts'];
+      return Array.isArray(conflicts) ? conflicts[0]?.kind : undefined;
+    };
+    expect({
+      refused: { kind: conflictKind(refused), dirs: await plannedDirs(refusedProject) },
+      empty: {
+        kind: conflictKind(empty),
+        dirs: (await plannedDirs(emptyProject)).map((dir) => dir.replace(/^\d{8}T\d{4}_/, '')),
+      },
+    }).toEqual({
+      refused: { kind: 'statementRefused', dirs: [] },
+      empty: { kind: 'noDatabaseChange', dirs: ['baseline'] },
+    });
+  });
 });

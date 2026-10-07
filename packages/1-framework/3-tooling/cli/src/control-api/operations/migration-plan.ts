@@ -36,7 +36,10 @@ import {
   errorDestructiveChanges,
   errorFileNotFound,
   errorMigrationPlanningFailed,
+  errorPlanProducedNoOperations,
   errorTargetMigrationNotSupported,
+  type PlanDestination,
+  type PlanOrigin,
 } from '../../utils/cli-errors';
 import {
   getTargetMigrations,
@@ -125,12 +128,27 @@ const EMPTY_ORIGIN: ContractWithDomain = { domain: { namespaces: {} } };
 
 type TargetMigrationsApi = NonNullable<ReturnType<typeof getTargetMigrations>>;
 
+/** A plan origin whose earlier contract the planner diffs against. */
+type PlannerLegOrigin =
+  | Exclude<PlanOrigin, { readonly kind: 'contract' }>
+  | (Extract<PlanOrigin, { readonly kind: 'contract' }> & { readonly contract: Contract });
+
+/**
+ * Why a planner leg failed: the planner refused (a conflict, such as a refused statement), or it
+ * produced no operations for a changed contract.
+ */
+interface PlannerLegFailure {
+  readonly reason: 'refused' | 'noOperations';
+  readonly error: CliStructuredError;
+}
+
 async function runPlannerLeg(
   planner: ReturnType<TargetMigrationsApi['createPlanner']>,
   migrations: TargetMigrationsApi,
   frameworkComponents: ReturnType<typeof assertFrameworkComponentsCompatible>,
   contract: Contract,
-  fromContract: Contract | null,
+  origin: PlannerLegOrigin,
+  destination: PlanDestination,
   statements: readonly ResolvedMigrationStatement[],
   /**
    * True when the storage did not change and statements were given: a plan of
@@ -141,7 +159,8 @@ async function runPlannerLeg(
   ownership: SchemaOwnership,
   snapshotsImportPath: string,
   resolveImportSpecifier: ImportSpecifierResolver,
-): Promise<Result<PlannerSuccess, CliStructuredError>> {
+): Promise<Result<PlannerSuccess, PlannerLegFailure>> {
+  const fromContract = origin.kind === 'contract' ? origin.contract : null;
   const fromSchema = migrations.contractToSchema(fromContract, frameworkComponents);
   const plannerResult = planner.plan({
     contract,
@@ -161,11 +180,12 @@ async function runPlannerLeg(
     snapshotsImportPath,
   });
   if (plannerResult.kind === 'failure') {
-    return notOk(
-      errorMigrationPlanningFailed({
+    return notOk({
+      reason: 'refused',
+      error: errorMigrationPlanningFailed({
         conflicts: castAs<readonly CliErrorConflict[]>(plannerResult.conflicts),
       }),
-    );
+    });
   }
 
   let plannedOps: readonly MigrationPlanOperation[] = [];
@@ -173,18 +193,10 @@ async function runPlannerLeg(
   try {
     plannedOps = await Promise.all(plannerResult.plan.operations);
     if (plannedOps.length === 0 && !noOperationsExpected) {
-      return notOk(
-        errorMigrationPlanningFailed({
-          conflicts: [
-            {
-              kind: 'unsupportedChange',
-              summary:
-                'Contract changed but planner produced no operations. ' +
-                'This indicates unsupported or ignored changes.',
-            },
-          ],
-        }),
-      );
+      return notOk({
+        reason: 'noOperations',
+        error: errorPlanProducedNoOperations(origin, destination),
+      });
     }
   } catch (e) {
     if (CliStructuredError.is(e) && e.code === 'MIGRATION.UNFILLED_PLACEHOLDER') {
@@ -535,6 +547,15 @@ async function executeMigrationPlanCommandInner(
       isAutoBaseline = true;
       break;
   }
+  const resolvedFrom = resolutionResult.value;
+  const fromOrigin: PlannerLegOrigin =
+    resolvedFrom.kind === 'greenfield'
+      ? { kind: 'empty' }
+      : {
+          kind: 'contract',
+          hash: resolvedFrom.fromHash,
+          contract: resolvedFrom.fromContract,
+        };
 
   // `--to <ref>` swaps the planner destination to an arbitrary resolved
   // contract (e.g. an ancestor / rollback target). The from-side resolution
@@ -684,6 +705,10 @@ async function executeMigrationPlanCommandInner(
 
   try {
     const planner = migrations.createPlanner(controlAdapter);
+    const planDestination: PlanDestination = {
+      hash: toStorageHash,
+      isEmitted: options.to === undefined,
+    };
 
     if (isAutoBaseline && fromHash !== null && fromContract !== null && fromContractInStore) {
       const deltaTimestamp = new Date();
@@ -698,7 +723,8 @@ async function executeMigrationPlanCommandInner(
         migrations,
         frameworkComponents,
         fromContract,
-        null,
+        { kind: 'baseline', hash: fromHash },
+        { hash: fromHash, isEmitted: false },
         [],
         false,
         aggregate.app.spaceId,
@@ -707,7 +733,7 @@ async function executeMigrationPlanCommandInner(
         resolveImportSpecifier,
       );
       if (!baselineLeg.ok) {
-        return notOk(baselineLeg.failure);
+        return notOk(baselineLeg.failure.error);
       }
 
       const consentFailure = refuseUnconsentedDestructiveBaseline(
@@ -719,7 +745,6 @@ async function executeMigrationPlanCommandInner(
         return notOk(consentFailure);
       }
 
-      // Every leg is planned before any package is written, so a refused delta leaves nothing behind.
       const deltaLeg =
         fromHash === toStorageHash
           ? undefined
@@ -728,7 +753,8 @@ async function executeMigrationPlanCommandInner(
               migrations,
               frameworkComponents,
               aggregate.app.contract(),
-              fromContract,
+              fromOrigin,
+              planDestination,
               statements,
               false,
               aggregate.app.spaceId,
@@ -736,8 +762,10 @@ async function executeMigrationPlanCommandInner(
               snapshotsImportPathFrom(deltaPackageDir, migrationsDir),
               resolveImportSpecifier,
             );
-      if (deltaLeg !== undefined && !deltaLeg.ok) {
-        return notOk(deltaLeg.failure);
+      // A refused delta writes nothing. A delta with no operations still writes the baseline, so
+      // the `migration new --from` its error advises has the history to start from.
+      if (deltaLeg !== undefined && !deltaLeg.ok && deltaLeg.failure.reason === 'refused') {
+        return notOk(deltaLeg.failure.error);
       }
 
       await writePlannedMigrationPackage(
@@ -747,6 +775,10 @@ async function executeMigrationPlanCommandInner(
         baselineTimestamp,
         baselineLeg.value,
       );
+
+      if (deltaLeg !== undefined && !deltaLeg.ok) {
+        return notOk(deltaLeg.failure.error);
+      }
 
       if (deltaLeg === undefined) {
         const statementsWithoutOperations = reportAppliedStatements(
@@ -879,7 +911,8 @@ async function executeMigrationPlanCommandInner(
       migrations,
       frameworkComponents,
       aggregate.app.contract(),
-      fromContract,
+      fromOrigin,
+      planDestination,
       statements,
       statements.length > 0 && fromHash === toStorageHash,
       aggregate.app.spaceId,
@@ -888,7 +921,7 @@ async function executeMigrationPlanCommandInner(
       resolveImportSpecifier,
     );
     if (!deltaLeg.ok) {
-      return notOk(deltaLeg.failure);
+      return notOk(deltaLeg.failure.error);
     }
 
     if (!deltaLeg.value.hasPlaceholders && deltaLeg.value.plannedOps.length === 0) {

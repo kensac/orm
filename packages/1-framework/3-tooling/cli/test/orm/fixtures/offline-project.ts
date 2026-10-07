@@ -167,10 +167,12 @@ export async function seedDbRef(options: {
  * the test asked for; `emptyMigration` renders the stub `migration new` writes.
  * With `throwOnOperations`, any scripted `operations` still resolve alongside
  * the rejection — mirroring a real plan where some operations resolve and a
- * placeholder op rejects.
+ * placeholder op rejects. `operationsByPlan` gives each successive `plan`
+ * call its own operations, such as an auto-baseline's baseline and delta legs.
  */
 export interface FakePlannerScript {
   readonly operations?: readonly MigrationPlanOperation[];
+  readonly operationsByPlan?: ReadonlyArray<readonly MigrationPlanOperation[]>;
   readonly conflicts?: ReadonlyArray<{ readonly kind: string; readonly summary: string }>;
   readonly throwOnOperations?: unknown;
   readonly throwOnPlan?: unknown;
@@ -181,12 +183,15 @@ export interface FakePlannerScript {
 }
 
 function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
+  let planCalls = 0;
   return {
     plan: (options: { readonly statements: readonly unknown[] }) => {
       script.statementsReceived?.push([...options.statements]);
       if (script.throwOnPlan !== undefined) {
         throw script.throwOnPlan;
       }
+      const operations = script.operationsByPlan?.[planCalls] ?? script.operations;
+      planCalls += 1;
       const [refused] = script.refuseStatements === true ? options.statements : [];
       if (refused !== undefined) {
         return {
@@ -199,14 +204,14 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
             kind: 'success',
             appliedStatements: options.statements.map((statement) => ({
               statement,
-              operationIndexes: (script.operations ?? [ADDITIVE_OP]).map((_, index) => index),
+              operationIndexes: (operations ?? [ADDITIVE_OP]).map((_, index) => index),
             })),
             plan: {
               operations:
                 script.throwOnOperations === undefined
-                  ? (script.operations ?? [ADDITIVE_OP]).map((op) => Promise.resolve(op))
+                  ? (operations ?? [ADDITIVE_OP]).map((op) => Promise.resolve(op))
                   : [
-                      ...(script.operations ?? []).map((op) => Promise.resolve(op)),
+                      ...(operations ?? []).map((op) => Promise.resolve(op)),
                       Promise.reject(script.throwOnOperations),
                     ],
               renderTypeScript: () => '// planned migration\n',
