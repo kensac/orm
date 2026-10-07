@@ -58,7 +58,7 @@ describe('statement errors say what to type', () => {
     });
   });
 
-  it('refuses a field swap and gives the two steps that make it', () => {
+  it('refuses a field swap and gives the three plans that make it', () => {
     const origin = unbound({ Profile: ['id', 'name', 'handle'] });
     expect(
       adviceOf(
@@ -67,7 +67,35 @@ describe('statement errors say what to type', () => {
       ),
     ).toEqual({
       why: '"Profile.name" and "Profile.handle" swap names: each is both an old name and a new name, and statements cannot swap names in one plan.',
-      fix: 'Make the swap in two steps. First change the contract so that "Profile.name" has a temporary name, and plan it with --rename Profile.name:<temporary name>. Then change the contract to the final names, and plan it with the other statement and --rename <temporary name>:Profile.handle.',
+      fix: 'Make the swap in three plans. First change the contract so that "Profile.name" has a temporary name, and plan it with --rename Profile.name:Profile.<temporary name>. Then give "Profile.handle" the name "Profile.name", and plan it with --rename Profile.handle:Profile.name. Then give the temporary name the name "Profile.handle", and plan it with --rename Profile.<temporary name>:Profile.handle.',
+    });
+  });
+
+  it('advises three plans whose statements each resolve against their contracts', () => {
+    const contracts = [
+      unbound({ Profile: ['id', 'name', 'handle'] }),
+      unbound({ Profile: ['id', 'tmp', 'handle'] }),
+      unbound({ Profile: ['id', 'tmp', 'name'] }),
+      unbound({ Profile: ['id', 'handle', 'name'] }),
+    ];
+    const [first] = contracts;
+    if (first === undefined) throw new Error('expected contracts');
+    const fix = adviceOf(
+      resolve(['Profile.name:Profile.handle', 'Profile.handle:Profile.name'], first, first),
+      INVALID,
+    ).fix;
+    const advised = [
+      ...(fix ?? '').replaceAll('<temporary name>', 'tmp').matchAll(/--rename (\S+?)\.(?:\s|$)/g),
+    ].map((match) => match[1] ?? '');
+    expect(advised).toEqual([
+      'Profile.name:Profile.tmp',
+      'Profile.handle:Profile.name',
+      'Profile.tmp:Profile.handle',
+    ]);
+    advised.forEach((statement, index) => {
+      const [from, to] = [contracts[index], contracts[index + 1]];
+      if (from === undefined || to === undefined) throw new Error('expected contracts');
+      expect(resolve([statement], from, to).ok, statement).toBe(true);
     });
   });
 

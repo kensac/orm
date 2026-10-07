@@ -419,7 +419,7 @@ function resolveModelRename(
     modelAt(state.origin.contract, to) !== undefined &&
     modelAt(state.destination.contract, from) !== undefined
   ) {
-    return notOk(swapRefusal(statement, qualifiedModel(from), qualifiedModel(to)));
+    return notOk(swapRefusal(statement, 'model', qualifiedModel(from), qualifiedModel(to)));
   }
   if (modelAt(state.origin.contract, to) !== undefined) {
     return notOk(
@@ -565,6 +565,7 @@ function resolveFieldRename(
     return notOk(
       swapRefusal(
         statement,
+        'field',
         `${toModel}.${from.coordinate.field}`,
         `${toModel}.${to.coordinate.field}`,
       ),
@@ -593,13 +594,27 @@ function resolveFieldRename(
   return ok({ kind: 'rename', entity: 'field', from: from.coordinate, to: to.coordinate });
 }
 
-/** Two names that trade places: each is an old name and a new name, which one plan cannot do. */
-function swapRefusal(statement: ParsedRename, first: string, second: string): CliStructuredError {
+/**
+ * Two names that trade places: each is an old name and a new name, which one plan cannot do.
+ * Statements resolve against contracts, so the swap takes three plans through a temporary name.
+ */
+function swapRefusal(
+  statement: ParsedRename,
+  entity: 'model' | 'field',
+  first: string,
+  second: string,
+): CliStructuredError {
   const verb = statement.verb;
+  const oldName = statement.from.join('.');
+  const newName = statement.to.join('.');
+  const temporary =
+    entity === 'field'
+      ? `${statement.to.slice(0, -1).join('.')}.<temporary name>`
+      : '<temporary name>';
   return errorStatementInvalid(
     statement,
     `"${first}" and "${second}" swap names: each is both an old name and a new name, and statements cannot swap names in one plan.`,
-    `Make the swap in two steps. First change the contract so that "${first}" has a temporary name, and plan it with --${verb} ${statement.from.join('.')}:<temporary name>. Then change the contract to the final names, and plan it with the other statement and --${verb} <temporary name>:${statement.to.join('.')}.`,
+    `Make the swap in three plans. First change the contract so that "${first}" has a temporary name, and plan it with --${verb} ${oldName}:${temporary}. Then give "${second}" the name "${first}", and plan it with --${verb} ${newName}:${oldName}. Then give the temporary name the name "${second}", and plan it with --${verb} ${temporary}:${newName}.`,
   );
 }
 
