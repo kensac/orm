@@ -5,6 +5,7 @@ import type {
   ControlStack,
   MigrationPlan,
   MigrationPlanOperation,
+  PlanOrigin,
 } from '@internal/framework-components/control';
 import { type } from 'arktype';
 import {
@@ -148,7 +149,7 @@ export abstract class Migration<
     return migration.operations;
   }
 
-  get origin(): { readonly storageHash: string } | null {
+  get origin(): PlanOrigin | null {
     const from = this.describe().from;
     return from === null ? null : { storageHash: from };
   }

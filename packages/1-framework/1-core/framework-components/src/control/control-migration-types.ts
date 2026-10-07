@@ -81,9 +81,13 @@ export interface MigrationMetadata {
  */
 export type MigrationOperationClass = 'additive' | 'widening' | 'destructive' | 'data';
 
-/** The state a plan asserts it starts from: the storage hash the runner checks the marker for. */
+/**
+ * The state a plan asserts it starts from: the storage hash, and optionally the profile hash, the
+ * runner checks the marker for. A planner's `origin` option and a plan's `origin` share this type.
+ */
 export interface PlanOrigin {
   readonly storageHash: string;
+  readonly profileHash?: string;
 }
 
 /** The origin a plan from `contract` asserts, or `null` when it starts from no contract. */
@@ -220,10 +224,7 @@ export interface MigrationPlan {
    * Origin contract identity that the plan expects the database to currently be at.
    * If omitted or null, the runner skips origin validation entirely.
    */
-  readonly origin?: {
-    readonly storageHash: string;
-    readonly profileHash?: string;
-  } | null;
+  readonly origin?: PlanOrigin | null;
   /** Destination contract identity that the plan intends to reach. */
   readonly destination: {
     readonly storageHash: string;
