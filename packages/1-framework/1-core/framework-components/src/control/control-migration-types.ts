@@ -68,11 +68,16 @@ export interface MigrationMetadata {
 // ============================================================================
 
 /**
- * Migration operation classes define the safety level of an operation.
- * - 'additive': Adds new structures without modifying existing ones (safe)
- * - 'widening': Relaxes constraints or expands types (generally safe)
- * - 'destructive': Removes or alters existing structures (potentially unsafe)
- * - 'data': Data transformation operation (e.g., backfill, type conversion)
+ * What an operation can do to the data. `destructive` means the operation loses data; no other
+ * class loses a row or a value.
+ * - 'additive': adds structure without changing what exists.
+ * - 'widening': changes existing structure without losing data: a rename, a relaxed constraint or
+ *   a wider type, and a drop of an object that holds no data (an index; a unique, foreign-key or
+ *   check constraint; a default; a native enum type; a row-level-security policy) or disabling
+ *   row-level security. Dropping a policy or disabling row-level security widens who can read and
+ *   write rows. MongoDB still classes dropping an index as 'destructive'.
+ * - 'destructive': loses data, such as dropping a table or a column.
+ * - 'data': transforms data, such as a backfill or a type conversion.
  */
 export type MigrationOperationClass = 'additive' | 'widening' | 'destructive' | 'data';
 
