@@ -2,6 +2,7 @@ import { asNamespaceId, type Contract } from '@internal/contract/types';
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
+  planOriginOf,
   type ResolvedMigrationStatement,
   type ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
@@ -66,6 +67,7 @@ function plan(
     schema,
     policy,
     fromContract: from,
+    origin: planOriginOf(from),
     statements,
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,

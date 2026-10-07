@@ -7,6 +7,13 @@ changes:
       glob: "**/*.{ts,mts,cts}"
       matches:
         - '\.plan\(\s*\{(?!(?:[^{}]|\{[^{}]*\})*?(?<![\w$])statements\s*[:,])(?:[^{}]|\{[^{}]*\})*?(?<![\w$])fromContract\s*[:,]'
+  - id: planner-plan-origin
+    summary: |
+      Every call to a migration planner's `plan(...)` passes a new required `origin`: the storage hash the produced plan asserts it starts from. `fromContract` no longer sets the plan's origin.
+    detection:
+      glob: "**/*.{ts,mts,cts}"
+      matches:
+        - '\.plan\(\s*\{(?!(?:[^{}]|\{[^{}]*\})*?(?<![\w$])origin\s*[:,])(?:[^{}]|\{[^{}]*\})*?(?<![\w$])fromContract\s*[:,]'
   - id: planner-success-applied-statements
     summary: |
       A migration planner's success result gains a required `appliedStatements` list; a planner, or a test double of one, that returns `{ kind: 'success', plan }` adds `appliedStatements`, empty when it applied no statements.
@@ -38,6 +45,10 @@ changes:
 ## `planner-plan-statements`
 
 The options of `MigrationPlanner.plan` (from `@prisma/orm-framework/components/control`), of the SQL family's `SqlMigrationPlannerPlanOptions`, of the Postgres and SQLite planners, and of `MongoMigrationPlanner` (from `@prisma/orm-target-mongo/target/control`) gain a required `statements: readonly ResolvedMigrationStatement[]`: the `--rename` statements the user gave, resolved into namespace, model and field names. For each `plan({ ... })` call, add `statements: []` beside `fromContract`. A planner that forwards its options to another planner forwards `statements` too. Detection finds the calls that write their options inline in `plan({ ... })`; a call that builds its options object elsewhere and passes it in, such as `plan(options)`, is not detected, so check those calls by hand. `MongoMigrationPlanner` refuses a non-empty `statements` with a `statementRefused` conflict in this release.
+
+## `planner-plan-origin`
+
+The same planner options gain a required `origin: PlanOrigin | null`. It is the origin the produced plan asserts, which the runner checks against the database marker: the plan's `origin` and its `describe().from`. Until now a planner derived it from `fromContract`; now `fromContract` is only the contract the planner reads. To keep a call's behavior, pass `origin: planOriginOf(fromContract)`, with `planOriginOf` from `@prisma/orm-framework/components/control`. A call that plans from whatever state the database is in, as `db init` and `db update` do, passes `origin: null`. A planner implementation stamps `options.origin?.storageHash ?? null` onto its plan instead of reading the hash from `fromContract`. Detection finds the same inline `plan({ ... })` calls as `planner-plan-statements`; check calls that pass a prebuilt options object by hand.
 
 ## `planner-success-applied-statements`
 

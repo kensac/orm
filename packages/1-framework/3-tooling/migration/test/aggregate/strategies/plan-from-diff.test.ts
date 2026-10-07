@@ -132,16 +132,22 @@ describe('planFromDiff', () => {
     expect(observedOwnership).toBe(ownership);
   });
 
-  it('hands the planner the origin contract and statements, and gives the runner a plan with no origin', async () => {
+  it('hands the planner the origin contract and statements, and asks it for a plan with no origin', async () => {
     const appSpace = makeSpace('app', {});
     const fromContract = appSpace.contract();
-    let received: { fromContract: unknown; statements: readonly unknown[] } | undefined;
+    let received:
+      | { fromContract: unknown; origin: unknown; statements: readonly unknown[] }
+      | undefined;
     const stubPlanner: MigrationPlanner<'sql', 'postgres'> = {
       plan: (options) => {
-        received = { fromContract: options.fromContract, statements: options.statements };
+        received = {
+          fromContract: options.fromContract,
+          origin: options.origin,
+          statements: options.statements,
+        };
         return {
           kind: 'success',
-          plan: { ...makeStubPlan('placeholder'), origin: { storageHash: 'origin-hash' } },
+          plan: { ...makeStubPlan('placeholder'), origin: options.origin },
           appliedStatements: [],
         };
       },
@@ -169,7 +175,7 @@ describe('planFromDiff', () => {
       statements: [],
     });
 
-    expect(received).toEqual({ fromContract, statements: [] });
+    expect(received).toEqual({ fromContract, origin: null, statements: [] });
     expect(outcome.kind === 'ok' && outcome.result.plan.origin).toBeNull();
   });
 

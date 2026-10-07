@@ -5,6 +5,7 @@ import {
   createControlStack,
   type MigrationPlan,
   type MigrationPlanOperation,
+  planOriginOf,
 } from '@internal/framework-components/control';
 import {
   type AggregateMigrationEdgeRef,
@@ -131,6 +132,7 @@ function planForContract(
     schema: origin,
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract,
+    origin: planOriginOf(fromContract),
     statements: [],
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
@@ -752,6 +754,7 @@ describe('MongoMigrationRunner - E2E round-trip', () => {
       schema: new MongoSchemaIR([]),
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: bareContract('00'),
+      origin: planOriginOf(bareContract('00')),
       statements: [],
       frameworkComponents: [],
       snapshotsImportPath: '../../snapshots',

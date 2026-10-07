@@ -170,6 +170,7 @@ async function plannedCreateIndexNodes(schema: string): Promise<readonly Postgre
     schema: liveSchemaWithoutTheIndex(),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract: null,
+    origin: null,
     statements: [],
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,

@@ -224,6 +224,7 @@ describe('verify on SQLite, for each data type', () => {
         schema: emptySchema,
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: null,
+        origin: null,
         statements: [],
         frameworkComponents,
         spaceId: APP_SPACE_ID,

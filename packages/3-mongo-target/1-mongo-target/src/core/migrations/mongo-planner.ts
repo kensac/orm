@@ -11,6 +11,7 @@ import {
   type MigrationPlanWithAuthoringSurface,
   type MigrationScaffoldContext,
   type ModelCoordinate,
+  type PlanOrigin,
   type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import type { MongoContract } from '@internal/mongo-contract';
@@ -411,12 +412,10 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
     readonly contract: unknown;
     readonly schema: unknown;
     readonly policy: MigrationOperationPolicy;
-    /**
-     * The "from" contract (state the planner assumes the database starts at),
-     * or `null` for reconciliation flows. Used to populate `describe().from`
-     * on the produced plan as `fromContract?.storage.storageHash ?? null`.
-     */
+    /** The contract the planner reads as the starting state, or `null` when it has none. */
     readonly fromContract: Contract | null;
+    /** The origin the produced plan asserts: its `describe().from` and `origin`. */
+    readonly origin: PlanOrigin | null;
     /** The `--rename` statements, resolved; MongoDB refuses any statement in this release. */
     readonly statements: readonly ResolvedMigrationStatement[];
     readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<'mongo', 'mongo'>>;
@@ -445,7 +444,7 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
       plan: new PlannerProducedMongoMigration(
         result.calls,
         {
-          from: options.fromContract?.storage.storageHash ?? null,
+          from: options.origin?.storageHash ?? null,
           to: contract.storage.storageHash,
         },
         options.snapshotsImportPath,

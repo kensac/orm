@@ -143,6 +143,7 @@ async function planOpIds(
     schema,
     policy: { allowedOperationClasses: [...policy.allowedOperationClasses] },
     fromContract: null,
+    origin: null,
     statements: [],
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,

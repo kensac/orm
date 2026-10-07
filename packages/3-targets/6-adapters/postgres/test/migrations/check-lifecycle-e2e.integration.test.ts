@@ -350,6 +350,7 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
       schema,
       policy,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents,
       spaceId: APP_SPACE_ID,

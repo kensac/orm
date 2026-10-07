@@ -81,6 +81,18 @@ export interface MigrationMetadata {
  */
 export type MigrationOperationClass = 'additive' | 'widening' | 'destructive' | 'data';
 
+/** The state a plan asserts it starts from: the storage hash the runner checks the marker for. */
+export interface PlanOrigin {
+  readonly storageHash: string;
+}
+
+/** The origin a plan from `contract` asserts, or `null` when it starts from no contract. */
+export function planOriginOf(
+  contract: { readonly storage: { readonly storageHash: string } } | null,
+): PlanOrigin | null {
+  return contract === null ? null : { storageHash: contract.storage.storageHash };
+}
+
 /**
  * Policy defining which operation classes are allowed during a migration.
  */
@@ -452,23 +464,19 @@ export interface MigrationPlanner<
     readonly schema: unknown;
     readonly policy: MigrationOperationPolicy;
     /**
-     * The "from" contract (the state the planner assumes the database starts
-     * at), or `null` for a baseline plan with no prior state.
-     *
-     * Planners derive any "from" identity they need to stamp onto the
-     * produced plan's `describe()` from `fromContract?.storage.storageHash
-     * ?? null`. They also pass this to data-safety strategies so they can
-     * compare `from` and `to` column shapes (e.g. to detect unsafe type
-     * changes).
-     *
-     * Required at every call site to make the structural fact "I have a
-     * prior contract / I don't" visible in the type. Reconciliation
-     * commands (`db init`, `db update`) introspect a live schema and pass
-     * `null`; authoring commands (`migration plan`) read the predecessor's
-     * contract from the snapshot store by its storage hash and pass the
-     * parsed value.
+     * The contract the planner reads as the starting state, or `null` when it has none: statements
+     * resolve against it, and data-safety strategies compare its column shapes with the
+     * destination's. `migration plan` passes the predecessor's contract; `db update` passes the
+     * contract the marker names only when statements are given.
      */
     readonly fromContract: Contract | null;
+    /**
+     * The origin the produced plan asserts, which the runner checks against the marker: the
+     * plan's `origin` and its `describe().from`. `migration plan` passes its starting contract's
+     * hash ({@link planOriginOf}); reconciliation commands (`db init`, `db update`) pass `null`,
+     * because their plans apply from whatever state the database is in.
+     */
+    readonly origin: PlanOrigin | null;
     /**
      * Statements the user gave, resolved against `fromContract` and `contract`,
      * in the order given. Empty when the user gave none.

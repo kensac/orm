@@ -10,6 +10,7 @@ import {
   hasOperationPreview,
   type MigrationPlanOperation,
   type OperationPreview,
+  planOriginOf,
   type ResolvedMigrationStatement,
   type SchemaOwnership,
 } from '@internal/framework-components/control';
@@ -147,6 +148,7 @@ async function runPlannerLeg(
     schema: fromSchema,
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
     fromContract,
+    origin: planOriginOf(fromContract),
     statements,
     frameworkComponents,
     spaceId,

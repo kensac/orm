@@ -2,6 +2,7 @@ import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/c
 import {
   APP_SPACE_ID,
   type MigrationOperationPolicy,
+  planOriginOf,
   type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -151,6 +152,7 @@ describe('rename statements with hostile identifiers on SQLite', {
       ) as SqlSchemaIR,
       policy: ALL_CLASSES,
       fromContract: origin,
+      origin: planOriginOf(origin),
       statements,
       frameworkComponents,
       spaceId: APP_SPACE_ID,

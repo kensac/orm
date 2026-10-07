@@ -7,6 +7,7 @@ import type {
 import {
   APP_SPACE_ID,
   type ControlStack,
+  planOriginOf,
   type ResolvedFieldRenameStatement,
   type ResolvedMigrationStatement,
   type ResolvedModelRenameStatement,
@@ -84,6 +85,7 @@ function plan(
     schema: sqliteContractToSchema(from, sqliteTestTypes),
     policy: ALL_CLASSES,
     fromContract: from,
+    origin: planOriginOf(from),
     statements,
     frameworkComponents: sqliteTestComponents,
     spaceId: APP_SPACE_ID,

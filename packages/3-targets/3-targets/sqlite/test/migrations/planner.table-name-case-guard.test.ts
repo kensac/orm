@@ -118,6 +118,7 @@ function planFromLive(
       schema: liveSchema(previousTables),
       policy: DESTRUCTIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: sqliteTestComponents,
       spaceId: APP_SPACE_ID,

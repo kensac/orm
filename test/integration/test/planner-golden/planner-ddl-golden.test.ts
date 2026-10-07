@@ -205,6 +205,7 @@ async function planFromEmpty(
         schema: emptyPostgresSchema,
         policy: INIT_ADDITIVE_POLICY,
         fromContract: null,
+        origin: null,
         statements: [],
         frameworkComponents: [
           postgresTargetControl,
@@ -237,6 +238,7 @@ async function planFromEmpty(
       schema: emptySqliteSchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: [sqliteTargetControl, sqliteAdapterControl, sqliteDriverControl],
       spaceId: APP_SPACE_ID,

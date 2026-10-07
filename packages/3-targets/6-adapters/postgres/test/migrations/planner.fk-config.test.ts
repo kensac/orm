@@ -1,6 +1,6 @@
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
 import { INIT_ADDITIVE_POLICY } from '@internal/family-sql/control';
-import { APP_SPACE_ID } from '@internal/framework-components/control';
+import { APP_SPACE_ID, planOriginOf } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage } from '@internal/sql-contract/types';
 import { createPostgresBuiltinCodecLookup } from '@internal/target-postgres/codecs';
@@ -124,6 +124,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       schema: emptySchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
@@ -145,6 +146,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       schema: emptySchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
@@ -166,6 +168,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       schema: emptySchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
@@ -187,6 +190,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       schema: emptySchema,
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
@@ -222,6 +226,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       schema,
       policy: MIGRATION_PLAN_POLICY,
       fromContract,
+      origin: planOriginOf(fromContract),
       statements: [],
       frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,

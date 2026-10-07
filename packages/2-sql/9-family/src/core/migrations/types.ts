@@ -16,6 +16,7 @@ import type {
   MigrationRunnerResult,
   OperationContext,
   OpFactoryCall,
+  PlanOrigin,
   ResolvedMigrationStatement,
   SchemaDiffIssue,
   SchemaOwnership,
@@ -327,11 +328,10 @@ export interface SqlMigrationPlannerPlanOptions {
    * need from/to column-shape comparisons (unsafe type change, nullability
    * tightening) use this to decide whether to emit `dataTransform`
    * placeholders; they short-circuit when it is `null`.
-   *
-   * Planners also derive the "from" identity they stamp onto the produced
-   * plan's `describe()` as `fromContract?.storage.storageHash ?? null`.
    */
   readonly fromContract: Contract<SqlStorage> | null;
+  /** The origin the produced plan asserts; see the framework planner's `origin` option. */
+  readonly origin: PlanOrigin | null;
   /**
    * Statements the user gave, resolved against `fromContract` and `contract`, in the order
    * given. Empty when the user gave none.

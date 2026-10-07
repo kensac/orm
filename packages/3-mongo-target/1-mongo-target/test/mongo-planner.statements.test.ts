@@ -66,6 +66,7 @@ function plan(
     schema: new MongoSchemaIR([new MongoSchemaCollection({ name: collections.from })]),
     policy: ALL_CLASSES_POLICY,
     fromContract: contractWithModel('Profile', collections.from),
+    origin: null,
     statements,
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',

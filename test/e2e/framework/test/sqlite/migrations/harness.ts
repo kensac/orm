@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { planOriginOf } from '@internal/framework-components/control';
 import { integerColumn, textColumn } from '@prisma/orm-sqlite/adapter/column-types';
 import sqliteAdapterDescriptor, {
   createSqliteBuiltinCodecLookup,
@@ -141,6 +142,7 @@ export async function applyMigration(
         schema: emptySchema,
         policy: INIT_ADDITIVE_POLICY,
         fromContract: null,
+        origin: null,
         statements: [],
         frameworkComponents: fw,
         spaceId: APP_SPACE_ID,
@@ -172,6 +174,7 @@ export async function applyMigration(
       schema: currentSchema,
       policy,
       fromContract: options.origin ?? null,
+      origin: planOriginOf(options.origin ?? null),
       statements: [],
       frameworkComponents: fw,
       spaceId: APP_SPACE_ID,

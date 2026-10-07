@@ -4,6 +4,7 @@ import type { SqlControlAdapter } from '@internal/family-sql/control-adapter';
 import type { ControlStack } from '@internal/framework-components/control';
 import {
   APP_SPACE_ID,
+  planOriginOf,
   type ResolvedFieldRenameStatement,
   type ResolvedMigrationStatement,
   type ResolvedModelRenameStatement,
@@ -75,6 +76,7 @@ function plan(
     schema,
     policy: ALL_CLASSES,
     fromContract: from,
+    origin: planOriginOf(from),
     statements,
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,

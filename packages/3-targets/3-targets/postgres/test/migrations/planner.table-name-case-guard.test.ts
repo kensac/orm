@@ -15,7 +15,11 @@ import type {
   ExecuteRequestLowerer,
   SqlControlAdapter,
 } from '@internal/family-sql/control-adapter';
-import { APP_SPACE_ID, type ControlStack } from '@internal/framework-components/control';
+import {
+  APP_SPACE_ID,
+  type ControlStack,
+  planOriginOf,
+} from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { applicationDomainOf } from '@repo/test-utils';
@@ -156,6 +160,7 @@ function planFromLive(
       schema: liveSchema(previousTables, options.schemaName),
       policy: DESTRUCTIVE_POLICY,
       fromContract: null,
+      origin: null,
       statements: [],
       frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
@@ -298,6 +303,7 @@ function planMigration(from: PostgresContract, to: PostgresContract) {
     }),
     policy: DESTRUCTIVE_POLICY,
     fromContract: from,
+    origin: planOriginOf(from),
     statements: [],
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,

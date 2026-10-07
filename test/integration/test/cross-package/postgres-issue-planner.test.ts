@@ -700,6 +700,7 @@ describe('planIssues', () => {
         schema: actual,
         policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
         fromContract: null,
+        origin: null,
         statements: [],
         frameworkComponents,
         spaceId: 'app',

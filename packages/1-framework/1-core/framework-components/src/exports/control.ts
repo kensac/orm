@@ -61,10 +61,12 @@ export type {
   MigrationRunnerSuccessValue,
   MigrationScaffoldContext,
   OpFactoryCall,
+  PlanOrigin,
   SchemaEntityCoordinate,
   SchemaOwnership,
   TargetMigrationsCapability,
 } from '../control/control-migration-types';
+export { planOriginOf } from '../control/control-migration-types';
 export type {
   OperationPreview,
   OperationPreviewStatement,

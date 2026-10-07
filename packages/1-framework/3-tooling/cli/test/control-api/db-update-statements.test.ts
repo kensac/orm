@@ -84,6 +84,7 @@ function familyWithMarker(
 
 interface PlannerCall {
   readonly fromContract: unknown;
+  readonly origin: { readonly storageHash: string } | null;
   readonly statements: readonly ResolvedMigrationStatement[];
 }
 
@@ -97,7 +98,11 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
   const migrations = {
     createPlanner: () => ({
       plan: (options: PlannerCall): MigrationPlannerResult => {
-        calls.push({ fromContract: options.fromContract, statements: options.statements });
+        calls.push({
+          fromContract: options.fromContract,
+          origin: options.origin,
+          statements: options.statements,
+        });
         const renamed = options.statements.length > 0;
         return {
           kind: 'success',
@@ -107,10 +112,7 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
           })),
           plan: {
             targetId: 'postgres',
-            origin:
-              options.fromContract === null
-                ? null
-                : { storageHash: (options.fromContract as Contract).storage.storageHash },
+            origin: options.origin,
             destination: { storageHash: DESTINATION_HASH },
             operations: [
               renamed
@@ -194,6 +196,7 @@ describe('executeDbUpdate with statements', () => {
     expect(calls).toEqual([
       {
         fromContract: origin,
+        origin: null,
         statements: [
           {
             kind: 'rename',
@@ -377,7 +380,7 @@ describe('executeDbUpdate with statements', () => {
       migrations: withSnapshot.migrations,
     });
     expect(result.ok).toBe(true);
-    expect(withSnapshot.calls).toEqual([{ fromContract: null, statements: [] }]);
+    expect(withSnapshot.calls).toEqual([{ fromContract: null, origin: null, statements: [] }]);
 
     const without = recordingMigrations();
     const withoutSnapshot = await update({
@@ -386,7 +389,7 @@ describe('executeDbUpdate with statements', () => {
       renames: [],
       migrations: without.migrations,
     });
-    expect(without.calls).toEqual([{ fromContract: null, statements: [] }]);
+    expect(without.calls).toEqual([{ fromContract: null, origin: null, statements: [] }]);
     expect(withoutSnapshot.ok && withoutSnapshot.value.appliedStatements).toEqual([]);
   });
 });
