@@ -43,7 +43,7 @@ export abstract class SqlMigration<
    * `MigrationPlan.providedInvariants?` stays optional.
    */
   get providedInvariants(): readonly string[] {
-    this.resetAuthoringState();
+    this.beginOperationsRead();
     const ops = this.operations.filter(
       (op): op is SqlMigrationPlanOperation<TDetails> => !isThenable(op),
     );

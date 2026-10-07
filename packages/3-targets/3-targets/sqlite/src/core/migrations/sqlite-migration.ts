@@ -243,7 +243,7 @@ export abstract class SqliteMigration<
     return working.current;
   }
 
-  protected override resetAuthoringState(): void {
+  protected override beginOperationsRead(): void {
     this.#renames = [];
   }
 

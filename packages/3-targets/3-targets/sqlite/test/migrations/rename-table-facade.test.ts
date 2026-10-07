@@ -241,20 +241,19 @@ describe('SqliteMigration.renameTable', () => {
     );
   });
 
-  it('reads the same operations again after the authoring state is reset', async () => {
+  it('reads the same operations again through Migration.readOperations', async () => {
     const migration = renameMigration(
       contractOf('userProfile', derivedIndex, 'from'),
       contractOf('UserProfile', derivedIndex, 'to'),
       RENAME,
     );
-    const first = await Promise.all(migration.operations);
-    Migration.resetAuthoringStateOf(migration);
-    const second = await Promise.all(migration.operations);
+    const first = await Promise.all(Migration.readOperations(migration));
+    const second = await Promise.all(Migration.readOperations(migration));
 
     expect(second).toEqual(first);
   });
 
-  it('refuses a second read of the operations without a reset, since the table is already renamed', () => {
+  it('refuses a second direct read of the operations, since the table is already renamed', () => {
     const migration = renameMigration(
       contractOf('userProfile', {}, 'from'),
       contractOf('UserProfile', {}, 'to'),

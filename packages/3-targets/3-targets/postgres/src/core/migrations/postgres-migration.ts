@@ -482,7 +482,7 @@ export abstract class PostgresMigration<
     return working.current;
   }
 
-  protected override resetAuthoringState(): void {
+  protected override beginOperationsRead(): void {
     this.#renames = [];
   }
 
