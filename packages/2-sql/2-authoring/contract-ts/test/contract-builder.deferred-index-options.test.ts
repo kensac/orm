@@ -4,6 +4,7 @@
 import type { FamilyPackRef, TargetPackRef } from '@internal/framework-components/components';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { testTypeLookups } from '../../../1-core/contract/test/test-type-lookups';
 import { type ContractInput, defineContract, field, model } from '../src/contract-builder';
 import type { DeferredIndexColumn, IndexConstraint } from '../src/contract-dsl';
 import { columnDescriptor } from './helpers/column-descriptor';
@@ -39,6 +40,7 @@ function messageIndexes(options: {
     ? field.column(textColumn).column(options.mappedColumn)
     : field.column(textColumn);
   const contract = defineContract({
+    ...testTypeLookups,
     family: bareFamilyPack,
     target: postgresTargetPack,
     extensions: { testIndexes: testIndexPack },

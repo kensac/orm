@@ -6,6 +6,7 @@ import { renderFullTextIndexDocument } from '../../src/core/full-text-search-doc
 import { contractToPostgresDatabaseSchemaNode } from '../../src/core/migrations/contract-to-postgres-database-schema-node';
 import { type PostgresContract, PostgresSchema } from '../../src/core/postgres-schema';
 import { postgresRenderDefault } from '../../src/exports/control';
+import { postgresTypeLookups } from '../postgres-type-lookups';
 
 const fullTextOptions = {
   weightGroups: [['title', 'subtitle'], ['body']],
@@ -19,11 +20,11 @@ function contractWithIndex(index: {
 }): PostgresContract {
   const table = new StorageTable({
     columns: {
-      id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
-      title: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
-      subtitle: { nativeType: 'text', codecId: 'pg/text@1', nullable: true },
-      body: { nativeType: 'text', codecId: 'pg/text@1', nullable: true },
-      views: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
+      id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
+      title: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+      subtitle: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: true },
+      body: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: true },
+      views: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
     },
     primaryKey: { columns: ['id'] },
     foreignKeys: [],
@@ -64,6 +65,7 @@ function indexNodeOf(contract: PostgresContract) {
   const root = contractToPostgresDatabaseSchemaNode(contract, {
     annotationNamespace: 'pg',
     renderDefault: postgresRenderDefault,
+    ...postgresTypeLookups,
   });
   const index = root.namespaces['public']?.tables['post']?.indexes[0];
   if (index === undefined) throw new Error('the post table has no index');
@@ -97,11 +99,11 @@ describe('a full-text index in the schema node', () => {
     const allRequired = new StorageTable({
       ...contract.storage.namespaces['public']!.entries.table!['post']!,
       columns: {
-        id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
-        title: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
-        subtitle: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
-        body: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
-        views: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
+        id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
+        title: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+        subtitle: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+        body: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+        views: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
       },
     });
     const required: PostgresContract = {

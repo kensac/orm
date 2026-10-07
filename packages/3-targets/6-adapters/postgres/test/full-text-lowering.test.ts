@@ -110,7 +110,15 @@ describe('full-text lowering', () => {
       .returnsRow({ rank: 'pg/float4@1' })
       .build();
 
-    expect(renderLoweredSql(plan.ast, contract, postgresCodecDescriptorRegistry)).toEqual({
+    expect(
+      renderLoweredSql(
+        plan.ast,
+        contract,
+        postgresCodecDescriptorRegistry,
+        postgresDataTypeLookup,
+        postgresAdapterCapabilities,
+      ),
+    ).toEqual({
       sql: `SELECT ts_rank((setweight(to_tsvector('german', coalesce("post"."title", '')), 'A') || setweight(to_tsvector('german', coalesce("post"."body", '')), 'B')), websearch_to_tsquery('english', $1)) AS rank FROM "post"`,
       params: [{ kind: 'literal', value: 'zebra' }],
     });

@@ -5,18 +5,15 @@
  * its type cannot index.
  */
 
-import {
-  type AnyCodecDescriptor,
-  type CodecLookupWithDescriptors,
-  emptyCodecLookup,
-} from '@internal/framework-components/codec';
+import type { CodecLookupWithDescriptors, CodecTrait } from '@internal/framework-components/codec';
 import type { FamilyPackRef, TargetPackRef } from '@internal/framework-components/components';
 import { defineIndexTypes } from '@internal/sql-contract/index-types';
 import { type } from 'arktype';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { testTypeLookups } from '../../../1-core/contract/test/test-type-lookups';
 import { defineContract, field, model } from '../src/contract-builder';
-import type { IndexConstraint } from '../src/contract-dsl';
+import type { IndexConstraint, ScalarFieldBuilder } from '../src/contract-dsl';
 import { columnDescriptor } from './helpers/column-descriptor';
 
 const bareFamilyPack: FamilyPackRef<'sql'> = {
@@ -48,23 +45,33 @@ const searchIndexPack = {
   }),
 } as const;
 
-const traitsByCodecId: Record<string, readonly string[]> = {
+const traitsByCodecId: Record<string, readonly CodecTrait[]> = {
   'pg/text@1': ['equality', 'textual'],
   'pg/int4@1': ['equality', 'numeric'],
 };
 
 const codecLookup: CodecLookupWithDescriptors = {
-  ...emptyCodecLookup,
-  descriptorFor: (codecId) =>
-    traitsByCodecId[codecId] === undefined
-      ? undefined
-      : ({ codecId, traits: traitsByCodecId[codecId] } as unknown as AnyCodecDescriptor),
+  ...testTypeLookups.codecLookup,
+  descriptorFor: (codecId) => {
+    const traits = traitsByCodecId[codecId];
+    const descriptor = testTypeLookups.codecLookup.descriptorFor(codecId);
+    return traits === undefined || descriptor === undefined ? undefined : { ...descriptor, traits };
+  },
 };
 
-function buildWithSearchIndexOn(fields: readonly string[]) {
+const messageFields = {
+  id: field.column(columnDescriptor('pg/int4@1')).id(),
+  body: field.column(columnDescriptor('pg/text@1')),
+  views: field.column(columnDescriptor('pg/int4@1')),
+};
+
+function buildWithSearchIndexOn(
+  indexFields: readonly string[],
+  fields: Record<string, ScalarFieldBuilder> = messageFields,
+) {
   const index: IndexConstraint = {
     kind: 'index',
-    fields,
+    fields: indexFields,
     type: 'search',
     options: {},
     name: 'message_search',
@@ -75,15 +82,9 @@ function buildWithSearchIndexOn(fields: readonly string[]) {
     extensions: { searchIndexes: searchIndexPack },
     createNamespace: createTestSqlNamespace,
     codecLookup,
+    dataTypeLookup: testTypeLookups.dataTypeLookup,
     models: {
-      Message: model('Message', {
-        fields: {
-          id: field.column(columnDescriptor('pg/int4@1')).id(),
-          body: field.column(columnDescriptor('pg/text@1')),
-          views: field.column(columnDescriptor('pg/int4@1')),
-          tags: field.column(columnDescriptor('acme/tags@1')),
-        },
-      }).sql({ table: 'message', indexes: [index] }),
+      Message: model('Message', { fields }).sql({ table: 'message', indexes: [index] }),
     },
   });
 }
@@ -104,11 +105,11 @@ describe('index type column traits', () => {
   });
 
   it('refuses an index over a column whose codec the lookup does not know', () => {
-    expect(() => buildWithSearchIndexOn(['body', 'tags'])).toThrow(
+    const tags = field.column(columnDescriptor('acme/tags@1'));
+    expect(() => buildWithSearchIndexOn(['body', 'tags'], { ...messageFields, tags })).toThrow(
       expect.objectContaining({
-        code: 'CONTRACT.INDEX_INVALID',
-        message: expect.stringMatching(/"tags".*acme\/tags@1/),
-        meta: expect.objectContaining({ indexType: 'search', column: 'tags' }),
+        code: 'CONTRACT.CODEC_DESCRIPTOR_MISSING',
+        message: expect.stringMatching(/acme\/tags@1/),
       }),
     );
   });

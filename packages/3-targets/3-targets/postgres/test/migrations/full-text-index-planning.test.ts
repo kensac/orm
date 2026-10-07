@@ -38,7 +38,7 @@ import { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-da
 import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-namespace-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
 import { postgresRenderDefault } from '../../src/exports/control';
-import { postgresTypeComponents } from '../postgres-type-lookups';
+import { postgresTypeComponents, postgresTypeLookups } from '../postgres-type-lookups';
 
 const postgresDataTypeLookup = createDataTypeLookup(postgresDataTypes);
 const postgresCodecLookup = createPostgresBuiltinCodecLookup();
@@ -203,10 +203,11 @@ describe('a single-field index authored before full-text indexes were stored as 
       schema: contractToPostgresDatabaseSchemaNode(previous, {
         annotationNamespace: 'pg',
         renderDefault: postgresRenderDefault,
+        ...postgresTypeLookups,
       }),
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: previous,
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -238,10 +239,11 @@ describe('a weighted full-text index over a column whose nullability changes', (
       schema: contractToPostgresDatabaseSchemaNode(before, {
         annotationNamespace: 'pg',
         renderDefault: postgresRenderDefault,
+        ...postgresTypeLookups,
       }),
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
       fromContract: before,
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -257,6 +259,7 @@ describe('a weighted full-text index over a column whose nullability changes', (
       contractToPostgresDatabaseSchemaNode(contract, {
         annotationNamespace: 'pg',
         renderDefault: postgresRenderDefault,
+        ...postgresTypeLookups,
       }).namespaces['public']?.tables['Message']?.indexes[0]?.expression;
     expect(expressionOf(blindCast<typeof before, 'a Postgres contract'>(after))).toBe(
       expressionOf(before),
@@ -278,10 +281,11 @@ async function plannedLabels(beforeSchema: string, afterSchema: string): Promise
     schema: contractToPostgresDatabaseSchemaNode(before, {
       annotationNamespace: 'pg',
       renderDefault: postgresRenderDefault,
+      ...postgresTypeLookups,
     }),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
     fromContract: before,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });

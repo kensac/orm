@@ -8,6 +8,7 @@ import { defineIndexTypes } from '@internal/sql-contract/index-types';
 import { type } from 'arktype';
 import { describe, expect, it } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
+import { testTypeLookups } from '../../../1-core/contract/test/test-type-lookups';
 import { defineContract, field, model } from '../src/contract-builder';
 import type { IndexConstraint } from '../src/contract-dsl';
 import { columnDescriptor } from './helpers/column-descriptor';
@@ -54,6 +55,7 @@ describe('an index type whose access method is not its own name', () => {
   it('is refused from an extension pack', () => {
     expect(() =>
       defineContract({
+        ...testTypeLookups,
         family: bareFamilyPack,
         target: postgresTargetPack,
         extensions: {
@@ -79,6 +81,7 @@ describe('an index type whose access method is not its own name', () => {
 
   it('is accepted from the target', () => {
     const contract = defineContract({
+      ...testTypeLookups,
       family: bareFamilyPack,
       target: { ...postgresTargetPack, indexTypes: convertedSearch },
       createNamespace: createTestSqlNamespace,

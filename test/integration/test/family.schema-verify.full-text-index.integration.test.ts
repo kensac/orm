@@ -29,6 +29,7 @@ import {
   useDevDatabase,
   withClient,
 } from './family.schema-verify.helpers';
+import { postgresTypeLookups } from './postgres-type-lookups';
 
 function postContract(naming: { readonly name: string } | { readonly map: string }) {
   return defineContract({
@@ -61,6 +62,7 @@ async function createIndexStatements(contract: unknown): Promise<readonly string
   const root = contractToPostgresDatabaseSchemaNode(validated, {
     annotationNamespace: 'pg',
     renderDefault: postgresRenderDefault,
+    ...postgresTypeLookups,
   });
   const [index] = root.namespaces['public']?.tables['post']?.indexes ?? [];
   if (index?.expression === undefined) throw new Error('the post table has no expression index');

@@ -7,6 +7,7 @@ import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/d
 import { CreateIndexCall } from '@internal/target-postgres/op-factory-call';
 import { contractToPostgresDatabaseSchemaNode } from '@internal/target-postgres/planner';
 import { blindCast } from '@internal/utils/casts';
+import { postgresTypeLookups } from '../postgres-type-lookups';
 
 /** An index of the fixture contract, as the migration planner sees it and creates it. */
 export interface PlannedIndex {
@@ -33,7 +34,7 @@ export async function plannedExpressionIndexes(
       Parameters<typeof contractToPostgresDatabaseSchemaNode>[0],
       'the fixture contract is a Postgres contract'
     >(contract),
-    { annotationNamespace: 'pg', renderDefault: postgresRenderDefault },
+    { annotationNamespace: 'pg', renderDefault: postgresRenderDefault, ...postgresTypeLookups },
   );
   const indexes = root.namespaces['public']?.tables[table]?.indexes ?? [];
   return Promise.all(
