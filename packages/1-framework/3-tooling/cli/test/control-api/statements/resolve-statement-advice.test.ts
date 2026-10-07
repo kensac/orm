@@ -94,12 +94,14 @@ describe('statement errors say what to type', () => {
   it('puts a model statement given after its field statement first', () => {
     const origin = unbound({ Profile: ['id', 'name'] });
     const destination = unbound({ Account: ['id', 'fullName'] });
-    expect(
-      adviceOf(
-        resolve(['Account.name:Account.fullName', 'Profile:Account'], origin, destination),
-        UNRESOLVED,
-      ).fix,
-    ).toBe('Put --rename Profile:Account before --rename Account.name:Account.fullName.');
+    const advice = adviceOf(
+      resolve(['Account.name:Account.fullName', 'Profile:Account'], origin, destination),
+      UNRESOLVED,
+    );
+    expect(advice.fix).toBe(
+      'Put --rename Profile:Account before --rename Account.name:Account.fullName.',
+    );
+    expect(advice.why).not.toContain('namespace.Model');
   });
 
   it('writes both statements a mix of model and field may have meant', () => {

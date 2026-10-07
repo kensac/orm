@@ -367,6 +367,11 @@ function readSide(
   }
   if (asModel.ok) return asModel;
   if (asField.ok) return asField;
+  const contract = side === 'old' ? state.origin : state.destination;
+  const hasNamespaces = Object.keys(contract.contract.domain.namespaces).some(
+    (id) => id !== UNBOUND_NAMESPACE_ID,
+  );
+  if (!hasNamespaces) return asField;
   return notOk({
     ...missing(
       `"${first}.${second}" resolves neither as namespace.Model (${asModel.failure.reason}) nor as Model.field (${asField.failure.reason})`,
