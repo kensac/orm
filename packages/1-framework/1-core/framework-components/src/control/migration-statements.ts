@@ -40,6 +40,28 @@ export type ResolvedMigrationStatement =
   | ResolvedFieldRenameStatement;
 
 /**
+ * What an operation of a plan is about, in the contract's terms where the family can say: a model
+ * or a field of the origin contract, or, when no model of the origin contract stores it, the name
+ * the database knows it by.
+ */
+export type MigrationStatementSubject =
+  | ({ readonly kind: 'model' } & ModelCoordinate)
+  | ({ readonly kind: 'field' } & FieldCoordinate)
+  | { readonly kind: 'storage'; readonly name: string };
+
+/** An operation of a plan, by its position in the plan's `operations`, and its subject. */
+export interface MigrationOperationSubject {
+  readonly operationIndex: number;
+  readonly subject: MigrationStatementSubject;
+}
+
+/** A statement that consents to losing the data of its subject. It never reaches a planner. */
+export interface DeleteMigrationStatement {
+  readonly kind: 'delete';
+  readonly subject: MigrationStatementSubject;
+}
+
+/**
  * A statement as a plan applied it: `operationIndexes` are the positions, in the plan's
  * `operations`, of the operations the statement accounts for, in plan order, and empty when the
  * storage did not change. Statements refer to operations by position because operation ids are
@@ -92,6 +114,12 @@ export type MigrationStatementJson =
       readonly to: FieldCoordinateJson;
     };
 
+/** A subject in JSON output: `namespaceId` is left out for the unbound namespace. */
+export type MigrationStatementSubjectJson =
+  | ({ readonly kind: 'model' } & ModelCoordinateJson)
+  | ({ readonly kind: 'field' } & FieldCoordinateJson)
+  | { readonly kind: 'storage'; readonly name: string };
+
 function coordinateJson<T extends ModelCoordinate>(
   coordinate: T,
 ): Omit<T, 'namespaceId'> & ModelCoordinateJson {
@@ -109,16 +137,56 @@ export function migrationStatementJson(
     : { ...statement, from: coordinateJson(statement.from), to: coordinateJson(statement.to) };
 }
 
+/** The subject as JSON output writes it. */
+export function migrationStatementSubjectJson(
+  subject: MigrationStatementSubject,
+): MigrationStatementSubjectJson {
+  switch (subject.kind) {
+    case 'model':
+      return {
+        kind: 'model',
+        ...coordinateJson({ namespaceId: subject.namespaceId, model: subject.model }),
+      };
+    case 'field':
+      return {
+        kind: 'field',
+        ...coordinateJson({
+          namespaceId: subject.namespaceId,
+          model: subject.model,
+          field: subject.field,
+        }),
+      };
+    case 'storage':
+      return subject;
+  }
+}
+
+function describeDelete(
+  subject: MigrationStatementSubject,
+  fromContract: ContractWithDomain,
+): string {
+  switch (subject.kind) {
+    case 'model':
+      return `delete model "${modelName(fromContract, subject)}"`;
+    case 'field':
+      return `delete field "${modelName(fromContract, subject)}.${subject.field}"`;
+    case 'storage':
+      return `delete storage "${subject.name}"`;
+  }
+}
+
 /**
  * The text that reports a statement, in domain names: a model or field is named with its
- * namespace only when its contract has more than one. A field is named through its model as the
- * destination contract names it, as the statement itself is written.
+ * namespace only when its contract has more than one. A renamed field is named through its model as
+ * the destination contract names it, as the statement itself is written; a deleted model or field
+ * as the origin contract names it.
  */
 export function describeMigrationStatement(
-  statement: ResolvedMigrationStatement,
+  statement: ResolvedMigrationStatement | DeleteMigrationStatement,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
 ): string {
+  if (statement.kind === 'delete') return describeDelete(statement.subject, fromContract);
   if (statement.entity === 'model') {
     return `rename model "${modelName(fromContract, statement.from)}" to "${modelName(contract, statement.to)}"`;
   }

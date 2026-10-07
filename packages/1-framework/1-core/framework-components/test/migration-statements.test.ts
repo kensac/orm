@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   describeMigrationStatement,
   migrationStatementJson,
+  migrationStatementSubjectJson,
   modelDisplayName,
   type ResolvedMigrationStatement,
 } from '../src/control/migration-statements';
@@ -95,6 +96,62 @@ describe('describeMigrationStatement', () => {
         contractWith({ [UNBOUND_NAMESPACE_ID]: ['User'], billing: ['Bill'] }),
       ),
     ).toBe('rename model "Profile" to "User"');
+  });
+});
+
+describe('describeMigrationStatement for a delete', () => {
+  it('names the model, the field or the storage the statement deletes', () => {
+    const contract = contractWith({ app: ['Legacy', 'User'] });
+    expect([
+      describeMigrationStatement(
+        { kind: 'delete', subject: { kind: 'model', namespaceId: app, model: 'Legacy' } },
+        contract,
+        contract,
+      ),
+      describeMigrationStatement(
+        {
+          kind: 'delete',
+          subject: { kind: 'field', namespaceId: app, model: 'User', field: 'name' },
+        },
+        contract,
+        contract,
+      ),
+      describeMigrationStatement(
+        { kind: 'delete', subject: { kind: 'storage', name: 'audit_log' } },
+        contract,
+        contract,
+      ),
+    ]).toEqual(['delete model "Legacy"', 'delete field "User.name"', 'delete storage "audit_log"']);
+  });
+
+  it('names a deleted model through its namespace when the origin contract has several', () => {
+    expect(
+      describeMigrationStatement(
+        { kind: 'delete', subject: { kind: 'model', namespaceId: app, model: 'Legacy' } },
+        contractWith({ app: ['Legacy'], billing: ['Bill'] }),
+        contractWith({ billing: ['Bill'] }),
+      ),
+    ).toBe('delete model "app.Legacy"');
+  });
+});
+
+describe('migrationStatementSubjectJson', () => {
+  it('leaves namespaceId out for the unbound namespace and keeps it otherwise', () => {
+    const unbound = asNamespaceId(UNBOUND_NAMESPACE_ID);
+    expect([
+      migrationStatementSubjectJson({
+        kind: 'field',
+        namespaceId: unbound,
+        model: 'User',
+        field: 'name',
+      }),
+      migrationStatementSubjectJson({ kind: 'model', namespaceId: app, model: 'Legacy' }),
+      migrationStatementSubjectJson({ kind: 'storage', name: 'audit_log' }),
+    ]).toEqual([
+      { kind: 'field', model: 'User', field: 'name' },
+      { kind: 'model', namespaceId: 'app', model: 'Legacy' },
+      { kind: 'storage', name: 'audit_log' },
+    ]);
   });
 });
 
