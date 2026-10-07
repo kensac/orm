@@ -9,6 +9,7 @@ import {
 } from '@internal/sql-relational-core/ast';
 import type { ExecutionContext } from '@internal/sql-relational-core/query-lane-context';
 import type { RuntimeScope } from '@internal/sql-relational-core/types';
+import { invariant } from '@internal/utils/assertions';
 import { castAs } from '@internal/utils/casts';
 import { InternalError } from '@internal/utils/internal-error';
 import {
@@ -587,6 +588,19 @@ async function applyParentOwnedMutation(
   );
 }
 
+function relationColumnPairs(
+  relation: RelationDefinition,
+): ReadonlyArray<readonly [string, string]> {
+  return relation.localColumns.map((localColumn, index) => {
+    const targetColumn = relation.targetColumns[index];
+    invariant(
+      targetColumn !== undefined,
+      `Relation "${relation.relationName}" pairs ${relation.localColumns.length} local column(s) with ${relation.targetColumns.length} target column(s)`,
+    );
+    return [localColumn, targetColumn] as const;
+  });
+}
+
 function copyRelatedValuesToParent(
   contract: Contract<SqlStorage>,
   parentNamespaceId: string,
@@ -595,13 +609,7 @@ function copyRelatedValuesToParent(
   scalarData: Record<string, unknown>,
   relatedRow: Record<string, unknown>,
 ): void {
-  for (let i = 0; i < relation.localColumns.length; i++) {
-    const localColumn = relation.localColumns[i];
-    const targetColumn = relation.targetColumns[i];
-    if (!localColumn || !targetColumn) {
-      continue;
-    }
-
+  for (const [localColumn, targetColumn] of relationColumnPairs(relation)) {
     const parentFieldName = toFieldName(contract, parentNamespaceId, parentModelName, localColumn);
     const childFieldName = toFieldName(
       contract,
@@ -1117,13 +1125,7 @@ function readParentColumnValues(
 ): Map<string, unknown> {
   const values = new Map<string, unknown>();
 
-  for (let i = 0; i < relation.localColumns.length; i++) {
-    const localColumn = relation.localColumns[i];
-    const targetColumn = relation.targetColumns[i];
-    if (!localColumn || !targetColumn) {
-      continue;
-    }
-
+  for (const [localColumn, targetColumn] of relationColumnPairs(relation)) {
     const parentFieldName = toFieldName(contract, parentNamespaceId, parentModelName, localColumn);
     const parentValue = parentRow[parentFieldName];
     if (parentValue === undefined) {
