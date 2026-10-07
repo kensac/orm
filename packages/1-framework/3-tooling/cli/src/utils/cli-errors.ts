@@ -612,6 +612,20 @@ export function errorStatementUnresolved(
 }
 
 /**
+ * Without statements, `db update` drops a renamed table or column and creates it again under the
+ * new name, so any advice to run without them says so.
+ */
+const WITHOUT_STATEMENTS_DROPS =
+  'A plan made without statements drops each renamed table or column with its data and creates it again under the new name, and asks for consent before it does.';
+
+/** How to store the snapshot of the contract the database is at, so statements can resolve. */
+const STORE_ORIGIN_SNAPSHOT_STEPS = [
+  '1. Put the contract source back to the version the database is at, and run `{bin} contract emit`.',
+  '2. Run `{bin} db update --advance-ref <name>`, with the same `--db` as this command if it has one. The database already matches that contract, so this changes nothing in it, and it stores the contract snapshot.',
+  '3. Put the new contract source back, run `{bin} contract emit`, and run this command again with `--advance-ref <name>`.',
+];
+
+/**
  * Statements were given, but there is no origin contract to resolve their old
  * names against.
  */
@@ -625,9 +639,11 @@ export function errorStatementOriginUnknown(origin: {
       'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
       'Cannot resolve statements: the database has no marker',
       {
-        why: 'The database has no marker: it has never been initialised or updated, so there is nothing to rename.',
-        fix: 'Run the command without statements.',
-        nextActions: [chooseAction('Run the command without statements')],
+        why: 'The database has no marker: Prisma has never initialised or updated it, so there is no earlier contract whose names a statement could rename.',
+        fix: `Leave out the statements. If the database already holds tables under the old names, preview the plan with --dry-run first. ${WITHOUT_STATEMENTS_DROPS}`,
+        nextActions: [
+          chooseAction('Leave out the statements, and preview the plan with --dry-run first'),
+        ],
         meta: { hash: null, snapshotDirectory: origin.snapshotDirectory },
       },
     );
@@ -643,10 +659,13 @@ export function errorStatementOriginUnknown(origin: {
       'Cannot resolve statements: the origin contract snapshot cannot be read',
       {
         why: `The contract snapshot for hash "${origin.hash}" in ${origin.snapshotDirectory} could not be read: ${origin.unreadable}`,
-        fix: 'The snapshot file is there but cannot be used. Restore migrations/snapshots/ from version control, or run the command without statements.',
+        fix: [
+          'Restore migrations/snapshots/ from version control. If no good copy exists, store the snapshot again:',
+          ...STORE_ORIGIN_SNAPSHOT_STEPS,
+        ].join('\n'),
         nextActions: [
           chooseAction('Restore migrations/snapshots/ from version control'),
-          chooseAction('Or run the command without statements'),
+          chooseAction('Or store the snapshot again from the contract the database is at'),
         ],
         meta,
       },
@@ -656,15 +675,21 @@ export function errorStatementOriginUnknown(origin: {
     'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
     'Cannot resolve statements: the origin contract is unknown',
     {
-      why: `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`,
+      why: `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}. Statements name things in the contract the database is at, so the command needs that contract. \`db update\` stores the snapshot of the contract it applies only when it advances a ref: the \`db\` ref by default, or with \`--db <url>\` only the ref named by \`--advance-ref <name>\`. Most likely the run that brought the database to this contract advanced no ref.`,
       fix: [
-        'Statements name things in the origin contract, so the command needs it. `db update` keeps a snapshot of the contract it applies when it advances a ref: the `db` ref by default, or with `--db <url>` only the ref named by `--advance-ref <name>`. Give the earlier `db update --db <url>` run `--advance-ref <name>` so its contract is kept for the next one.',
-        'Or plan a migration with `{bin} migration plan --from <contract>`, or run the command without statements.',
+        'Store the snapshot of the contract the database is at, then run the rename:',
+        ...STORE_ORIGIN_SNAPSHOT_STEPS,
+        'Adding --advance-ref to this command alone does not help: it would store the new contract, not the one the database is at. `migration plan --from` does not apply to `db update`.',
       ].join('\n'),
       nextActions: [
-        chooseAction('Run db update with --advance-ref <name> so its contract snapshot is kept'),
-        runCommandAction('Plan from an explicit origin', '{bin} migration plan --from <contract>'),
-        chooseAction('Or run the command without statements'),
+        chooseAction('Put the contract source back to the version the database is at, and emit it'),
+        runCommandAction(
+          'Store its snapshot (with the same --db as this command, if any)',
+          '{bin} db update --advance-ref <name>',
+        ),
+        chooseAction(
+          'Put the new contract source back, emit it, and run this command again with --advance-ref <name>',
+        ),
       ],
       meta,
     },

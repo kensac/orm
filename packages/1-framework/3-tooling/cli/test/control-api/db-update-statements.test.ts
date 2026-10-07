@@ -353,7 +353,7 @@ describe('executeDbUpdate with statements', () => {
     ).rejects.toMatchObject({
       code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
       meta: { hash: null },
-      why: expect.stringContaining('nothing to rename'),
+      why: expect.stringContaining('no earlier contract'),
       fix: expect.not.stringContaining('--advance-ref'),
     });
   });

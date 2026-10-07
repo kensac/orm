@@ -296,7 +296,7 @@ describe('resolveStatements, origin contract unknown', () => {
       },
       destination,
     });
-    expectFailure(result, 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN', 'no marker', 'nothing to rename');
+    expectFailure(result, 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN', 'no marker', 'no earlier contract');
   });
 
   it('resolves to no statements when none are given', () => {
