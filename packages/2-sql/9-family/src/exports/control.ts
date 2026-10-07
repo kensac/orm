@@ -39,6 +39,7 @@ export {
 } from '../core/migrations/control-policy';
 export type { PlanFieldEventOperationsOptions } from '../core/migrations/field-event-planner';
 export { planFieldEventOperations } from '../core/migrations/field-event-planner';
+export { storageNameOfOperation } from '../core/migrations/operation-storage-name';
 export type {
   CallSubjects,
   PlanSubjects,

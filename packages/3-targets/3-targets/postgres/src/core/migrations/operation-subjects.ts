@@ -1,5 +1,9 @@
 import type { Contract } from '@internal/contract/types';
-import type { CallSubjects, SubjectTarget } from '@internal/family-sql/control';
+import {
+  type CallSubjects,
+  type SubjectTarget,
+  storageNameOfOperation,
+} from '@internal/family-sql/control';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
@@ -43,13 +47,13 @@ function target(
 
 function rawSqlTarget(locator: Locator, call: RawSqlCall): SubjectTarget {
   const details = call.op.target.details;
-  if (details === undefined) return { storageName: call.label, table: undefined };
+  if (details === undefined) return { storageName: call.op.id, table: undefined };
   if (details.objectType === 'table')
     return target(locator, details.schema, details.name, undefined);
   if (details.objectType === 'column' && details.table !== undefined) {
     return target(locator, details.schema, details.table, details.name);
   }
-  return { storageName: qualified(details.schema, details.name), table: undefined };
+  return { storageName: storageNameOfOperation(call.op), table: undefined };
 }
 
 function dataLossOf(locator: Locator, call: OpFactoryCall): readonly SubjectTarget[] {
@@ -61,7 +65,7 @@ function dataLossOf(locator: Locator, call: OpFactoryCall): readonly SubjectTarg
     return [target(locator, call.schemaName, call.tableName, call.columnName)];
   }
   if (call instanceof RawSqlCall) return [rawSqlTarget(locator, call)];
-  return [{ storageName: call.label, table: undefined }];
+  return [{ storageName: call.factoryName, table: undefined }];
 }
 
 function policyKey(schemaName: string, tableName: string, policyName: string): string {

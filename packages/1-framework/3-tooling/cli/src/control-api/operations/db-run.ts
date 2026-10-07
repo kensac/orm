@@ -20,6 +20,7 @@ import type {
 import {
   CONTRACT_SNAPSHOTS_DIRNAME,
   hasOperationPreview,
+  hasOperationStorageNaming,
   isStorageHashHex,
 } from '@internal/framework-components/control';
 import type { ContractMarkerRecordLike } from '@internal/migration-tools/aggregate';
@@ -282,7 +283,14 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
           operationsBefore(orderedResolutions, aggregate.app.spaceId),
         )
       : undefined;
-  const subjects = action === 'dbUpdate' ? planSubjects(orderedResolutions) : undefined;
+  const subjects =
+    action === 'dbUpdate'
+      ? planSubjects(orderedResolutions, (operation) =>
+          hasOperationStorageNaming(familyInstance)
+            ? familyInstance.storageNameOf(operation)
+            : operation.id,
+        )
+      : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -434,23 +442,41 @@ function operationsBefore(
 }
 
 /**
+ * Each destructive operation of a space applied from recorded migrations, which no planner mapped
+ * to a model, named as the database knows it.
+ */
+function recordedDataLoss(
+  resolution: OrderedResolution,
+  storageNameOf: (operation: MigrationPlanOperation) => string,
+): readonly MigrationOperationSubject[] {
+  if (resolution.entry.strategy === 'plan-from-diff') return resolution.entry.dataLoss;
+  return resolution.entry.displayOps.flatMap((operation, operationIndex) =>
+    operation.operationClass === 'destructive'
+      ? [{ operationIndex, subject: { kind: 'storage', name: storageNameOf(operation) } }]
+      : [],
+  );
+}
+
+/**
  * What the planned operations lose and whose access they widen, across every space, each at its
  * position in the operations the result reports.
  */
-function planSubjects(orderedResolutions: readonly OrderedResolution[]): PlanSubjectsReport {
-  const offset =
-    (resolution: OrderedResolution) => (entries: readonly MigrationOperationSubject[]) =>
-      entries.map((entry) => ({
-        ...entry,
-        operationIndex:
-          entry.operationIndex + operationsBefore(orderedResolutions, resolution.spaceId),
-      }));
+function planSubjects(
+  orderedResolutions: readonly OrderedResolution[],
+  storageNameOf: (operation: MigrationPlanOperation) => string,
+): PlanSubjectsReport {
+  const offset = (resolution: OrderedResolution, entries: readonly MigrationOperationSubject[]) =>
+    entries.map((entry) => ({
+      ...entry,
+      operationIndex:
+        entry.operationIndex + operationsBefore(orderedResolutions, resolution.spaceId),
+    }));
   return {
     dataLoss: orderedResolutions.flatMap((resolution) =>
-      offset(resolution)(resolution.entry.dataLoss),
+      offset(resolution, recordedDataLoss(resolution, storageNameOf)),
     ),
     accessWidening: orderedResolutions.flatMap((resolution) =>
-      offset(resolution)(resolution.entry.accessWidening),
+      offset(resolution, resolution.entry.accessWidening),
     ),
   };
 }

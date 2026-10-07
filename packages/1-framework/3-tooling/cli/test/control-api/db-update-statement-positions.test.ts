@@ -59,6 +59,7 @@ const AUDIT_CONTRACT: Contract = createSqlContract({
 const AUDIT_HEAD = AUDIT_CONTRACT.storage.storageHash;
 const AUDIT_OPS: readonly MigrationPlanOperation[] = [
   { id: 'table.audit_log', label: 'Create table audit_log', operationClass: 'additive' },
+  { id: 'dropTable.audit_old', label: 'Drop table audit_old', operationClass: 'destructive' },
   { id: 'index.audit_log.at', label: 'Create index on audit_log', operationClass: 'additive' },
 ];
 const AUDIT_METADATA: Omit<MigrationMetadata, 'migrationHash'> = {
@@ -100,6 +101,7 @@ const family = {
   introspect: async () => ({ tables: {} }),
   deserializeContract: (json: unknown) => json as Contract,
   toOperationPreview: () => ({ statements: [] }),
+  storageNameOf: (operation: MigrationPlanOperation) => `stored ${operation.id}`,
 } as unknown as ControlFamilyInstance<'sql', unknown>;
 
 const migrations = {
@@ -219,8 +221,20 @@ describe('executeDbUpdate statement positions', () => {
         })),
       ),
     ).toEqual([
-      [{ operation: RENAME_OP.id, subject: LOST }],
+      [
+        {
+          operation: 'dropTable.audit_old',
+          subject: { kind: 'storage', name: 'stored dropTable.audit_old' },
+        },
+        { operation: RENAME_OP.id, subject: LOST },
+      ],
       [{ operation: RENAME_OP.id, subject: LOST }],
     ]);
+    const listed = new Set(result.value.dataLoss.map(({ operationIndex }) => operationIndex));
+    expect(
+      operations.flatMap((operation, index) =>
+        operation.operationClass === 'destructive' && !listed.has(index) ? [operation.id] : [],
+      ),
+    ).toEqual([]);
   });
 });

@@ -62,16 +62,23 @@ describe('resolveStatements, delete statements', () => {
     expectFailure(result, 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN', 'sha256:abc');
   });
 
-  it('refuses a delete with no name, or with a ":" a rename would have', () => {
-    expect(
-      ['', 'Profile:User'].map((text) => {
-        const result = resolveStatements({
-          statements: [remove(text)],
-          origin: { kind: 'contract', contract: origin },
-          destination,
-        });
-        return result.ok ? 'resolved' : result.failure.code;
-      }),
-    ).toEqual(['MIGRATION.STATEMENT_INVALID', 'MIGRATION.STATEMENT_INVALID']);
+  it('refuses a delete with no name', () => {
+    const result = resolveStatements({
+      statements: [remove('  ')],
+      origin: { kind: 'contract', contract: origin },
+      destination,
+    });
+    expectFailure(result, 'MIGRATION.STATEMENT_INVALID', 'names nothing');
+  });
+
+  it('accepts any name a subject can have, including storage names with a ":"', () => {
+    const result = resolveStatements({
+      statements: ['public.a:b', 'public.User.nick:name', 'dropTable.audit_old', 'rawSql'].map(
+        remove,
+      ),
+      origin: missingOrigin,
+      destination,
+    });
+    expect(expectValue(result)).toEqual([]);
   });
 });

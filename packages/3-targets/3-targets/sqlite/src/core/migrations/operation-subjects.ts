@@ -1,7 +1,11 @@
-import type { CallSubjects, SubjectTarget } from '@internal/family-sql/control';
+import {
+  type CallSubjects,
+  type SubjectTarget,
+  storageNameOfOperation,
+} from '@internal/family-sql/control';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
-import { DropColumnCall, DropTableCall, RecreateTableCall } from './op-factory-call';
+import { DropColumnCall, DropTableCall, RawSqlCall, RecreateTableCall } from './op-factory-call';
 
 function tableTarget(table: string): SubjectTarget {
   return {
@@ -63,7 +67,13 @@ export function sqliteCallSubjects(calls: readonly OpFactoryCall[]): readonly Ca
       operationCount,
       dataLoss:
         call.operationClass === 'destructive'
-          ? [{ storageName: call.label, table: undefined }]
+          ? [
+              {
+                storageName:
+                  call instanceof RawSqlCall ? storageNameOfOperation(call.op) : call.factoryName,
+                table: undefined,
+              },
+            ]
           : [],
       accessWidening: [],
     };
