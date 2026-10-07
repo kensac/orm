@@ -89,7 +89,10 @@ Inherits `drive/calibration/dod.md`. Project-specific:
 
 ## Notes for the ADR
 
-- A table no model maps is unexposed. A junction table reached only through a relation's `through` is exposed through that relation, so a source must either give every junction a model or the ADR must state that `through` exposes it; today every source gives junctions a model.
+- A table no model maps is unexposed. Every junction a relation goes `through` is an exposed model: the builder refuses a many-to-many relation whose junction model is unexposed (`relation-through-unexposed-model`), because the ORM reads and writes a junction's columns.
+- Exposure is per model. A model's fields are its own fields on its own table and the fields it inherits from its base model on the base table (`getModelFields` in sql-orm-client, the one definition that name resolution and the default projection share). The columns a query reads from a table are the model's fields on that table, its variants' fields on that table, and on a multi-table variant's table the key that variant inherits. So a single-table variant read as itself, for example as the target of a relation, carries its inherited columns, and a multi-table variant with no field of its own still reads and returns its key.
+- The builder refuses definition nodes that contradict exposure: an unexposed model that shares its base table as a single-table variant, an exposed single-table variant of an unexposed model, an unexposed model with relations, a relation to an unexposed model, a relation through an unexposed junction model, and a relation joining on a column whose field is unexposed. Definition nodes carry no inheritance, so refusing `@@ignore` together with `@@base` or `@@discriminator` falls to the PSL interpreter in slice 3.
+- A model with no exposed fields types as an object with no keys. The emitter prints an empty field map as `{}`, not `Record<string, never>`, whose `keyof` is all of `string` and would let the row and create types accept any key.
 - The ORM may touch an unexposed column inside a query it builds (the `distinct` row-number subquery reads every column of the table) but never returns it in a row, assigns it in a write, or accepts its name from a caller.
 
 ## References
