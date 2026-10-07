@@ -189,9 +189,9 @@ function resolvePolymorphicProjectionSelection(
     }
 
     if (baseColumn === undefined && !matchedVariantField) {
-      throw ormError('ORM.FIELD_UNKNOWN', `Model "${modelName}" has no field "${selectedField}"`, {
-        meta: { model: modelName, field: selectedField },
-      });
+      throw new InternalError(
+        `Selected column "${selectedField}" belongs to no table of model "${modelName}" or its variants; select() resolves field names before they reach the projection`,
+      );
     }
   }
 

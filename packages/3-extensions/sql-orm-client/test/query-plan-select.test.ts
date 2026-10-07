@@ -1271,23 +1271,6 @@ describe('compileSelect MTI JOINs', () => {
     ColumnRef.of('features', 'id'),
   );
 
-  it('refuses a polymorphic selection that names no field of the hierarchy', () => {
-    expect(() =>
-      compileSelect(
-        buildMixedPolyContract(),
-        'public',
-        'tasks',
-        { ...emptyState(), selectedFields: ['id', 'legacy_key'] },
-        'Task',
-      ),
-    ).toThrow(
-      expect.objectContaining({
-        code: 'ORM.FIELD_UNKNOWN',
-        meta: { model: 'Task', field: 'legacy_key' },
-      }),
-    );
-  });
-
   it('explicit selection controls MTI projections while implicit selection retains them', () => {
     const contract = buildMixedPolyContract();
     const tasksBaseProjection = projectionFor(contract, 'tasks', [
