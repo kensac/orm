@@ -1,9 +1,12 @@
 import { asNamespaceId } from '@internal/contract/types';
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import {
   type CallSubjects,
+  fieldEventTarget,
   planSubjects,
   type SubjectTarget,
+  unknownCallNames,
 } from '../src/core/migrations/operation-subjects';
 import { contractOf, renameField, renameModel } from './statement-fixtures';
 
@@ -165,5 +168,42 @@ describe('planSubjects', () => {
         }).dataLoss.map(({ subject }) => subject),
       ).toEqual([{ kind: 'field', namespaceId: app, model: 'Admin', field: 'level' }]);
     });
+  });
+});
+
+describe('unknownCallNames', () => {
+  it('numbers the calls that share a factory name, and leaves a unique one alone', () => {
+    const calls = [
+      { factoryName: 'dropSearchConfig' },
+      { factoryName: 'rebuildThing' },
+      { factoryName: 'dropSearchConfig' },
+    ];
+    expect([...unknownCallNames(calls).values()]).toEqual([
+      'dropSearchConfig#1',
+      'rebuildThing',
+      'dropSearchConfig#2',
+    ]);
+  });
+});
+
+describe('fieldEventTarget', () => {
+  it('names the field event column, qualified by its namespace outside the unbound one', () => {
+    const subjects = planSubjects(
+      [
+        losing(
+          fieldEventTarget({ namespaceId: 'app', tableName: 'user', columnName: 'full_name' }),
+          fieldEventTarget({ namespaceId: 'app', tableName: 'user', columnName: 'nickname' }),
+        ),
+      ],
+      { fromContract: origin, contract: origin, statements: [] },
+    );
+    expect(subjects.dataLoss.map(({ subject }) => subject)).toEqual([
+      { kind: 'field', namespaceId: app, model: 'User', field: 'name' },
+      { kind: 'storage', name: 'app.user.nickname' },
+    ]);
+    expect(
+      fieldEventTarget({ namespaceId: UNBOUND_NAMESPACE_ID, tableName: 'user', columnName: 'bio' })
+        .storageName,
+    ).toBe('user.bio');
   });
 });

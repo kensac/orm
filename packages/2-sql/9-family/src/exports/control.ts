@@ -37,15 +37,25 @@ export {
   partitionCallsByControlPolicy,
   partitionIssuesByControlPolicy,
 } from '../core/migrations/control-policy';
-export type { PlanFieldEventOperationsOptions } from '../core/migrations/field-event-planner';
-export { planFieldEventOperations } from '../core/migrations/field-event-planner';
+export type {
+  FieldEventCall,
+  PlanFieldEventOperationsOptions,
+} from '../core/migrations/field-event-planner';
+export {
+  planFieldEventCalls,
+  planFieldEventOperations,
+} from '../core/migrations/field-event-planner';
 export { storageNameOfOperation } from '../core/migrations/operation-storage-name';
 export type {
   CallSubjects,
   PlanSubjects,
   SubjectTarget,
 } from '../core/migrations/operation-subjects';
-export { planSubjects } from '../core/migrations/operation-subjects';
+export {
+  fieldEventTarget,
+  planSubjects,
+  unknownCallNames,
+} from '../core/migrations/operation-subjects';
 export {
   createMigrationPlan,
   plannerFailure,

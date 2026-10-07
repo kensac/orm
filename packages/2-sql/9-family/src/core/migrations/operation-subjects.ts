@@ -5,6 +5,7 @@ import type {
   ModelCoordinate,
   ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlModelStorage } from '@internal/sql-contract/types';
 import {
   fieldRenameStorageEffect,
@@ -26,6 +27,39 @@ export interface SubjectTarget {
         readonly column: string | undefined;
       }
     | undefined;
+}
+
+/** The target of a codec hook's call: the column of the field event it was returned for. */
+export function fieldEventTarget(field: {
+  readonly namespaceId: string;
+  readonly tableName: string;
+  readonly columnName: string;
+}): SubjectTarget {
+  const qualifier = field.namespaceId === UNBOUND_NAMESPACE_ID ? [] : [field.namespaceId];
+  return {
+    storageName: [...qualifier, field.tableName, field.columnName].join('.'),
+    table: { namespaceId: field.namespaceId, table: field.tableName, column: field.columnName },
+  };
+}
+
+/**
+ * Names for destructive calls a target cannot map to storage: each call's factory name, with a
+ * `#n` ordinal when several calls of the plan share it, so each name picks out one call.
+ */
+export function unknownCallNames<TCall extends { readonly factoryName: string }>(
+  calls: readonly TCall[],
+): ReadonlyMap<TCall, string> {
+  const counts = new Map<string, number>();
+  for (const call of calls) counts.set(call.factoryName, (counts.get(call.factoryName) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return new Map(
+    calls.map((call) => {
+      const ordinal = (seen.get(call.factoryName) ?? 0) + 1;
+      seen.set(call.factoryName, ordinal);
+      const shared = (counts.get(call.factoryName) ?? 0) > 1;
+      return [call, shared ? `${call.factoryName}#${ordinal}` : call.factoryName];
+    }),
+  );
 }
 
 /** A call of a plan: how many operations it lowers to, and what the first of them is about. */

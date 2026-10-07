@@ -10,7 +10,7 @@ import type {
 import {
   detectTableNameCaseChanges,
   extractCodecControlHooks,
-  planFieldEventOperations,
+  planFieldEventCalls,
   plannerFailure,
   planStatements,
   planSubjects,
@@ -215,13 +215,14 @@ export class SqliteMigrationPlanner
     // `(tableName, fieldName)` deterministic for byte-stable re-emits.
     // Hook fires only at the application emitter — extension-space planning
     // (M2 R2) never reaches this helper.
-    const fieldEventOps = planFieldEventOperations({
+    const fieldEventCalls = planFieldEventCalls({
       priorContract: options.fromContract,
       newContract: options.contract,
       codecHooks,
       tableRenames: statements.value.tableRenames,
       columnRenames: statements.value.columnRenames,
     });
+    const fieldEventOps = fieldEventCalls.map(({ call }) => call);
     // Codec-emitted calls already conform to `OpFactoryCall` — render +
     // toOp + importRequirements ride directly through the same emit path
     // as structural ops, no `RawSqlCall` wrap.
@@ -253,11 +254,17 @@ export class SqliteMigrationPlanner
         this.#lowerer,
       ),
       appliedStatements: statements.value.appliedStatements,
-      ...planSubjects(sqliteCallSubjects(calls), {
-        fromContract: options.fromContract,
-        contract: options.contract,
-        statements: options.statements,
-      }),
+      ...planSubjects(
+        sqliteCallSubjects(
+          calls,
+          new Map(fieldEventCalls.map((fieldEvent) => [fieldEvent.call, fieldEvent])),
+        ),
+        {
+          fromContract: options.fromContract,
+          contract: options.contract,
+          statements: options.statements,
+        },
+      ),
     };
   }
 

@@ -1,8 +1,11 @@
 import type { Contract } from '@internal/contract/types';
 import {
   type CallSubjects,
+  type FieldEventCall,
+  fieldEventTarget,
   type SubjectTarget,
   storageNameOfOperation,
+  unknownCallNames,
 } from '@internal/family-sql/control';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -21,6 +24,8 @@ import {
 interface Locator {
   /** The contract that names the namespaces: the origin contract when the plan has one. */
   readonly contract: Contract<SqlStorage>;
+  /** The codec hooks' calls, each with the column of the field event it was returned for. */
+  readonly fieldEvents: ReadonlyMap<OpFactoryCall, FieldEventCall>;
 }
 
 function storageNamespaceId(locator: Locator, schemaName: string): string {
@@ -56,16 +61,16 @@ function rawSqlTarget(locator: Locator, call: RawSqlCall): SubjectTarget {
   return { storageName: storageNameOfOperation(call.op), table: undefined };
 }
 
-function dataLossOf(locator: Locator, call: OpFactoryCall): readonly SubjectTarget[] {
-  if (call.operationClass !== 'destructive') return [];
+function knownTarget(locator: Locator, call: OpFactoryCall): SubjectTarget | undefined {
   if (call instanceof DropTableCall) {
-    return [target(locator, call.schemaName, call.tableName, undefined)];
+    return target(locator, call.schemaName, call.tableName, undefined);
   }
   if (call instanceof DropColumnCall || call instanceof AlterColumnTypeCall) {
-    return [target(locator, call.schemaName, call.tableName, call.columnName)];
+    return target(locator, call.schemaName, call.tableName, call.columnName);
   }
-  if (call instanceof RawSqlCall) return [rawSqlTarget(locator, call)];
-  return [{ storageName: call.factoryName, table: undefined }];
+  if (call instanceof RawSqlCall) return rawSqlTarget(locator, call);
+  const fieldEvent = locator.fieldEvents.get(call);
+  return fieldEvent === undefined ? undefined : fieldEventTarget(fieldEvent);
 }
 
 function policyKey(schemaName: string, tableName: string, policyName: string): string {
@@ -113,9 +118,23 @@ export function postgresCallSubjects(
   locator: Locator,
 ): readonly CallSubjects[] {
   const replaced = createdPolicies(calls);
-  return calls.map((call) => ({
-    operationCount: operationCountOf(call),
-    dataLoss: dataLossOf(locator, call),
-    accessWidening: accessWideningOf(locator, call, replaced),
-  }));
+  const destructive = calls.filter((call) => call.operationClass === 'destructive');
+  const known = new Map(destructive.map((call) => [call, knownTarget(locator, call)]));
+  const unknownNames = unknownCallNames(
+    destructive.filter((call) => known.get(call) === undefined),
+  );
+  return calls.map((call) => {
+    const lossTarget = known.get(call);
+    const unknownName = unknownNames.get(call);
+    return {
+      operationCount: operationCountOf(call),
+      dataLoss:
+        lossTarget !== undefined
+          ? [lossTarget]
+          : unknownName !== undefined
+            ? [{ storageName: unknownName, table: undefined }]
+            : [],
+      accessWidening: accessWideningOf(locator, call, replaced),
+    };
+  });
 }

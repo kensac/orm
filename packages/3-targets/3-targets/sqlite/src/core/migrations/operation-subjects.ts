@@ -1,7 +1,10 @@
 import {
   type CallSubjects,
+  type FieldEventCall,
+  fieldEventTarget,
   type SubjectTarget,
   storageNameOfOperation,
+  unknownCallNames,
 } from '@internal/family-sql/control';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -39,8 +42,22 @@ function recreateLosses(call: RecreateTableCall): readonly string[] {
  * What each call of a SQLite plan loses. A recreate that leaves a column out loses its values
  * itself, so a later drop of that column is not listed again.
  */
-export function sqliteCallSubjects(calls: readonly OpFactoryCall[]): readonly CallSubjects[] {
+export function sqliteCallSubjects(
+  calls: readonly OpFactoryCall[],
+  fieldEvents: ReadonlyMap<OpFactoryCall, FieldEventCall>,
+): readonly CallSubjects[] {
   const lost = new Set<string>();
+  const unknownNames = unknownCallNames(
+    calls.filter(
+      (call) =>
+        call.operationClass === 'destructive' &&
+        !(call instanceof RecreateTableCall) &&
+        !(call instanceof DropColumnCall) &&
+        !(call instanceof DropTableCall) &&
+        !(call instanceof RawSqlCall) &&
+        !fieldEvents.has(call),
+    ),
+  );
   return calls.map((call): CallSubjects => {
     const operationCount = operationCountOf(call);
     if (call instanceof RecreateTableCall) {
@@ -63,19 +80,16 @@ export function sqliteCallSubjects(calls: readonly OpFactoryCall[]): readonly Ca
     if (call instanceof DropTableCall) {
       return { operationCount, dataLoss: [tableTarget(call.tableName)], accessWidening: [] };
     }
-    return {
-      operationCount,
-      dataLoss:
-        call.operationClass === 'destructive'
-          ? [
-              {
-                storageName:
-                  call instanceof RawSqlCall ? storageNameOfOperation(call.op) : call.factoryName,
-                table: undefined,
-              },
-            ]
-          : [],
-      accessWidening: [],
-    };
+    if (call.operationClass !== 'destructive') {
+      return { operationCount, dataLoss: [], accessWidening: [] };
+    }
+    const fieldEvent = fieldEvents.get(call);
+    const lossTarget: SubjectTarget =
+      call instanceof RawSqlCall
+        ? { storageName: storageNameOfOperation(call.op), table: undefined }
+        : fieldEvent !== undefined
+          ? fieldEventTarget(fieldEvent)
+          : { storageName: unknownNames.get(call) ?? call.factoryName, table: undefined };
+    return { operationCount, dataLoss: [lossTarget], accessWidening: [] };
   });
 }

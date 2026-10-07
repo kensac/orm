@@ -13,7 +13,7 @@ import {
   extractCodecControlHooks,
   partitionCallsByControlPolicy,
   partitionIssuesByControlPolicy,
-  planFieldEventOperations,
+  planFieldEventCalls,
   plannerFailure,
   planStatements,
   planSubjects,
@@ -400,13 +400,14 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     // within-group sorting by `(tableName, fieldName)` so re-emits are
     // byte-stable. The hook fires only at the application emitter —
     // extension-space planning never reaches this helper.
-    const fieldEventOps = planFieldEventOperations({
+    const fieldEventCalls = planFieldEventCalls({
       priorContract: options.fromContract,
       newContract: options.contract,
       codecHooks,
       tableRenames: statements.value.tableRenames,
       columnRenames: statements.value.columnRenames,
     });
+    const fieldEventOps = fieldEventCalls.map(({ call }) => call);
     // Codec hook ops are target-agnostic `OpFactoryCall`; Postgres planning
     // lifts them at this integration boundary (see field-event-planner JSDoc).
     const fieldEventPostgresCalls = blindCast<
@@ -459,7 +460,10 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       ),
       appliedStatements: statements.value.appliedStatements,
       ...planSubjects(
-        postgresCallSubjects(calls, { contract: options.fromContract ?? options.contract }),
+        postgresCallSubjects(calls, {
+          contract: options.fromContract ?? options.contract,
+          fieldEvents: new Map(fieldEventCalls.map((fieldEvent) => [fieldEvent.call, fieldEvent])),
+        }),
         {
           fromContract: options.fromContract,
           contract: options.contract,
