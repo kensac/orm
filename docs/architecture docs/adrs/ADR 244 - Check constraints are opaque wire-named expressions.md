@@ -2,6 +2,8 @@
 
 Status: **Accepted**
 
+> **Note (2026-10-05).** Dropping a check constraint is now classed `widening`, not `destructive`, because a check holds no stored data. Where this ADR says a check is dropped, or a database converges, under a policy that allows `destructive`, read a policy that allows `widening`.
+
 Related: [ADR 234 — Content-addressed wire names for Postgres-normalized objects](<./ADR 234 - Content-addressed wire names for Postgres-normalized objects.md>) (extended here), [ADR 243 — Name-identified indexes and exact-name adoption](<./ADR 243 - Name-identified indexes and exact-name adoption.md>) (its constraint carve-out no longer covers checks), [ADR 156 — Storage sets and check constraints](<./ADR 156 - Storage sets and check constraints.md>) (its check-constraint half is superseded by this ADR), [ADR 235 — The schema differ walks two derived schema IRs](<./ADR 235 - The schema differ walks two derived schema IRs.md>), [ADR 224 — Control Policy](<./ADR 224 - Control Policy — framework-locked vocabulary and family-owned dispatch.md>).
 
 ## Decision

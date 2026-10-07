@@ -5,8 +5,8 @@ import { type as arktype } from 'arktype';
  * - `renderOps` lowers each variant via its pure factory and pins the
  *   id/operationClass/target.details shape exposed to runners.
  * - `RawSqlCall` is returned verbatim by `renderOps`.
- * - `DataTransformCall` always throws MIGRATION.UNFILLED_PLACEHOLDER from `renderOps` because
- *   the planner can only emit unfilled stubs.
+ * - `DataTransformCall` lowers to an operation that rejects with MIGRATION.UNFILLED_PLACEHOLDER,
+ *   because the planner can only emit unfilled stubs; the other operations still lower.
  * - `TypeScriptRenderablePostgresMigration` routes `operations` through
  *   `renderOps` and `renderTypeScript()` through `renderCallsToTypeScript`.
  * - `AddNotNullColumnWithTempDefaultCall` pins the exact `ADD COLUMN` SQL
@@ -169,7 +169,7 @@ describe('renderOps', () => {
       },
       {
         id: 'dropDefault.user.updated_at',
-        operationClass: 'destructive',
+        operationClass: 'widening',
         details: schemaObject('column', 'updated_at', 'user'),
       },
       {
@@ -189,7 +189,7 @@ describe('renderOps', () => {
       },
       {
         id: 'dropConstraint.user.user_email_key',
-        operationClass: 'destructive',
+        operationClass: 'widening',
         details: schemaObject('unique', 'user_email_key', 'user'),
       },
       {
@@ -199,7 +199,7 @@ describe('renderOps', () => {
       },
       {
         id: 'dropIndex.user.stale_idx',
-        operationClass: 'destructive',
+        operationClass: 'widening',
         details: schemaObject('index', 'stale_idx', 'user'),
       },
       { id: 'custom.op.1', operationClass: 'additive', details: undefined },
@@ -241,10 +241,14 @@ describe('renderOps', () => {
     expect(rendered).toBe(op);
   });
 
-  it('throws MIGRATION.UNFILLED_PLACEHOLDER on DataTransformCall (always an unfilled stub at plan time)', () => {
-    const call = new DataTransformCall('Backfill', 'check', 'run');
+  it('lowers a DataTransformCall to an operation that rejects with MIGRATION.UNFILLED_PLACEHOLDER, beside the others', async () => {
+    const [dropped, stub] = renderOps(
+      [new DropTableCall('public', 'stale'), new DataTransformCall('Backfill', 'check', 'run')],
+      testAdapter,
+    );
 
-    expect(() => renderOps([call])).toThrow(/Unfilled migration placeholder/);
+    expect(await dropped).toMatchObject({ id: 'dropTable.stale' });
+    await expect(stub).rejects.toThrow(/Unfilled migration placeholder/);
   });
 });
 

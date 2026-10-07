@@ -56,6 +56,58 @@ export async function dropColumn(
   };
 }
 
+export function renameColumnStatement(
+  schemaName: string,
+  tableName: string,
+  fromName: string,
+  toName: string,
+): string {
+  return `ALTER TABLE ${qualifyTableName(schemaName, tableName)} RENAME COLUMN ${quoteIdentifier(fromName)} TO ${quoteIdentifier(toName)}`;
+}
+
+export function renameColumnOperationId(tableName: string, fromName: string): string {
+  return `renameColumn.${tableName}.${fromName}`;
+}
+
+export async function renameColumn(
+  schemaName: string,
+  tableName: string,
+  fromName: string,
+  toName: string,
+  lowerer: ExecuteRequestLowerer,
+): Promise<Op> {
+  const from = await columnExistsSteps(lowerer, {
+    schema: schemaName,
+    table: tableName,
+    column: fromName,
+  });
+  const to = await columnExistsSteps(lowerer, {
+    schema: schemaName,
+    table: tableName,
+    column: toName,
+  });
+  return {
+    id: renameColumnOperationId(tableName, fromName),
+    label: `Rename column "${tableName}"."${fromName}" to "${toName}"`,
+    operationClass: 'widening',
+    target: targetDetails('column', toName, schemaName, tableName),
+    precheck: [
+      step(`ensure column "${fromName}" exists`, from.present.sql, from.present.params),
+      step(`ensure column "${toName}" does not exist`, to.absent.sql, to.absent.params),
+    ],
+    execute: [
+      step(
+        `rename column "${fromName}" to "${toName}"`,
+        renameColumnStatement(schemaName, tableName, fromName, toName),
+      ),
+    ],
+    postcheck: [
+      step(`verify column "${toName}" exists`, to.present.sql, to.present.params),
+      step(`verify column "${fromName}" no longer exists`, from.absent.sql, from.absent.params),
+    ],
+  };
+}
+
 /**
  * `qualifiedTargetType` is the new column type as it appears in the
  * `ALTER COLUMN TYPE` clause (schema-qualified for user-defined types, raw
@@ -295,7 +347,7 @@ export async function dropDefault(
   return {
     id: `dropDefault.${tableName}.${columnName}`,
     label: `Drop default on "${tableName}"."${columnName}"`,
-    operationClass: 'destructive',
+    operationClass: 'widening',
     target: targetDetails('column', columnName, schemaName, tableName),
     precheck: [step(`ensure column "${columnName}" exists`, present.sql, present.params)],
     execute: [step(`drop default on "${columnName}"`, dropDefaultExec.sql)],
