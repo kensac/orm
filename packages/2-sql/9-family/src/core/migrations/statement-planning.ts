@@ -1,4 +1,4 @@
-import type { Contract, ContractWithDomain } from '@internal/contract/types';
+import type { Contract, ContractWithDomain, ModelStorageBase } from '@internal/contract/types';
 import type {
   AppliedStatement,
   FieldCoordinate,
@@ -10,7 +10,7 @@ import type {
   ResolvedStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
-import { type SqlStorage, StorageTable } from '@internal/sql-contract/types';
+import { type SqlModelStorage, type SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { notOk, ok, type Result } from '@internal/utils/result';
 import { controlPolicyForCall } from './control-policy';
 import type { ResolvedColumnRename } from './resolve-column-rename';
@@ -28,42 +28,7 @@ export interface ModelTable {
 export type ModelStorageEffect =
   | { readonly kind: 'unchanged' }
   | { readonly kind: 'renameTable'; readonly rename: ResolvedTableRename }
-  | { readonly kind: 'moveNamespace'; readonly from: ModelTable; readonly to: ModelTable }
-  | { readonly kind: 'noTable'; readonly model: ModelCoordinate };
-
-function modelTable(
-  contract: ContractWithDomain,
-  coordinate: ModelCoordinate,
-): ModelTable | undefined {
-  const storage =
-    contract.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage;
-  const table = storage?.['table'];
-  const namespaceId = storage?.['namespaceId'];
-  return typeof table === 'string' && typeof namespaceId === 'string'
-    ? { namespaceId, table }
-    : undefined;
-}
-
-/**
- * The storage effect of a model rename: the origin model's table compared with the destination
- * model's. Equal tables mean the rename needs no storage change.
- */
-export function modelRenameStorageEffect(
-  statement: ResolvedModelRename,
-  fromContract: ContractWithDomain,
-  contract: ContractWithDomain,
-): ModelStorageEffect {
-  const from = modelTable(fromContract, statement.from);
-  if (from === undefined) return { kind: 'noTable', model: statement.from };
-  const to = modelTable(contract, statement.to);
-  if (to === undefined) return { kind: 'noTable', model: statement.to };
-  if (from.namespaceId !== to.namespaceId) return { kind: 'moveNamespace', from, to };
-  if (from.table === to.table) return { kind: 'unchanged' };
-  return {
-    kind: 'renameTable',
-    rename: { namespaceId: from.namespaceId, from: from.table, to: to.table },
-  };
-}
+  | { readonly kind: 'moveNamespace'; readonly from: ModelTable; readonly to: ModelTable };
 
 /** What a field rename does to storage. */
 export type FieldStorageEffect =
@@ -74,23 +39,77 @@ export type FieldStorageEffect =
       readonly table: ModelTable;
       readonly from: string;
       readonly to: string;
-    }
-  | { readonly kind: 'columnOnOneSide' }
-  | { readonly kind: 'noTable'; readonly model: ModelCoordinate };
+    };
+
+/** A model the contract stores in no table, so a statement on it has no storage effect. */
+export interface NoTable {
+  readonly kind: 'noTable';
+  readonly model: ModelCoordinate;
+}
+
+/** A field stored in a column on one side of a statement only, which no rename can map. */
+export interface ColumnOnOneSide {
+  readonly kind: 'columnOnOneSide';
+}
+
+function isSqlModelStorage(storage: ModelStorageBase): storage is SqlModelStorage {
+  return (
+    typeof storage['table'] === 'string' &&
+    typeof storage['namespaceId'] === 'string' &&
+    typeof storage['fields'] === 'object' &&
+    storage['fields'] !== null
+  );
+}
+
+/** The storage of a model the contract stores in a table, or `undefined` for any other model. */
+function sqlModelStorage(
+  contract: ContractWithDomain,
+  coordinate: ModelCoordinate,
+): SqlModelStorage | undefined {
+  const storage =
+    contract.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage;
+  return storage !== undefined && isSqlModelStorage(storage) ? storage : undefined;
+}
+
+function modelTable(
+  contract: ContractWithDomain,
+  coordinate: ModelCoordinate,
+): ModelTable | undefined {
+  const storage = sqlModelStorage(contract, coordinate);
+  return storage === undefined
+    ? undefined
+    : { namespaceId: storage.namespaceId, table: storage.table };
+}
+
+/**
+ * The storage effect of a model rename: the origin model's table compared with the destination
+ * model's. Equal tables mean the rename needs no storage change.
+ */
+export function modelRenameStorageEffect(
+  statement: ResolvedModelRename,
+  fromContract: ContractWithDomain,
+  contract: ContractWithDomain,
+): Result<ModelStorageEffect, NoTable> {
+  const from = modelTable(fromContract, statement.from);
+  if (from === undefined) return notOk({ kind: 'noTable', model: statement.from });
+  const to = modelTable(contract, statement.to);
+  if (to === undefined) return notOk({ kind: 'noTable', model: statement.to });
+  if (from.namespaceId !== to.namespaceId) return ok({ kind: 'moveNamespace', from, to });
+  if (from.table === to.table) return ok({ kind: 'unchanged' });
+  return ok({
+    kind: 'renameTable',
+    rename: { namespaceId: from.namespaceId, from: from.table, to: to.table },
+  });
+}
 
 function fieldColumn(
   contract: ContractWithDomain,
   coordinate: FieldCoordinate,
 ): string | undefined {
-  const fields =
-    contract.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage['fields'];
-  if (typeof fields !== 'object' || fields === null || !Object.hasOwn(fields, coordinate.field)) {
-    return undefined;
-  }
-  const field: unknown = Object.getOwnPropertyDescriptor(fields, coordinate.field)?.value;
-  if (typeof field !== 'object' || field === null) return undefined;
-  const column: unknown = Object.getOwnPropertyDescriptor(field, 'column')?.value;
-  return typeof column === 'string' ? column : undefined;
+  const fields = sqlModelStorage(contract, coordinate)?.fields;
+  return fields !== undefined && Object.hasOwn(fields, coordinate.field)
+    ? fields[coordinate.field]?.column
+    : undefined;
 }
 
 /**
@@ -101,15 +120,15 @@ export function fieldRenameStorageEffect(
   statement: ResolvedFieldRename,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
-): FieldStorageEffect {
+): Result<FieldStorageEffect, NoTable | ColumnOnOneSide> {
   const table = modelTable(fromContract, statement.from);
-  if (table === undefined) return { kind: 'noTable', model: statement.from };
+  if (table === undefined) return notOk({ kind: 'noTable', model: statement.from });
   const from = fieldColumn(fromContract, statement.from);
   const to = fieldColumn(contract, statement.to);
-  if (from === undefined && to === undefined) return { kind: 'unchanged' };
-  if (from === undefined || to === undefined) return { kind: 'columnOnOneSide' };
-  if (from === to) return { kind: 'unchanged' };
-  return { kind: 'renameColumn', table, from, to };
+  if (from === undefined && to === undefined) return ok({ kind: 'unchanged' });
+  if (from === undefined || to === undefined) return notOk({ kind: 'columnOnOneSide' });
+  if (from === to) return ok({ kind: 'unchanged' });
+  return ok({ kind: 'renameColumn', table, from, to });
 }
 
 function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
@@ -283,18 +302,19 @@ class StatementPlanner<TCall> {
   }
 
   #planModel(statement: ResolvedModelRename): Result<number, SqlPlannerConflict> {
-    const effect = modelRenameStorageEffect(statement, this.#fromContract, this.#contract);
-    if (effect.kind === 'unchanged') return ok(0);
-    if (effect.kind === 'noTable') {
+    const worked = modelRenameStorageEffect(statement, this.#fromContract, this.#contract);
+    if (!worked.ok) {
       return notOk(
         rejected(
           statement,
-          `Model "${qualified(effect.model)}" has no table in its contract`,
-          `A model rename renames the model's table, and model "${qualified(effect.model)}" has none in its contract. Leave out this statement.`,
+          `Model "${qualified(worked.failure.model)}" has no table in its contract`,
+          `A model rename renames the model's table, and model "${qualified(worked.failure.model)}" has none in its contract. Leave out this statement.`,
           undefined,
         ),
       );
     }
+    const effect = worked.value;
+    if (effect.kind === 'unchanged') return ok(0);
     if (effect.kind === 'moveNamespace') {
       return notOk(
         rejected(
@@ -346,19 +366,18 @@ class StatementPlanner<TCall> {
   }
 
   #planField(statement: ResolvedFieldRename): Result<number, SqlPlannerConflict> {
-    const effect = fieldRenameStorageEffect(statement, this.#fromContract, this.#contract);
-    if (effect.kind === 'unchanged') return ok(0);
-    if (effect.kind === 'noTable') {
+    const worked = fieldRenameStorageEffect(statement, this.#fromContract, this.#contract);
+    if (!worked.ok && worked.failure.kind === 'noTable') {
       return notOk(
         rejected(
           statement,
-          `Model "${qualified(effect.model)}" has no table in its contract`,
-          `A field rename renames the field's column, and model "${qualified(effect.model)}" has no table in its contract. Leave out this statement.`,
+          `Model "${qualified(worked.failure.model)}" has no table in its contract`,
+          `A field rename renames the field's column, and model "${qualified(worked.failure.model)}" has no table in its contract. Leave out this statement.`,
           undefined,
         ),
       );
     }
-    if (effect.kind === 'columnOnOneSide') {
+    if (!worked.ok) {
       return notOk(
         rejected(
           statement,
@@ -368,6 +387,8 @@ class StatementPlanner<TCall> {
         ),
       );
     }
+    const effect = worked.value;
+    if (effect.kind === 'unchanged') return ok(0);
     const table = this.#renamedTables.get(tableKey(effect.table)) ?? effect.table.table;
     const destinationTable = modelTable(this.#contract, statement.to);
     if (

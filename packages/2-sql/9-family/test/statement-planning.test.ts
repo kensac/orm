@@ -1,3 +1,4 @@
+import { ok } from '@internal/utils/result';
 import { describe, expect, it } from 'vitest';
 import {
   describeStatement,
@@ -21,16 +22,17 @@ describe('modelRenameStorageEffect', () => {
     const origin = contractOf({ Profile: { table: 'profile' } });
     const destination = contractOf({ User: { table: 'profile' } });
     const statement = renameModel('Profile', 'User');
-    expect(modelRenameStorageEffect(statement, origin, destination)).toEqual({ kind: 'unchanged' });
+    expect(modelRenameStorageEffect(statement, origin, destination)).toEqual(
+      ok({ kind: 'unchanged' }),
+    );
   });
 
   it('is a table rename when the table name changes', () => {
     const origin = contractOf({ Profile: { table: 'Profile' } });
     const destination = contractOf({ User: { table: 'User' } });
-    expect(modelRenameStorageEffect(renameModel('Profile', 'User'), origin, destination)).toEqual({
-      kind: 'renameTable',
-      rename: { namespaceId: 'app', from: 'Profile', to: 'User' },
-    });
+    expect(modelRenameStorageEffect(renameModel('Profile', 'User'), origin, destination)).toEqual(
+      ok({ kind: 'renameTable', rename: { namespaceId: 'app', from: 'Profile', to: 'User' } }),
+    );
   });
 
   it('is a namespace move when the namespace changes', () => {
@@ -38,11 +40,13 @@ describe('modelRenameStorageEffect', () => {
     const destination = contractOf({ User: { table: 'User', namespace: 'billing' } });
     expect(
       modelRenameStorageEffect(renameModel('User', 'User', 'auth', 'billing'), origin, destination),
-    ).toEqual({
-      kind: 'moveNamespace',
-      from: { namespaceId: 'auth', table: 'User' },
-      to: { namespaceId: 'billing', table: 'User' },
-    });
+    ).toEqual(
+      ok({
+        kind: 'moveNamespace',
+        from: { namespaceId: 'auth', table: 'User' },
+        to: { namespaceId: 'billing', table: 'User' },
+      }),
+    );
   });
 });
 

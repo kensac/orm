@@ -1,4 +1,5 @@
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
+import { notOk, ok } from '@internal/utils/result';
 import { describe, expect, it } from 'vitest';
 import {
   fieldRenameStorageEffect,
@@ -26,19 +27,21 @@ describe('fieldRenameStorageEffect', () => {
   it('is a column rename when the column name changes', () => {
     expect(
       fieldRenameStorageEffect(renameField('User', 'name', 'fullName'), origin, destination),
-    ).toEqual({
-      kind: 'renameColumn',
-      table: { namespaceId: 'app', table: 'User' },
-      from: 'name',
-      to: 'fullName',
-    });
+    ).toEqual(
+      ok({
+        kind: 'renameColumn',
+        table: { namespaceId: 'app', table: 'User' },
+        from: 'name',
+        to: 'fullName',
+      }),
+    );
   });
 
   it('is unchanged when both fields map to the same column', () => {
     const mapped = contractOf({ User: { table: 'User', fields: { fullName: 'name' } } });
     expect(
       fieldRenameStorageEffect(renameField('User', 'name', 'fullName'), origin, mapped),
-    ).toEqual({ kind: 'unchanged' });
+    ).toEqual(ok({ kind: 'unchanged' }));
   });
 
   it('is unchanged for a relation field, which has no column', () => {
@@ -46,7 +49,17 @@ describe('fieldRenameStorageEffect', () => {
     const after = contractOf({ User: { table: 'User', fields: { articles: null } } });
     expect(
       fieldRenameStorageEffect(renameField('User', 'posts', 'articles'), before, after),
-    ).toEqual({ kind: 'unchanged' });
+    ).toEqual(ok({ kind: 'unchanged' }));
+  });
+});
+
+describe('fieldRenameStorageEffect, when no effect can be worked out', () => {
+  it('reports a field that has a column on one side only', () => {
+    const before = contractOf({ User: { table: 'User', fields: { posts: null } } });
+    const after = contractOf({ User: { table: 'User', fields: { title: 'title' } } });
+    expect(fieldRenameStorageEffect(renameField('User', 'posts', 'title'), before, after)).toEqual(
+      notOk({ kind: 'columnOnOneSide' }),
+    );
   });
 });
 
