@@ -18,12 +18,12 @@ GA is the last chance to make breaking changes, so this stream decides the date.
 
 | # | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Finish ADR 254: data types own column types | Must | Will | 🔄 2 of 4 slices merged | Dispatch an agent on the two backlog slices |
+| 1 | Finish ADR 254: data types own column types | Must | Will | 🔄 2 of 4 slices merged | TML-3387 next: verify and infer read types from the declarations |
 | 2 | One CLI and one config file | Must | Will | 🟡 Code done, public docs open | Merge the docs PR |
-| 3 | Early MySQL attempt, to find shared code that assumes PostgreSQL | Must | Will | ⏳ Not started, no ticket | Dispatch an agent |
+| 3 | Early MySQL attempt, to find shared code that assumes PostgreSQL | Must | Will | ⏳ Not started, no ticket | Spike: stand up a MySQL target and list what breaks |
 | 4 | SQL expression literals | Must | Will | 🔄 3 slices merged, 3 in review | Review the three open PRs |
 | 5 | PSL mixins, then remove type aliases and field presets | Must | Serhii | ⏳ No spec | Write the spec |
-| 6 | Remove `@noCheck` and `.noCheck()` | Must | Will | ⏳ Not started, no ticket, unblocked | Dispatch an agent |
+| 6 | Remove `@noCheck` and `.noCheck()` | Must | Will | ⏳ Not started, no ticket, unblocked | File the ticket with the replacements from decisions.md |
 | 7 | Migration statements: the planner refuses data loss, the user states renames, deletes, conversions and backfills | Not decided | Will | 🔄 Slice 1 of 4 in progress. Slice 2 is breaking | Decide: GA or after |
 
 ## Stream 2: Upgrade path from Prisma 7
@@ -32,11 +32,11 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 
 | # | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | Dispatch agents on the two reader gaps and the three `contract print` gaps. Close TML-3250 |
+| 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | TML-3267 next: `@updatedAt` with `@default(now())`. Close TML-3250 |
 | 2 | Prisma 8 owns migrations in a Prisma 7 project that still reads `schema.prisma` | Must | Will | 🟡 Proven. Follow-ups: 1 PR in review, 5 gaps open | Review the PR, then the two high planner gaps |
 | 3 | Unexposed storage: tables and columns migrations manage but the ORM never sees | Not decided | Will | ⏳ Planned, 2 slices | Decide: GA or after |
-| 4 | Upgrade guide rewrite | Must | Will | ⏳ Not tracked. One known error in the guide | Dispatch an agent on a prisma/web PR |
-| 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog | Dispatch an agent |
+| 4 | Upgrade guide rewrite | Must | Will | ⏳ Not tracked. One known error in the guide | Remove the switch to a printed contract before the handover (prisma/web) |
+| 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog | `citext` first; it is the one users hit |
 | 6 | Design: columns Prisma 8 does not manage, including unknown types | Must | Will | ⏳ Proposed, not designed | Hold the design discussion |
 | 7 | Adopt a Prisma 7 database without changing it: the enum membership check | Must | Will | ⏳ Not designed | Hold the design discussion |
 | 8 | Medium and low upgrade issues | Later | Will | ⏳ Backlog | |
@@ -74,7 +74,7 @@ In progress but not ranked here:
 | Collection classes and scopes | Will | 🔄 Collection classes merged. Scopes in review | Review the scopes PR |
 | `variant()` selects by discriminator value | Will | ✅ Merged 2026-10-06 | |
 | The Postgres driver returns every column as text | Will | ✅ Merged 2026-10-06 | |
-| Cache middleware | Will | 🔄 Invalidation, keys and the after-transaction stage merged. Invalidation after commit in backlog | Dispatch an agent |
+| Cache middleware | Will | 🔄 Invalidation, keys and the after-transaction stage merged. Invalidation after commit in backlog | TML-3400 |
 
 ## Stream 5: Docs and the new user's first hour
 
@@ -84,11 +84,11 @@ Test: the getting-started eval passes, in few steps and with no workarounds.
 | --- | --- | --- | --- | --- | --- |
 | 1 | Docs and the shipped skill stop naming `prisma-composer` | Must, urgent | Will | 🟡 Code done, public docs open | Merge the docs PR. Close TML-3340 |
 | 2 | Correct the query reference in the shipped skill, which promises features that do not exist | Must, urgent | Will | 🔄 2 PRs open, 3 tickets open | Review the two PRs |
-| 3 | Docs gaps found by the eval: 11 items, 5 high | Must | Will | 🔄 1 of 11 merged. The rest not re-checked | Dispatch an agent to re-check the 11 items |
+| 3 | Docs gaps found by the eval: 11 items, 5 high | Must | Will | 🔄 1 of 11 merged. The rest not re-checked | Re-check the 11 items against prisma/web |
 | 4 | ORM scenario for the eval: decide the project, then build it | Must | Will | ❓ Not decided | Decide the project |
 | 5 | Docs restructure | Aim | Will | 🔄 Draft since 2026-09-30 | |
 | 6 | Document that cursor pagination starts after the cursor row | Aim | Will | ⏳ Not tracked | |
-| 7 | Update the records that contradict the code | Aim | Will | ⏳ Not started | Dispatch an agent on the list in [query-feature-gaps.md](query-feature-gaps.md) |
+| 7 | Update the records that contradict the code | Aim | Will | ⏳ Not started | Re-check each entry in [query-feature-gaps.md](query-feature-gaps.md) against the code |
 
 ## Databases
 
