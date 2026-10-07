@@ -30,6 +30,7 @@ import {
   AddPrimaryKeyCall,
   AddUniqueCall,
   AlterColumnTypeCall,
+  type AlterColumnTypeClass,
   type AlterColumnTypeOptions,
   CreateIndexCall,
   CreateNativeEnumTypeCall,
@@ -510,12 +511,14 @@ export abstract class PostgresMigration<
     readonly table: string;
     readonly column: string;
     readonly options: AlterColumnTypeOptions;
+    readonly operationClass?: AlterColumnTypeClass;
   }): Promise<SqlMigrationPlanOperation<PostgresPlanTargetDetails>> {
     return new AlterColumnTypeCall(
       options.schema,
       options.table,
       options.column,
       options.options,
+      options.operationClass,
     ).toOp(this.controlAdapterFor('alterColumnType'));
   }
 

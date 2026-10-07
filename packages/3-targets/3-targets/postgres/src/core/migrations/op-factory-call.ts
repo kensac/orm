@@ -635,6 +635,9 @@ export class DropColumnCall extends PostgresOpFactoryCallNode {
   }
 }
 
+/** A type change is `widening` when every value of the old type converts to the new type unchanged. */
+export type AlterColumnTypeClass = 'widening' | 'destructive';
+
 export interface AlterColumnTypeOptions {
   readonly qualifiedTargetType: string;
   readonly formatTypeExpected: string;
@@ -644,7 +647,7 @@ export interface AlterColumnTypeOptions {
 
 export class AlterColumnTypeCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'alterColumnType' as const;
-  readonly operationClass = 'destructive' as const;
+  readonly operationClass: AlterColumnTypeClass;
   readonly schemaName: string;
   readonly tableName: string;
   readonly columnName: string;
@@ -656,12 +659,14 @@ export class AlterColumnTypeCall extends PostgresOpFactoryCallNode {
     tableName: string,
     columnName: string,
     options: AlterColumnTypeOptions,
+    operationClass: AlterColumnTypeClass = 'destructive',
   ) {
     super();
     this.schemaName = schemaName;
     this.tableName = tableName;
     this.columnName = columnName;
     this.options = options;
+    this.operationClass = operationClass;
     this.label = `Alter type of "${tableName}"."${columnName}" to ${options.rawTargetTypeForLabel}`;
     this.freeze();
   }
@@ -674,7 +679,14 @@ export class AlterColumnTypeCall extends PostgresOpFactoryCallNode {
         { meta: { factory: 'AlterColumnTypeCall' } },
       );
     }
-    return alterColumnType(this.schemaName, this.tableName, this.columnName, this.options, lowerer);
+    return alterColumnType(
+      this.schemaName,
+      this.tableName,
+      this.columnName,
+      this.options,
+      lowerer,
+      this.operationClass,
+    );
   }
 
   renderTypeScript(): string {
@@ -685,6 +697,9 @@ export class AlterColumnTypeCall extends PostgresOpFactoryCallNode {
     opts.push(`table: ${jsonToTsSource(this.tableName)}`);
     opts.push(`column: ${jsonToTsSource(this.columnName)}`);
     opts.push(`options: ${jsonToTsSource(this.options)}`);
+    if (this.operationClass !== 'destructive') {
+      opts.push(`operationClass: ${jsonToTsSource(this.operationClass)}`);
+    }
     return `this.alterColumnType({ ${opts.join(', ')} })`;
   }
 
@@ -695,7 +710,7 @@ export class AlterColumnTypeCall extends PostgresOpFactoryCallNode {
 
 export class SetNotNullCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'setNotNull' as const;
-  readonly operationClass = 'destructive' as const;
+  readonly operationClass = 'widening' as const;
   readonly schemaName: string;
   readonly tableName: string;
   readonly columnName: string;

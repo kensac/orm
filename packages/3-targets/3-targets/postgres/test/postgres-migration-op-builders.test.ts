@@ -158,6 +158,7 @@ class ExposedMigration extends PostgresMigration<Contract, Contract> {
     readonly table: string;
     readonly column: string;
     readonly options: AlterColumnTypeOptions;
+    readonly operationClass?: 'widening' | 'destructive';
   }): Promise<Op> {
     return this.alterColumnType(options);
   }
@@ -545,5 +546,36 @@ describe('PostgresMigration op-builder methods with a ControlStack', () => {
     expect(op.operationClass).toBe('destructive');
     expect(op.execute[0]?.description).toBe('drop table "widget"');
     expect(typeof op.execute[0]?.sql).toBe('string');
+  });
+
+  it('alterColumnType is destructive unless the migration says it is a widening', async () => {
+    const m = new ExposedMigration(fakeControlStack());
+    const options = {
+      qualifiedTargetType: 'int8',
+      formatTypeExpected: 'bigint',
+      rawTargetTypeForLabel: 'int8',
+    };
+    const lossy = await m.callAlterColumnType({
+      schema: 'public',
+      table: 'widget',
+      column: 'count',
+      options,
+    });
+    const widening = await m.callAlterColumnType({
+      schema: 'public',
+      table: 'widget',
+      column: 'count',
+      options,
+      operationClass: 'widening',
+    });
+
+    expect([lossy.operationClass, widening.operationClass]).toEqual(['destructive', 'widening']);
+  });
+
+  it('setNotNull lowers to a widening operation', async () => {
+    const m = new ExposedMigration(fakeControlStack());
+    const op = await m.callSetNotNull({ schema: 'public', table: 'widget', column: 'name' });
+
+    expect(op.operationClass).toBe('widening');
   });
 });

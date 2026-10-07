@@ -301,7 +301,9 @@ export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
       rawTargetTypeForLabel: qualifiedTargetType,
     };
     if (isSafeWidening) {
-      calls.push(new AlterColumnTypeCall(schemaName, tableName, expected.name, alterOpts));
+      calls.push(
+        new AlterColumnTypeCall(schemaName, tableName, expected.name, alterOpts, 'widening'),
+      );
     } else {
       calls.push(
         new DataTransformCall(

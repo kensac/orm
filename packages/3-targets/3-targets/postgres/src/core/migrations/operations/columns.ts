@@ -127,6 +127,7 @@ export async function alterColumnType(
     readonly using?: string;
   },
   lowerer: ExecuteRequestLowerer,
+  operationClass: 'widening' | 'destructive' = 'destructive',
 ): Promise<Op> {
   const qualified = qualifyTableName(schemaName, tableName);
   const usingClause = options.using
@@ -148,7 +149,7 @@ export async function alterColumnType(
   return {
     id: `alterType.${tableName}.${columnName}`,
     label: `Alter type of "${tableName}"."${columnName}" to ${options.rawTargetTypeForLabel}`,
-    operationClass: 'destructive',
+    operationClass,
     target: targetDetails('column', columnName, schemaName, tableName),
     precheck: [step(`ensure column "${columnName}" exists`, present.sql, present.params)],
     execute: [
@@ -194,7 +195,7 @@ export async function setNotNull(
   return {
     id: `alterNullability.setNotNull.${tableName}.${columnName}`,
     label: `Set NOT NULL on "${tableName}"."${columnName}"`,
-    operationClass: 'destructive',
+    operationClass: 'widening',
     target: targetDetails('column', columnName, schemaName, tableName),
     precheck: [
       step(`ensure column "${columnName}" exists`, present.sql, present.params),
