@@ -9,10 +9,7 @@ import { createControlClient } from '../../control-api/client';
 import type { ContractSpaceSeedPhaseRecord } from '../../control-api/operations/contract-space-seed-phase';
 import type { MigrationPlanResult } from '../../control-api/operations/migration-plan';
 import { executeMigrationPlanCommand } from '../../control-api/operations/migration-plan';
-import type {
-  DataLossAnswer,
-  DataLossQuestion,
-} from '../../control-api/statements/data-loss-questions';
+import type { PlanAnswer, PlanQuestion } from '../../control-api/statements/data-loss-questions';
 import type { CreateControlClient } from '../../control-api/types';
 import {
   RECORDED_CONTRACT_REF_FORMS,
@@ -320,9 +317,9 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
           data: { newHash: record.newHash, newMigrationDirs: record.newMigrationDirs },
         });
       };
-      const answerDataLoss = async (
-        questions: readonly DataLossQuestion[],
-      ): Promise<readonly DataLossAnswer[]> => {
+      const answerQuestions = async (
+        questions: readonly PlanQuestion[],
+      ): Promise<readonly PlanAnswer[]> => {
         const answers = await ctx.prompt.statements(
           questions.map((question) => ({
             question: question.question,
@@ -347,7 +344,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
           statements: ctx.statements
             .take('rename')
             .map(({ text }) => ({ verb: 'rename' as const, text })),
-          answerDataLoss,
+          answerQuestions,
           client: createClient({
             family: ctx.config.family,
             target: ctx.config.target,

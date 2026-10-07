@@ -1,5 +1,5 @@
 /** The verbs a statement can have. */
-export type StatementVerb = 'rename' | 'delete';
+export type StatementVerb = 'rename' | 'delete' | 'allow';
 
 /**
  * A statement as the user wrote it, before it is parsed: its verb and its text, for example

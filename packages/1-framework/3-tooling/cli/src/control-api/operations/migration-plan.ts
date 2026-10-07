@@ -9,7 +9,6 @@ import {
   createControlStack,
   hasOperationPreview,
   type MigrationPlanOperation,
-  type MigrationStatementSubject,
   type OperationPreview,
   planOriginOf,
   type ResolvedMigrationStatement,
@@ -36,7 +35,6 @@ import {
   errorFileNotFound,
   errorMigrationPlanningFailed,
   errorPlanProducedNoOperations,
-  errorStatementDidNotResolveLoss,
   errorTargetMigrationNotSupported,
   type PlanDestination,
   type PlanLegOrigin,
@@ -51,15 +49,15 @@ import { assertFrameworkComponentsCompatible } from '../../utils/framework-compo
 import { createProjectSpecifierResolver } from '../../utils/project-import-root';
 import { snapshotVerifierFor } from '../../utils/snapshot-content-verification';
 import {
-  type AnswerDataLoss,
-  dataLossQuestion,
-  type PlannedDataLoss,
+  type AnswerPlanQuestions,
+  answerPlanQuestions,
+  type PlannedSubject,
   subjectText,
 } from '../statements/data-loss-questions';
 import {
   type AppliedStatementReport,
   reportAppliedStatements,
-  reportDeleteStatement,
+  reportConsentStatement,
 } from '../statements/report-applied-statements';
 import { resolveStatements } from '../statements/resolve-statements';
 import type { StatementText } from '../statements/statement-text';
@@ -100,7 +98,7 @@ export interface MigrationPlanOptions {
    * written. A delete answer consents to the loss; a rename answer is planned
    * again with the other renames and must remove the loss.
    */
-  readonly answerDataLoss: AnswerDataLoss;
+  readonly answerQuestions: AnswerPlanQuestions;
   /** Renders the declarations of the destination snapshot from its `contract.json`. */
   readonly client: Pick<ControlClient, 'renderContractDts'>;
 }
@@ -111,7 +109,7 @@ type PlannerSuccess = {
   readonly hasPlaceholders: boolean;
   readonly appliedStatements: readonly AppliedStatementReport[];
   /** The operations that would lose data, positioned in the plan's operations. */
-  readonly dataLoss: readonly PlannedDataLoss[];
+  readonly dataLoss: readonly PlannedSubject[];
 };
 
 /** The origin of a plan from an empty database: no models, so no statement resolves. */
@@ -295,7 +293,7 @@ async function answerPlannedDataLoss(input: {
   readonly renames: readonly StatementText[];
   readonly origin: ContractWithDomain;
   readonly destination: ContractWithDomain;
-  readonly answer: AnswerDataLoss;
+  readonly answer: AnswerPlanQuestions;
   readonly planDelta: (
     renames: readonly StatementText[],
   ) => Promise<Result<PlannerSuccess, CliStructuredError>>;
@@ -308,61 +306,33 @@ async function answerPlannedDataLoss(input: {
     CliStructuredError
   >
 > {
-  let delta = input.delta;
-  let renames = input.renames;
-  const consented = new Map<string, MigrationStatementSubject>();
-  const keyOf = (loss: PlannedDataLoss) => JSON.stringify(loss.subject);
-  const contracts = () => ({
+  const legs = (delta: PlannerSuccess | undefined) => ({
+    delta,
+    dataLoss: [...(input.baseline?.dataLoss ?? []), ...(delta?.dataLoss ?? [])],
+    accessWidening: [],
+  });
+  const answered = await answerPlanQuestions({
+    plan: legs(input.delta),
+    askAccess: false,
+    renames: input.renames,
+    preAnswers: [],
+    consentAll: false,
     origin: input.origin,
     destination: input.destination,
-    renames,
+    answer: input.answer,
+    replan: async (renames) => {
+      const replanned = await input.planDelta(renames);
+      return replanned.ok ? ok(legs(replanned.value)) : replanned;
+    },
   });
-  // The first round asks even when nothing is lost, so a statement no question
-  // consumed is refused before anything is written.
-  for (let round = 0; ; round += 1) {
-    const losses = [...(input.baseline?.dataLoss ?? []), ...(delta?.dataLoss ?? [])];
-    const unanswered = [
-      ...new Map(
-        losses.filter((loss) => !consented.has(keyOf(loss))).map((loss) => [keyOf(loss), loss]),
-      ).values(),
-    ];
-    if (unanswered.length === 0 && round > 0) break;
-    const asked = contracts();
-    const questions = unanswered.map((loss) => dataLossQuestion(loss, asked));
-    const answers = await input.answer(questions);
-    const typedRenames: { readonly text: string; readonly loss: PlannedDataLoss }[] = [];
-    answers.forEach((answer, index) => {
-      const loss = unanswered[index];
-      if (loss === undefined) return;
-      if (answer.verb === 'delete') consented.set(keyOf(loss), loss.subject);
-      else typedRenames.push({ text: answer.text, loss });
-    });
-    if (typedRenames.length === 0) {
-      if (unanswered.length === 0) break;
-      continue;
-    }
-    renames = [...renames, ...typedRenames.map(({ text }) => ({ verb: 'rename' as const, text }))];
-    const replanned = await input.planDelta(renames);
-    if (!replanned.ok) return replanned;
-    delta = replanned.value;
-    const stillLost = new Set(delta.dataLoss.map(keyOf));
-    const unresolved = typedRenames.find(({ loss }) => stillLost.has(keyOf(loss)));
-    if (unresolved !== undefined) {
-      return notOk(
-        errorStatementDidNotResolveLoss(
-          { verb: 'rename', text: unresolved.text },
-          subjectText(unresolved.loss.subject, asked),
-        ),
-      );
-    }
-  }
-  const deletes = [...consented].map(([key, subject]) =>
-    reportDeleteStatement(
-      subject,
+  if (!answered.ok) return answered;
+  const { delta } = answered.value.plan;
+  const deletes = answered.value.consented.map((consented) =>
+    reportConsentStatement(
+      consented,
       (delta?.dataLoss ?? [])
-        .filter((loss) => keyOf(loss) === key)
+        .filter((loss) => JSON.stringify(loss.subject) === JSON.stringify(consented.subject))
         .flatMap(({ operationIndex }) => (operationIndex === undefined ? [] : [operationIndex])),
-      input.origin,
     ),
   );
   return ok({ delta, deletes });
@@ -769,7 +739,7 @@ async function executeMigrationPlanCommandInner(
         renames: statementTexts,
         origin: fromContract ?? EMPTY_ORIGIN,
         destination: toContract,
-        answer: options.answerDataLoss,
+        answer: options.answerQuestions,
         planDelta: async (renames) => {
           const resolved = resolveStatements({
             statements: renames,

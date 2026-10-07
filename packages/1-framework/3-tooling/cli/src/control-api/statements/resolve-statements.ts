@@ -19,7 +19,7 @@ import {
   errorStatementOriginUnknown,
   errorStatementUnresolved,
 } from '../../utils/cli-errors';
-import { parseDeleteStatement } from './parse-delete';
+import { parseConsentStatement } from './parse-consent';
 import {
   mixedSidesFix,
   type ParsedRename,
@@ -696,17 +696,17 @@ function resolveStatement(
 /**
  * Resolves the rename statements a user gave, in order, against the origin and
  * destination contracts. Each resolved statement names its old and new entity
- * by namespace, model and field. A delete statement is checked and left out: it
- * names what a plan would lose, so it is matched against the plan, and it needs
- * no origin contract.
+ * by namespace, model and field. A delete or allow statement is checked and
+ * left out: it names what a plan would do to a subject, so it is matched against
+ * the plan, and it needs no origin contract.
  */
 export function resolveStatements(
   input: ResolveStatementsInput,
 ): Result<readonly ResolvedMigrationStatement[], CliStructuredError> {
   const parsed: ParsedRename[] = [];
   for (const entry of input.statements) {
-    if (entry.verb === 'delete') {
-      const statement = parseDeleteStatement({ ...entry, verb: entry.verb });
+    if (entry.verb === 'delete' || entry.verb === 'allow') {
+      const statement = parseConsentStatement({ ...entry, verb: entry.verb });
       if (!statement.ok) return statement;
       continue;
     }

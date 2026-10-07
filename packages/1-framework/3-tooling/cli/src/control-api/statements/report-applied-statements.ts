@@ -3,15 +3,16 @@ import {
   type AppliedMigrationStatement,
   describeMigrationStatement,
   type MigrationStatementJson,
-  type MigrationStatementSubject,
   type MigrationStatementSubjectJson,
   migrationStatementJson,
   migrationStatementSubjectJson,
 } from '@internal/framework-components/control';
+import { type ConsentedSubject, consentDescription } from './data-loss-questions';
+import type { ConsentVerb } from './parse-consent';
 
-/** A delete statement in JSON output: the subject whose data it consents to lose. */
-export interface DeleteStatementJson {
-  readonly kind: 'delete';
+/** A delete or allow statement in JSON output: the subject whose data or access it consents to. */
+export interface ConsentStatementJson {
+  readonly kind: ConsentVerb;
   readonly subject: MigrationStatementSubjectJson;
 }
 
@@ -28,10 +29,10 @@ export type AppliedStatementReport =
       readonly description: string;
     }
   | {
-      readonly verb: 'delete';
-      readonly statement: DeleteStatementJson;
+      readonly verb: ConsentVerb;
+      readonly statement: ConsentStatementJson;
       readonly operationIndexes: readonly number[];
-      /** The statement in domain names, for example `delete model "Legacy"`. */
+      /** The statement as its question named the subject, for example `delete model "Legacy"`. */
       readonly description: string;
     };
 
@@ -53,20 +54,15 @@ export function reportAppliedStatements(
   }));
 }
 
-/** A delete statement a plan applied: the subject it consents to lose, and that loss's operations. */
-export function reportDeleteStatement(
-  subject: MigrationStatementSubject,
+/** A delete or allow statement a plan applied, with the positions of the operations it consented to. */
+export function reportConsentStatement(
+  consented: ConsentedSubject,
   operationIndexes: readonly number[],
-  fromContract: ContractWithDomain,
 ): AppliedStatementReport {
   return {
-    verb: 'delete',
-    statement: { kind: 'delete', subject: migrationStatementSubjectJson(subject) },
+    verb: consented.verb,
+    statement: { kind: consented.verb, subject: migrationStatementSubjectJson(consented.subject) },
     operationIndexes,
-    description: describeMigrationStatement(
-      { kind: 'delete', subject },
-      fromContract,
-      fromContract,
-    ),
+    description: consentDescription(consented.verb, consented.subject, consented.text),
   };
 }

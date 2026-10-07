@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import { contractSnapshotDir } from '@internal/migration-tools/contract-snapshot-store';
 import { computeMigrationHash } from '@internal/migration-tools/hash';
 import { writeRef } from '@internal/migration-tools/refs';
@@ -819,6 +819,22 @@ describe('migration plan', () => {
       );
       expect(actions).toContain('--delete User.nickname');
       expect(actions).toContain('--rename User.nickname:<new name>');
+
+      const deleted = await harness(project, { script }).run(
+        ['migration', 'plan', '--rename', 'Profile:User', '--delete', 'User.nickname', '--json'],
+        { cwd: project.dir },
+      );
+      expect(deleted.presented?.data).toMatchObject({
+        appliedStatements: [
+          { verb: 'rename' },
+          { verb: 'delete', description: 'delete field "User.nickname"' },
+        ],
+      });
+      for (const dir of await plannedDirs(project)) {
+        if (dir !== '20260101T0000_initial') {
+          await rm(join(project.appMigrationsDir, dir), { recursive: true });
+        }
+      }
 
       const renamed = await harness(project, { script }).run(
         [

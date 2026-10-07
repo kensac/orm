@@ -42,7 +42,7 @@ describe('executeMigrationPlanCommand — mutation-prologue guard', () => {
         cwd: '/project',
         projectDir: '/project',
         client: stubClient,
-        answerDataLoss: async () => [],
+        answerQuestions: async () => [],
       },
       Date.now(),
     );
@@ -70,7 +70,7 @@ describe('executeMigrationPlanCommand — mutation-prologue guard', () => {
         cwd: '/project',
         projectDir: '/project',
         client: stubClient,
-        answerDataLoss: async () => [],
+        answerQuestions: async () => [],
       },
       Date.now(),
     );
