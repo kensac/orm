@@ -158,8 +158,8 @@ const PROFILE_TO_USER = {
   statement: {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: 'app', model: 'Profile' },
-    to: { namespace: 'app', model: 'User' },
+    from: { namespaceId: 'app', model: 'Profile' },
+    to: { namespaceId: 'app', model: 'User' },
   },
   description: 'rename model "Profile" to "User"',
   operationCount: 2,

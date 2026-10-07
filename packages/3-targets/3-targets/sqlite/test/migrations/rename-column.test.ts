@@ -60,8 +60,8 @@ function renameField(
   return {
     kind: 'rename',
     entity: 'field',
-    from: { namespace: NS, model, field: from },
-    to: { namespace: NS, model: newModel, field: to },
+    from: { namespaceId: NS, model, field: from },
+    to: { namespaceId: NS, model: newModel, field: to },
   };
 }
 
@@ -69,8 +69,8 @@ function renameModel(from: string, to: string): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: NS, model: from },
-    to: { namespace: NS, model: to },
+    from: { namespaceId: NS, model: from },
+    to: { namespaceId: NS, model: to },
   };
 }
 

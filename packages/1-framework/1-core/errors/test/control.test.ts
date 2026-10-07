@@ -367,8 +367,8 @@ describe('Config Errors', () => {
     const statement = {
       kind: 'rename',
       entity: 'model',
-      from: { namespace: 'app', model: 'Profile' },
-      to: { namespace: 'app', model: 'User' },
+      from: { namespaceId: 'app', model: 'Profile' },
+      to: { namespaceId: 'app', model: 'User' },
     } as unknown as ResolvedMigrationStatement;
     const conflicts = [{ kind: 'statementRefused', summary: 'Cannot rename', statement }];
     const error = errorMigrationPlanningFailed({ conflicts });

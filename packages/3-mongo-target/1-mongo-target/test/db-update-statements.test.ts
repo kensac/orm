@@ -96,8 +96,8 @@ describe('db update with statements on MongoDB', () => {
             refusedStatement: {
               kind: 'rename',
               entity: 'model',
-              from: { namespace: 'app', model: 'Profile' },
-              to: { namespace: 'app', model: 'User' },
+              from: { namespaceId: 'app', model: 'Profile' },
+              to: { namespaceId: 'app', model: 'User' },
             },
           },
         ],

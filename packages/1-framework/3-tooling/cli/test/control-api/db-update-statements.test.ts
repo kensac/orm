@@ -198,8 +198,8 @@ describe('executeDbUpdate with statements', () => {
           {
             kind: 'rename',
             entity: 'model',
-            from: { namespace: 'app', model: 'Profile' },
-            to: { namespace: 'app', model: 'User' },
+            from: { namespaceId: 'app', model: 'Profile' },
+            to: { namespaceId: 'app', model: 'User' },
           },
         ],
       },

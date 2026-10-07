@@ -131,8 +131,8 @@ export function renameModel(
   return {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: asNamespaceId(fromNs), model: from },
-    to: { namespace: asNamespaceId(toNs), model: to },
+    from: { namespaceId: asNamespaceId(fromNs), model: from },
+    to: { namespaceId: asNamespaceId(toNs), model: to },
   };
 }
 
@@ -145,8 +145,8 @@ export function renameField(
   return {
     kind: 'rename',
     entity: 'field',
-    from: { namespace: asNamespaceId('app'), model, field: from },
-    to: { namespace: asNamespaceId('app'), model: newModel, field: to },
+    from: { namespaceId: asNamespaceId('app'), model, field: from },
+    to: { namespaceId: asNamespaceId('app'), model: newModel, field: to },
   };
 }
 
@@ -159,8 +159,8 @@ export function renameFieldIn(
   return {
     kind: 'rename',
     entity: 'field',
-    from: { namespace: asNamespaceId(namespace), model, field: from },
-    to: { namespace: asNamespaceId(namespace), model, field: to },
+    from: { namespaceId: asNamespaceId(namespace), model, field: from },
+    to: { namespaceId: asNamespaceId(namespace), model, field: to },
   };
 }
 

@@ -224,7 +224,7 @@ function describeStatement(statement: ResolvedMigrationStatement): string {
 /** The collection a model stores its documents in; a model without `@@map` names it verbatim. */
 function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoordinate): string {
   const collection =
-    contract?.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage[
+    contract?.domain.namespaces[coordinate.namespaceId]?.models[coordinate.model]?.storage[
       'collection'
     ];
   return typeof collection === 'string' ? collection : coordinate.model;

@@ -28,8 +28,8 @@ function renameModel(from: string, to: string): ResolvedModelRenameStatement {
   return {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: asNamespaceId(UNBOUND_NAMESPACE_ID), model: from },
-    to: { namespace: asNamespaceId(UNBOUND_NAMESPACE_ID), model: to },
+    from: { namespaceId: asNamespaceId(UNBOUND_NAMESPACE_ID), model: from },
+    to: { namespaceId: asNamespaceId(UNBOUND_NAMESPACE_ID), model: to },
   };
 }
 

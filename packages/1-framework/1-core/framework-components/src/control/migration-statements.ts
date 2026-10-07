@@ -1,10 +1,15 @@
 import type { NamespaceId } from '@internal/contract/types';
 
+/** A model: its namespace and its name as the contract source writes it, never a table name. */
 export interface ModelCoordinate {
-  readonly namespace: NamespaceId;
+  readonly namespaceId: NamespaceId;
   readonly model: string;
 }
 
+/**
+ * A field of a model, named as the contract's model names it. A MongoDB contract keys a model's
+ * fields by their stored names, so there it is the stored field name.
+ */
 export interface FieldCoordinate extends ModelCoordinate {
   readonly field: string;
 }
@@ -24,9 +29,10 @@ export interface ResolvedFieldRenameStatement {
 }
 
 /**
- * A statement the user gave on the command line, resolved against the origin
- * and destination contracts into domain coordinates. `from` is a coordinate of
- * the origin contract and `to` a coordinate of the destination contract.
+ * A statement resolved against the origin and destination contracts into domain coordinates:
+ * `from` is a coordinate of the origin contract and `to` one of the destination contract. Each
+ * member's `entity` names the kind of coordinate its sides use, so another kind of entity is a
+ * further member with its own coordinate type.
  */
 export type ResolvedMigrationStatement =
   | ResolvedModelRenameStatement

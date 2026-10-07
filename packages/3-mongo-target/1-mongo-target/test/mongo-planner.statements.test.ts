@@ -46,15 +46,15 @@ function contractWithModel(model: string, collection: string): MongoContract {
 const modelRename: ResolvedMigrationStatement = {
   kind: 'rename',
   entity: 'model',
-  from: { namespace: NAMESPACE, model: 'Profile' },
-  to: { namespace: NAMESPACE, model: 'User' },
+  from: { namespaceId: NAMESPACE, model: 'Profile' },
+  to: { namespaceId: NAMESPACE, model: 'User' },
 };
 
 const fieldRename: ResolvedMigrationStatement = {
   kind: 'rename',
   entity: 'field',
-  from: { namespace: NAMESPACE, model: 'Profile', field: 'name' },
-  to: { namespace: NAMESPACE, model: 'User', field: 'fullName' },
+  from: { namespaceId: NAMESPACE, model: 'Profile', field: 'name' },
+  to: { namespaceId: NAMESPACE, model: 'User', field: 'fullName' },
 };
 
 function plan(

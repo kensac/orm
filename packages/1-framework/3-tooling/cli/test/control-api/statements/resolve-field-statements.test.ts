@@ -25,8 +25,8 @@ const nameToFullName = {
 const renamedUser = {
   kind: 'rename',
   entity: 'field',
-  from: { namespace: 'app', model: 'User', field: 'name' },
-  to: { namespace: 'app', model: 'User', field: 'fullName' },
+  from: { namespaceId: 'app', model: 'User', field: 'name' },
+  to: { namespaceId: 'app', model: 'User', field: 'fullName' },
 };
 
 describe('resolveStatements, field renames', () => {
@@ -51,14 +51,14 @@ describe('resolveStatements, field renames', () => {
       {
         kind: 'rename',
         entity: 'model',
-        from: { namespace: 'app', model: 'A' },
-        to: { namespace: 'app', model: 'B' },
+        from: { namespaceId: 'app', model: 'A' },
+        to: { namespaceId: 'app', model: 'B' },
       },
       {
         kind: 'rename',
         entity: 'field',
-        from: { namespace: 'app', model: 'A', field: 'x' },
-        to: { namespace: 'app', model: 'B', field: 'y' },
+        from: { namespaceId: 'app', model: 'A', field: 'x' },
+        to: { namespaceId: 'app', model: 'B', field: 'y' },
       },
     ]);
   });
@@ -207,8 +207,8 @@ describe('resolveStatements, field renames', () => {
         {
           kind: 'rename',
           entity: 'field',
-          from: { namespace: 'app', model: 'User', field: 'posts' },
-          to: { namespace: 'app', model: 'User', field: 'articles' },
+          from: { namespaceId: 'app', model: 'User', field: 'posts' },
+          to: { namespaceId: 'app', model: 'User', field: 'articles' },
         },
       ]);
     });

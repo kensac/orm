@@ -67,7 +67,7 @@ function sqlModelStorage(
   coordinate: ModelCoordinate,
 ): SqlModelStorage | undefined {
   const storage =
-    contract.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage;
+    contract.domain.namespaces[coordinate.namespaceId]?.models[coordinate.model]?.storage;
   return storage !== undefined && isSqlModelStorage(storage) ? storage : undefined;
 }
 
@@ -133,7 +133,7 @@ export function fieldRenameStorageEffect(
 
 function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
   return Object.keys(contract.domain.namespaces).length > 1
-    ? `${coordinate.namespace}.${coordinate.model}`
+    ? `${coordinate.namespaceId}.${coordinate.model}`
     : coordinate.model;
 }
 
@@ -210,7 +210,7 @@ function statementRefused(
 }
 
 function qualified(coordinate: ModelCoordinate): string {
-  return `${coordinate.namespace}.${coordinate.model}`;
+  return `${coordinate.namespaceId}.${coordinate.model}`;
 }
 
 function tableControlPolicy(contract: Contract<SqlStorage>, table: ModelTable) {

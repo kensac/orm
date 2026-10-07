@@ -126,8 +126,8 @@ describe('planMigration', () => {
     const statement = {
       kind: 'rename',
       entity: 'model',
-      from: { namespace: 'app', model: 'Profile' },
-      to: { namespace: 'app', model: 'User' },
+      from: { namespaceId: 'app', model: 'Profile' },
+      to: { namespaceId: 'app', model: 'User' },
     } as unknown as ResolvedMigrationStatement;
     const applied = {
       statement,
@@ -175,8 +175,8 @@ describe('planMigration', () => {
     const statement = {
       kind: 'rename',
       entity: 'model',
-      from: { namespace: 'app', model: 'Profile' },
-      to: { namespace: 'app', model: 'User' },
+      from: { namespaceId: 'app', model: 'Profile' },
+      to: { namespaceId: 'app', model: 'User' },
     } as unknown as ResolvedMigrationStatement;
     const received: { spaceId: string; fromContract: unknown; statements: unknown }[] = [];
     const planner: MigrationPlanner<'sql', 'postgres'> = {

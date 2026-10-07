@@ -60,8 +60,8 @@ async function renamingProject(options: { readonly history: boolean } = { histor
 const profileToUser = {
   kind: 'rename',
   entity: 'model',
-  from: { namespace: 'app', model: 'Profile' },
-  to: { namespace: 'app', model: 'User' },
+  from: { namespaceId: 'app', model: 'Profile' },
+  to: { namespaceId: 'app', model: 'User' },
 };
 
 describe('migration plan --rename', () => {
@@ -80,8 +80,8 @@ describe('migration plan --rename', () => {
         {
           kind: 'rename',
           entity: 'model',
-          from: { namespace: 'app', model: 'Article' },
-          to: { namespace: 'app', model: 'Post' },
+          from: { namespaceId: 'app', model: 'Article' },
+          to: { namespaceId: 'app', model: 'Post' },
         },
       ],
     ]);

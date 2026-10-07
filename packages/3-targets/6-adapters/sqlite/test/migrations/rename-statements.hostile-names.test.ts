@@ -127,14 +127,14 @@ describe('rename statements with hostile identifiers on SQLite', {
       {
         kind: 'rename',
         entity: 'model',
-        from: { namespace: NAMESPACE, model: from.model },
-        to: { namespace: NAMESPACE, model: to.model },
+        from: { namespaceId: NAMESPACE, model: from.model },
+        to: { namespaceId: NAMESPACE, model: to.model },
       },
       {
         kind: 'rename',
         entity: 'field',
-        from: { namespace: NAMESPACE, model: from.model, field: from.field },
-        to: { namespace: NAMESPACE, model: to.model, field: to.field },
+        from: { namespaceId: NAMESPACE, model: from.model, field: from.field },
+        to: { namespaceId: NAMESPACE, model: to.model, field: to.field },
       },
     ];
     await driver.query(

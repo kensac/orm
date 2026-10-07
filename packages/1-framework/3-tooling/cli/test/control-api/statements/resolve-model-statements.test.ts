@@ -30,8 +30,8 @@ describe('resolveStatements, model renames', () => {
       {
         kind: 'rename',
         entity: 'model',
-        from: { namespace: 'app', model: 'Profile' },
-        to: { namespace: 'app', model: 'User' },
+        from: { namespaceId: 'app', model: 'Profile' },
+        to: { namespaceId: 'app', model: 'User' },
       },
     ]);
   });
@@ -43,8 +43,8 @@ describe('resolveStatements, model renames', () => {
       {
         kind: 'rename',
         entity: 'model',
-        from: { namespace: 'auth', model: 'Profile' },
-        to: { namespace: 'billing', model: 'User' },
+        from: { namespaceId: 'auth', model: 'Profile' },
+        to: { namespaceId: 'billing', model: 'User' },
       },
     ]);
   });
@@ -219,8 +219,8 @@ describe('resolveStatements, model renames', () => {
         {
           kind: 'rename',
           entity: 'model',
-          from: { namespace: 'app', model: 'Dog' },
-          to: { namespace: 'app', model: 'Hound' },
+          from: { namespaceId: 'app', model: 'Dog' },
+          to: { namespaceId: 'app', model: 'Hound' },
         },
       ]);
     });

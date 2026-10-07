@@ -97,8 +97,8 @@ function renameModel(from: string, to: string): ResolvedMigrationStatement {
   return {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: PUBLIC, model: from },
-    to: { namespace: PUBLIC, model: to },
+    from: { namespaceId: PUBLIC, model: from },
+    to: { namespaceId: PUBLIC, model: to },
   };
 }
 
@@ -111,8 +111,8 @@ function renameField(
   return {
     kind: 'rename',
     entity: 'field',
-    from: { namespace: PUBLIC, model: fromModel, field: from },
-    to: { namespace: PUBLIC, model: toModel, field: to },
+    from: { namespaceId: PUBLIC, model: fromModel, field: from },
+    to: { namespaceId: PUBLIC, model: toModel, field: to },
   };
 }
 

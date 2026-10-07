@@ -100,7 +100,7 @@ const REPEATED_NAME_FIX =
   'Give each model or field at most one --rename statement, and each new name to one model or field only.';
 
 function qualifiedModel(coordinate: ModelCoordinate): string {
-  return `${coordinate.namespace}.${coordinate.model}`;
+  return `${coordinate.namespaceId}.${coordinate.model}`;
 }
 
 function qualifiedField(coordinate: FieldCoordinate): string {
@@ -138,8 +138,8 @@ function modelAt(
   coordinate: ModelCoordinate,
 ): ContractModelBase | undefined {
   const namespaces = contract.domain.namespaces;
-  const namespace = Object.hasOwn(namespaces, coordinate.namespace)
-    ? namespaces[coordinate.namespace]
+  const namespace = Object.hasOwn(namespaces, coordinate.namespaceId)
+    ? namespaces[coordinate.namespaceId]
     : undefined;
   return namespace === undefined ? undefined : modelIn(namespace, coordinate.model);
 }
@@ -173,7 +173,7 @@ function lookupModelInNamespace(
   if (model !== undefined) {
     return {
       kind: 'found',
-      coordinate: { namespace: asNamespaceId(namespaceId), model: name },
+      coordinate: { namespaceId: asNamespaceId(namespaceId), model: name },
       model,
     };
   }

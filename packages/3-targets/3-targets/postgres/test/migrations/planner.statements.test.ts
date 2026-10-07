@@ -31,8 +31,8 @@ function renameModel(
   return {
     kind: 'rename',
     entity: 'model',
-    from: { namespace: asNamespaceId(fromNs), model: from },
-    to: { namespace: asNamespaceId(toNs), model: to },
+    from: { namespaceId: asNamespaceId(fromNs), model: from },
+    to: { namespaceId: asNamespaceId(toNs), model: to },
   };
 }
 
