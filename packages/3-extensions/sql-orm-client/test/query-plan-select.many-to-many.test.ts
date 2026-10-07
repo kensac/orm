@@ -57,9 +57,9 @@ describe('M:N include correlated subquery', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
 
     const tagRows = SelectAst.from(TableSource.named('tags', undefined, 'public'))
@@ -126,9 +126,9 @@ describe('M:N include correlated subquery', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects',
       state,
-      'Project',
     );
 
     const relatedRows = SelectAst.from(TableSource.named('projects', 'related__child', 'public'))
@@ -224,9 +224,9 @@ describe('M:N include correlated subquery', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
     expectSelectAst(plan.ast);
 
@@ -261,9 +261,9 @@ describe('M:N include correlated subquery', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects',
       state,
-      'Project',
     );
 
     const junctionJoinOnto = (childRef: string): JoinAst =>

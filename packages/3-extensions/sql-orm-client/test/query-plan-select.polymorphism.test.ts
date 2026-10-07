@@ -88,21 +88,15 @@ describe('compileSelect MTI JOINs', () => {
       ),
     ];
 
-    const implicitPlan = compileSelect(contract, 'public', 'tasks', emptyState(), 'Task');
-    const omittedMtiPlan = compileSelect(
-      contract,
-      'public',
-      'tasks',
-      { ...emptyState(), selectedFields: ['id', 'title'] },
-      'Task',
-    );
-    const selectedMtiPlan = compileSelect(
-      contract,
-      'public',
-      'tasks',
-      { ...emptyState(), selectedFields: ['id', 'priority'] },
-      'Task',
-    );
+    const implicitPlan = compileSelect(contract, 'public', 'Task', 'tasks', emptyState());
+    const omittedMtiPlan = compileSelect(contract, 'public', 'Task', 'tasks', {
+      ...emptyState(),
+      selectedFields: ['id', 'title'],
+    });
+    const selectedMtiPlan = compileSelect(contract, 'public', 'Task', 'tasks', {
+      ...emptyState(),
+      selectedFields: ['id', 'priority'],
+    });
 
     expect(implicitPlan.ast).toEqual(
       SelectAst.from(TableSource.named('tasks', undefined, 'public'))
@@ -153,7 +147,7 @@ describe('compileSelect MTI JOINs', () => {
       ),
     ];
 
-    const plan = compileSelect(contract, 'public', 'tasks', state, 'Task');
+    const plan = compileSelect(contract, 'public', 'Task', 'tasks', state);
 
     expect(plan.ast).toEqual(
       SelectAst.from(TableSource.named('tasks', undefined, 'public'))
@@ -178,7 +172,7 @@ describe('compileSelect MTI JOINs', () => {
       'assignee_id',
     ]);
 
-    const plan = compileSelect(contract, 'public', 'tasks', state, 'Task');
+    const plan = compileSelect(contract, 'public', 'Task', 'tasks', state);
 
     expect(plan.ast).toEqual(
       SelectAst.from(TableSource.named('tasks', undefined, 'public'))
@@ -188,7 +182,7 @@ describe('compileSelect MTI JOINs', () => {
   });
 
   it('non-polymorphic model produces no JOINs', () => {
-    const plan = compileSelect(baseContract, 'public', 'users', emptyState(), 'User');
+    const plan = compileSelect(baseContract, 'public', 'User', 'users', emptyState());
 
     expect(plan.ast).toEqual(
       SelectAst.from(TableSource.named('users', undefined, 'public'))
@@ -249,9 +243,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Account',
       'accounts',
       state,
-      'Account',
     );
     const childRows = childRowsSelectFor(plan, 'members');
 
@@ -282,9 +276,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects_tbl',
       implicitState,
-      'Project',
     );
     const implicitChildRows = childRowsSelectFor(implicitPlan, 'tasks');
 
@@ -310,9 +304,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects_tbl',
       omittedMtiState,
-      'Project',
     );
     const omittedMtiChildRows = childRowsSelectFor(omittedMtiPlan, 'tasks');
     expect(
@@ -323,9 +317,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects_tbl',
       selectedMtiState,
-      'Project',
     );
     const selectedMtiAliases = projectionAliases(childRowsSelectFor(selectedMtiPlan, 'tasks'));
     expect(selectedMtiAliases.filter((alias) => alias.startsWith('features__'))).toEqual([
@@ -346,9 +340,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Project',
       'projects_tbl',
       state,
-      'Project',
     );
     const childRows = childRowsSelectFor(plan, 'tasks');
 
@@ -372,9 +366,9 @@ describe('compileSelectWithIncludes polymorphic targets', () => {
       contract,
       getTestAggregates(),
       'public',
+      'Task',
       'tasks',
       state,
-      'Task',
     );
     const childRows = childRowsSelectFor(plan, 'subtasks');
 

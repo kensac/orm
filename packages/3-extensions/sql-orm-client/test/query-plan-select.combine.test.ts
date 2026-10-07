@@ -50,9 +50,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractCombineCorrelatedSubquery(plan, 'posts');
 
@@ -98,9 +98,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractCombineCorrelatedSubquery(plan, 'posts');
 
@@ -150,9 +150,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractCombineCorrelatedSubquery(plan, 'posts');
 

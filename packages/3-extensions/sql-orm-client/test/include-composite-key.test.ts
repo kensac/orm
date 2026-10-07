@@ -34,9 +34,9 @@ function compile(modelName: string, state: CollectionState): SqlQueryPlan {
     contract,
     context.aggregateDescriptors,
     'public',
+    modelName,
     resolveModelTableName(contract, 'public', modelName),
     state,
-    modelName,
   );
 }
 

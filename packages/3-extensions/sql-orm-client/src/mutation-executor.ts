@@ -1235,7 +1235,7 @@ async function findRowByCriterion(
     filters: [whereExpr],
     limit: 1,
   };
-  const compiled = compileSelect(contract, namespaceId, tableName, state, modelName);
+  const compiled = compileSelect(contract, namespaceId, modelName, tableName, state);
   const rows = await queryPlanRows<Record<string, unknown>>(scope, compiled).toArray();
 
   const firstRow = rows[0];
@@ -1259,7 +1259,7 @@ async function findFirstByFilters(
     filters,
     limit: 1,
   };
-  const compiled = compileSelect(contract, namespaceId, tableName, state, modelName);
+  const compiled = compileSelect(contract, namespaceId, modelName, tableName, state);
   const rows = await queryPlanRows<Record<string, unknown>>(scope, compiled).toArray();
 
   const firstRow = rows[0];

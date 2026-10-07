@@ -1461,9 +1461,9 @@ function buildSelectAst(
 export function compileSelect(
   contract: Contract<SqlStorage>,
   namespaceId: string,
+  modelName: string,
   tableName: string,
   state: CollectionState,
-  modelName: string,
 ): SqlQueryPlan<Record<string, unknown>> {
   if (state.distinctOn !== undefined && state.distinctOn.length > 0) {
     assertDistinctOnCapability(contract, 'distinctOn');
@@ -1517,9 +1517,9 @@ export function compileSelectWithIncludes(
   contract: Contract<SqlStorage>,
   aggregates: SqlAggregateDescriptorRegistry,
   namespaceId: string,
+  modelName: string,
   tableName: string,
   state: CollectionState,
-  modelName: string,
 ): SqlQueryPlan<Record<string, unknown>> {
   const includeJoins: JoinAst[] = [];
   const includeProjection: ProjectionItem[] = [];

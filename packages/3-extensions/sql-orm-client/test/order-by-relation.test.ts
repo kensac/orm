@@ -31,9 +31,9 @@ function planOf(modelName: string, state: CollectionState): SqlQueryPlan<unknown
   return compileSelect(
     baseContract,
     'public',
+    modelName,
     resolveModelTableName(baseContract, 'public', modelName),
     state,
-    modelName,
   );
 }
 
@@ -295,9 +295,9 @@ describe('orderBy a relation inside an include', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
 
     expect(sqlOf(plan)).toMatchInlineSnapshot(
@@ -315,9 +315,9 @@ describe('orderBy a relation inside an include', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
 
     expect(sqlOf(plan)).toMatchInlineSnapshot(

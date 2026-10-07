@@ -89,7 +89,7 @@ function describeExecutionRows<Row>(
   const polyInfo = resolvePolymorphismInfo(contract, namespaceId, modelName);
 
   if (state.includes.length === 0) {
-    const compiled = compileSelect(contract, namespaceId, tableName, state, modelName);
+    const compiled = compileSelect(contract, namespaceId, modelName, tableName, state);
     const mapper = polyInfo
       ? (rawRow: Record<string, unknown>) =>
           blindCast<
@@ -117,9 +117,9 @@ function describeExecutionRows<Row>(
     contract,
     context.aggregateDescriptors,
     namespaceId,
+    modelName,
     tableName,
     state,
-    modelName,
   );
   return {
     plan,

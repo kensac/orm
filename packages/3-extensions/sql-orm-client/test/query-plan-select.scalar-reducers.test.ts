@@ -74,9 +74,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
 
@@ -100,9 +100,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
 
@@ -131,9 +131,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
       expect(subquery.orderBy).toBeUndefined();
@@ -155,9 +155,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
 
@@ -200,9 +200,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
 
@@ -257,9 +257,9 @@ describe('compileSelectWithIncludes', () => {
           baseContract,
           getTestAggregates(),
           'public',
+          'User',
           'users',
           state,
-          'User',
         );
         const subquery = extractScalarCorrelatedSubquery(plan, 'posts');
         expectAggregateProjection(subquery, 'posts', expected, resultCodecId);
@@ -278,9 +278,9 @@ describe('compileSelectWithIncludes', () => {
         baseContract,
         getTestAggregates(),
         'public',
+        'User',
         'users',
         state,
-        'User',
       );
       const postsSubquery = extractScalarCorrelatedSubquery(plan, 'posts');
       // The posts subquery's FROM is the child-rows derived table; its

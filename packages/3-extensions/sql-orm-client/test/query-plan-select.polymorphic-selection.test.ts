@@ -7,13 +7,10 @@ import { buildMixedPolyContract } from './helpers';
 describe('polymorphic selection', () => {
   it('treats a selected column that belongs to no table of the hierarchy as an internal error', () => {
     expect(() =>
-      compileSelect(
-        buildMixedPolyContract(),
-        'public',
-        'tasks',
-        { ...emptyState(), selectedFields: ['id', 'legacy_key'] },
-        'Task',
-      ),
+      compileSelect(buildMixedPolyContract(), 'public', 'Task', 'tasks', {
+        ...emptyState(),
+        selectedFields: ['id', 'legacy_key'],
+      }),
     ).toThrow(InternalError);
   });
 });

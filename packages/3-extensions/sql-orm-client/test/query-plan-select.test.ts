@@ -48,7 +48,7 @@ describe('compileSelectWithIncludes', () => {
       filters: [BinaryExpr.eq(ColumnRef.of('users', 'email'), LiteralExpr.of('alice@example.com'))],
     };
 
-    const plan = compileSelect(baseContract, 'public', 'users', state, 'User');
+    const plan = compileSelect(baseContract, 'public', 'User', 'users', state);
 
     expectSelectAst(plan.ast);
     expect(plan.ast.where).toEqual(
@@ -70,9 +70,9 @@ describe('compileSelectWithIncludes', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
     expect(plan.params).toEqual([100, 'Alice']);
     expect(paramCodecs(plan)).toEqual([
@@ -118,7 +118,7 @@ describe('compileSelectWithIncludes', () => {
       .offset(3)
       .select('id').state;
 
-    const plan = compileSelect(baseContract, 'public', 'users', state, 'User');
+    const plan = compileSelect(baseContract, 'public', 'User', 'users', state);
     expectSelectAst(plan.ast);
     expect(plan.params).toEqual(['Alice', 'Alice', 7]);
     expect(paramCodecs(plan)).toEqual([
@@ -150,7 +150,7 @@ describe('compileSelectWithIncludes', () => {
     const { collection } = createCollection();
     const state = collection.orderBy((user) => user.id.asc()).cursor({ id: 9 }).state;
 
-    const plan = compileSelect(baseContract, 'public', 'users', state, 'User');
+    const plan = compileSelect(baseContract, 'public', 'User', 'users', state);
     expectSelectAst(plan.ast);
     expect(plan.params).toEqual([9]);
     expect(paramCodecs(plan)).toEqual([codecForColumn('users', 'id')]);
@@ -162,7 +162,7 @@ describe('compileSelectWithIncludes', () => {
       ...collection.orderBy((user) => user.id.asc()).state,
       cursor: {},
     };
-    expect(() => compileSelect(baseContract, 'public', 'users', invalidState, 'User')).toThrow(
+    expect(() => compileSelect(baseContract, 'public', 'User', 'users', invalidState)).toThrow(
       'Missing cursor value for orderBy column "id"',
     );
   });
@@ -182,7 +182,7 @@ describe('compileSelectWithIncludes', () => {
       orderBy: [OrderByItem.asc(ColumnRef.of('posts', 'id')), OrderByItem.desc(opExpr)],
     };
 
-    const plan = compileSelect(baseContract, 'public', 'posts', state, 'Post');
+    const plan = compileSelect(baseContract, 'public', 'Post', 'posts', state);
     expectSelectAst(plan.ast);
 
     expect(plan.ast.orderBy).toEqual([
@@ -212,7 +212,7 @@ describe('compileSelectWithIncludes', () => {
       cursor: { id: 5 },
     };
 
-    expect(() => compileSelect(baseContract, 'public', 'posts', state, 'Post')).toThrow(
+    expect(() => compileSelect(baseContract, 'public', 'Post', 'posts', state)).toThrow(
       expect.objectContaining({
         code: 'ORM.ARGUMENT_INVALID',
         message: expect.stringContaining('orderBy item 2'),
@@ -237,7 +237,7 @@ describe('compileSelectWithIncludes', () => {
       filters: [whereExpr],
     };
 
-    const plan = compileSelect(baseContract, 'public', 'posts', state, 'Post');
+    const plan = compileSelect(baseContract, 'public', 'Post', 'posts', state);
     expectSelectAst(plan.ast);
 
     expect(plan.params).toEqual([[1, 2, 3]]);
@@ -275,7 +275,7 @@ describe('compileSelectWithIncludes', () => {
       orderBy: [OrderByItem.asc(ColumnRef.of('posts', 'id')), OrderByItem.asc(orderOpExpr)],
     };
 
-    const plan = compileSelect(baseContract, 'public', 'posts', state, 'Post');
+    const plan = compileSelect(baseContract, 'public', 'Post', 'posts', state);
     expectSelectAst(plan.ast);
 
     expect(plan.ast.orderBy).toEqual([
@@ -303,9 +303,9 @@ describe('compileSelectWithIncludes', () => {
       baseContract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
     expectSelectAst(plan.ast);
     expect(plan.ast.joins ?? []).toHaveLength(0);
@@ -339,9 +339,9 @@ describe('compileSelectWithIncludes', () => {
       contract,
       getTestAggregates(),
       'public',
+      'User',
       'users',
       state,
-      'User',
     );
     expectSelectAst(plan.ast);
 
