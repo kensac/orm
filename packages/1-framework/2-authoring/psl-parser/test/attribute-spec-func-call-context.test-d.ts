@@ -15,6 +15,9 @@ test('function calls preserve the context required by their arguments', () => {
     documentation: 'Accepts a referenced field.',
     named: { ref: { type: referencedFieldRef(), documentation: 'The referenced field.' } },
   });
+  expectTypeOf(plain.signature.positional[0].key).toEqualTypeOf<'value'>();
+  expectTypeOf(model.signature.positional[0].key).toEqualTypeOf<'field'>();
+  expectTypeOf(field.signature.named.ref.type.kind).toEqualTypeOf<'referencedFieldRef'>();
   expectTypeOf(plain.parse).parameter(1).toEqualTypeOf<AttributeCtx>();
   expectTypeOf(model.parse).parameter(1).toEqualTypeOf<ModelAttributeCtx>();
   expectTypeOf(field.parse).parameter(1).toEqualTypeOf<FieldAttributeCtx>();

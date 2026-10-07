@@ -95,15 +95,6 @@ export interface FuncCallSig<Ctx extends AttributeCtx = AttributeCtx> {
   readonly named?: Readonly<Record<string, Param<unknown, Ctx>>>;
 }
 
-export type FuncCallContext<Sig extends FuncCallSig<FieldAttributeCtx>> = ContextForRequirement<
-  RequiredContextFor<
-    CtxOf<
-      | NonNullable<Sig['positional']>[number]['type']
-      | NonNullable<Sig['named']>[keyof NonNullable<Sig['named']>]['type']
-    >
-  >
->;
-
 export interface TypedFuncCall {
   readonly fn: string;
   readonly span: PslSpan;

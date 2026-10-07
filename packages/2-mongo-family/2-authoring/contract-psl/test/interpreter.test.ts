@@ -1602,11 +1602,11 @@ model Item {
       expect(indexes![0]!['keys']).toEqual([{ field: 'wildcard', direction: -1 }]);
     });
 
-    it('reports a wrong argument of a field function in @@index inside that function', () => {
+    it('reports an invalid sort direction in @@index inside the sort function', () => {
       const result = interpret(`model Events {
   id    ObjectId @id @map("_id")
   email String
-  @@index([email(sort: Up)])
+  @@index([sort(email, Up)])
 }
 `);
       expect(result.ok).toBe(false);
