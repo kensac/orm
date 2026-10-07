@@ -613,6 +613,27 @@ export function errorStatementUnresolved(
 }
 
 /**
+ * A rename typed in answer to a data-loss question was planned, and the plan still loses the
+ * subject's data: the rename does not account for the operation the question was about.
+ */
+export function errorStatementDidNotResolveLoss(
+  statement: WrittenStatement,
+  subject: string,
+): ActionableCliError {
+  const fix = `Answer the question about "${subject}" with --delete ${subject} if its data may be lost, or give a rename whose old name stores that data.`;
+  return new ActionableCliError(
+    'MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS',
+    `"--${statement.verb} ${statement.text}" does not keep the data of "${subject}"`,
+    {
+      why: `The plan was made again with the rename, and it still loses the data of "${subject}".`,
+      fix,
+      nextActions: [chooseAction(fix)],
+      meta: { statement: statement.text, verb: statement.verb, subject },
+    },
+  );
+}
+
+/**
  * Without statements, `db update` drops a renamed table or column and creates it again under the
  * new name, so any advice to run without them says so.
  */

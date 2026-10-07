@@ -180,6 +180,26 @@ export interface FakePlannerScript {
   readonly statementsReceived?: unknown[][];
   /** Fails every `plan` call that is given statements, as a planner that refuses them does. */
   readonly refuseStatements?: boolean;
+  /** What every `plan` call reports would lose data. */
+  readonly dataLoss?: readonly ScriptedDataLoss[];
+  /** What each successive `plan` call reports would lose data; overrides `dataLoss`. */
+  readonly dataLossByPlan?: ReadonlyArray<readonly ScriptedDataLoss[]>;
+  /** Reports `dataLoss` only from a `plan` call given no statements, as a rename removes a loss. */
+  readonly statementsResolveDataLoss?: boolean;
+}
+
+/** A `dataLoss` entry of a scripted plan: the position of an operation and what it loses. */
+export interface ScriptedDataLoss {
+  readonly operationIndex: number;
+  readonly subject:
+    | { readonly kind: 'model'; readonly namespaceId: string; readonly model: string }
+    | {
+        readonly kind: 'field';
+        readonly namespaceId: string;
+        readonly model: string;
+        readonly field: string;
+      }
+    | { readonly kind: 'storage'; readonly name: string };
 }
 
 function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
@@ -191,6 +211,10 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
         throw script.throwOnPlan;
       }
       const operations = script.operationsByPlan?.[planCalls] ?? script.operations;
+      const dataLoss =
+        script.statementsResolveDataLoss === true && options.statements.length > 0
+          ? []
+          : (script.dataLossByPlan?.[planCalls] ?? script.dataLoss ?? []);
       planCalls += 1;
       const [refused] = script.refuseStatements === true ? options.statements : [];
       if (refused !== undefined) {
@@ -202,6 +226,8 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
       return script.conflicts === undefined
         ? {
             kind: 'success',
+            dataLoss,
+            accessWidening: [],
             appliedStatements: options.statements.map((statement) => ({
               statement,
               operationIndexes: (operations ?? [ADDITIVE_OP]).map((_, index) => index),
