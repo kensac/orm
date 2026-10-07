@@ -6,8 +6,11 @@ import {
   type DocumentDiagnosticReport,
   DocumentDiagnosticReportKind,
   type FoldingRange,
+  type Hover,
   type InitializeParams,
   type InitializeResult,
+  type Location,
+  type LocationLink,
   type Position,
   type Range,
   type SemanticTokens,
@@ -83,6 +86,31 @@ function createServerOn(connection: Connection): LanguageServer {
     return project?.signatureHelp(uri, position, clientCapabilities.signatureLabelOffsets) ?? null;
   }
 
+  async function hoverForDocument(uri: string, position: Position): Promise<Hover | null> {
+    if (getOpenDocument(uri) === undefined) return null;
+    const project = await projects.nearestProject(uri);
+    return project?.hover(uri, position) ?? null;
+  }
+
+  async function definitionForDocument(
+    uri: string,
+    position: Position,
+  ): Promise<LocationLink[] | Location[] | null> {
+    if (getOpenDocument(uri) === undefined) return null;
+    const project = await projects.nearestProject(uri);
+    return project?.definition(uri, position, clientCapabilities.definitionLinks) ?? null;
+  }
+
+  async function referencesForDocument(
+    uri: string,
+    position: Position,
+    includeDeclaration: boolean,
+  ): Promise<Location[]> {
+    if (getOpenDocument(uri) === undefined) return [];
+    const project = await projects.nearestProject(uri);
+    return project?.references(uri, position, includeDeclaration) ?? [];
+  }
+
   connection.onInitialize(async (params): Promise<InitializeResult> => {
     rootPath = resolveRootPath(params);
     clientCapabilities = resolveClientCapabilities(params);
@@ -95,6 +123,9 @@ function createServerOn(connection: Connection): LanguageServer {
         semanticTokensProvider: { legend: semanticTokensLegend, full: true, range: true },
         completionProvider: { triggerCharacters: ['.', '@', '[', '(', '{', ':', ','] },
         signatureHelpProvider: { triggerCharacters: ['(', ','] },
+        hoverProvider: true,
+        definitionProvider: true,
+        referencesProvider: true,
         ...(clientCapabilities.pullDiagnostics
           ? { diagnosticProvider: { interFileDependencies: true, workspaceDiagnostics: false } }
           : {}),
@@ -110,6 +141,17 @@ function createServerOn(connection: Connection): LanguageServer {
   connection.onSignatureHelp((params) =>
     signatureHelpForDocument(params.textDocument.uri, params.position),
   );
+  connection.onDefinition((params) =>
+    definitionForDocument(params.textDocument.uri, params.position),
+  );
+  connection.onReferences((params) =>
+    referencesForDocument(
+      params.textDocument.uri,
+      params.position,
+      params.context.includeDeclaration,
+    ),
+  );
+  connection.onHover((params) => hoverForDocument(params.textDocument.uri, params.position));
   connection.languages.semanticTokens.on((params) =>
     semanticTokensForDocument(params.textDocument.uri),
   );
@@ -171,6 +213,7 @@ interface ResolvedClientCapabilities {
   readonly watchedFilesRegistration: boolean;
   readonly completionSnippets: boolean;
   readonly signatureLabelOffsets: boolean;
+  readonly definitionLinks: boolean;
   readonly completionTriggerSuggestCommand: boolean;
   readonly completionTriggerParameterHintsCommand: boolean;
   readonly pullDiagnostics: boolean;
@@ -181,6 +224,7 @@ const noClientCapabilities: ResolvedClientCapabilities = {
   watchedFilesRegistration: false,
   completionSnippets: false,
   signatureLabelOffsets: false,
+  definitionLinks: false,
   completionTriggerSuggestCommand: false,
   completionTriggerParameterHintsCommand: false,
   pullDiagnostics: false,
@@ -196,6 +240,7 @@ function resolveClientCapabilities(params: InitializeParams): ResolvedClientCapa
     signatureLabelOffsets:
       params.capabilities.textDocument?.signatureHelp?.signatureInformation?.parameterInformation
         ?.labelOffsetSupport === true,
+    definitionLinks: params.capabilities.textDocument?.definition?.linkSupport === true,
     completionTriggerSuggestCommand: supportsCompletionCommand(
       params.initializationOptions,
       'supportsTriggerSuggestCommand',

@@ -4,9 +4,10 @@ import {
   type ModelNode,
 } from '@internal/postgres/contract-builder';
 import { postgresCreateNamespace } from '@internal/target-postgres/types';
+import { postgresTypeLookups } from '../../postgres-type-lookups';
 
-const idDescriptor = { codecId: 'pg/int4@1', nativeType: 'int4' } as const;
-const textDescriptor = { codecId: 'pg/text@1', nativeType: 'text' } as const;
+const idDescriptor = { codecId: 'pg/int4@1' } as const;
+const textDescriptor = { codecId: 'pg/text@1' } as const;
 
 // The TS author path merges capabilities from the target pack; a full CLI emit
 // derives them from the codec/operation pipeline. For this author the runtime
@@ -32,8 +33,14 @@ const publicUser: ModelNode = {
   tableName: 'users',
   namespaceId: 'public',
   fields: [
-    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false },
-    { fieldName: 'email', columnName: 'email', descriptor: textDescriptor, nullable: false },
+    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false, many: false },
+    {
+      fieldName: 'email',
+      columnName: 'email',
+      descriptor: textDescriptor,
+      nullable: false,
+      many: false,
+    },
   ],
   id: { columns: ['id'] },
 };
@@ -43,8 +50,14 @@ const authUser: ModelNode = {
   tableName: 'users',
   namespaceId: 'auth',
   fields: [
-    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false },
-    { fieldName: 'token', columnName: 'token', descriptor: textDescriptor, nullable: false },
+    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false, many: false },
+    {
+      fieldName: 'token',
+      columnName: 'token',
+      descriptor: textDescriptor,
+      nullable: false,
+      many: false,
+    },
   ],
   id: { columns: ['id'] },
 };
@@ -56,8 +69,14 @@ const profile: ModelNode = {
   tableName: 'profile',
   namespaceId: 'public',
   fields: [
-    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false },
-    { fieldName: 'userId', columnName: 'user_id', descriptor: idDescriptor, nullable: false },
+    { fieldName: 'id', columnName: 'id', descriptor: idDescriptor, nullable: false, many: false },
+    {
+      fieldName: 'userId',
+      columnName: 'user_id',
+      descriptor: idDescriptor,
+      nullable: false,
+      many: false,
+    },
   ],
   id: { columns: ['id'] },
   foreignKeys: [
@@ -84,10 +103,14 @@ const profile: ModelNode = {
   ],
 };
 
-export const contract = buildSqlContractFromDefinition({
-  warnings: undefined,
-  target: postgresTargetPack,
-  namespaces: ['public', 'auth'],
-  models: [publicUser, profile, authUser],
-  createNamespace: postgresCreateNamespace,
-});
+export const contract = buildSqlContractFromDefinition(
+  {
+    warnings: undefined,
+    target: postgresTargetPack,
+    namespaces: ['public', 'auth'],
+    models: [publicUser, profile, authUser],
+    createNamespace: postgresCreateNamespace,
+  },
+  postgresTypeLookups.codecLookup,
+  postgresTypeLookups.dataTypeLookup,
+);

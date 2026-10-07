@@ -3,6 +3,7 @@ import {
   PostgresControlAdapter,
 } from '@internal/adapter-postgres/control';
 import { postgresRenderDefault } from '@internal/target-postgres/control';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import { CreateIndexCall } from '@internal/target-postgres/op-factory-call';
 import { contractToPostgresDatabaseSchemaNode } from '@internal/target-postgres/planner';
 import { blindCast } from '@internal/utils/casts';
@@ -17,7 +18,10 @@ export interface PlannedIndex {
   readonly createSql: string;
 }
 
-const controlAdapter = new PostgresControlAdapter(createPostgresBuiltinCodecLookup());
+const controlAdapter = new PostgresControlAdapter(
+  createPostgresBuiltinCodecLookup(),
+  createPostgresBuiltinDataTypeLookup(),
+);
 
 /** The expression indexes of one table of the fixture contract, as the migration planner creates them. */
 export async function plannedExpressionIndexes(

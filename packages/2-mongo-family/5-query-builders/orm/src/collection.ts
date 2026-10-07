@@ -66,13 +66,15 @@ import {
 import { ormError } from './orm-errors';
 import type {
   DefaultModelRow,
+  DiscriminatorValues,
   IncludedRow,
   MongoIncludeSpec,
   MongoWhereFilter,
   NoIncludes,
   ReferenceRelationKeys,
   ResolvedCreateInput,
-  VariantNames,
+  VariantNameForValue,
+  VariantSelectable,
 } from './types';
 import { upsertPipeline } from './upsert-pipeline';
 
@@ -88,10 +90,15 @@ export interface MongoCollection<
   TVariant extends string = never,
 > {
   readonly _row?: SimplifyDeep<IncludedRow<TContract, ModelName, TIncludes>>;
-  /** Narrows to a specific variant, injecting a discriminator filter. */
-  variant<V extends VariantNames<TContract, ModelName>>(
-    variantName: V,
-  ): MongoCollection<TContract, ModelName, TIncludes, V>;
+  /**
+   * Narrows to the variant declared with the given discriminator value,
+   * injecting a discriminator filter. Call it once, on the base collection:
+   * a collection that already has a variant selected refuses it.
+   */
+  variant<V extends DiscriminatorValues<TContract, ModelName>>(
+    this: VariantSelectable<TVariant>,
+    value: V,
+  ): MongoCollection<TContract, ModelName, TIncludes, VariantNameForValue<TContract, ModelName, V>>;
   /** Appends equality filters from a plain object. Values are encoded through codecs. */
   where(
     filter: MongoWhereFilter<TContract, ModelName>,
@@ -240,36 +247,67 @@ class MongoCollectionImpl<
     this.#state = emptyCollectionState();
   }
 
-  variant<V extends VariantNames<TContract, ModelName>>(
-    variantName: V,
-  ): MongoCollection<TContract, ModelName, TIncludes, V> {
+  variant<V extends DiscriminatorValues<TContract, ModelName>>(
+    value: V,
+  ): MongoCollection<
+    TContract,
+    ModelName,
+    TIncludes,
+    VariantNameForValue<TContract, ModelName, V>
+  > {
     const model = blindCast<
       MongoModelDefinition | undefined,
       'Mongo contract model lookup preserves target storage metadata erased by the namespace helper'
     >(domainModelsAtDefaultNamespace(this.#contract.domain)[this.#modelName]);
-    if (!model?.discriminator || !model.variants) {
-      // No polymorphism metadata on this model — return unchanged. Cast required
-      // because TS cannot verify TVariant (the current variant) is assignable to V.
-      return blindCast<
-        MongoCollection<TContract, ModelName, TIncludes, V>,
-        'no-op variant refinement preserves runtime state while changing only the type-level variant'
-      >(this);
+    const discriminator = model?.discriminator;
+    const selectedVariantName = this.#variantName;
+
+    if (selectedVariantName !== undefined) {
+      const selectedValue = model?.variants?.[selectedVariantName]?.value;
+      throw ormError(
+        'ORM.OPERATION_UNSUPPORTED',
+        `variant("${value}") cannot be called on model "${this.#modelName}" because variant("${selectedValue}") is already selected; call variant() on the base collection instead`,
+        {
+          meta: {
+            method: 'variant',
+            model: this.#modelName,
+            variant: selectedVariantName,
+            selectedValue,
+            reason: 'variant-already-selected',
+          },
+        },
+      );
     }
 
-    const variantEntry = model.variants[variantName];
-    if (!variantEntry) {
-      // Unknown variant name at runtime — return unchanged. Same cast rationale.
-      return blindCast<
-        MongoCollection<TContract, ModelName, TIncludes, V>,
-        'unknown variant fallback preserves runtime state while changing only the type-level variant'
-      >(this);
+    const variantEntries = Object.entries(model?.variants ?? {});
+    const variantName = discriminator
+      ? variantEntries.find(([, entry]) => entry.value === value)?.[0]
+      : undefined;
+
+    if (!discriminator || variantName === undefined) {
+      const declaredValues = discriminator ? variantEntries.map(([, entry]) => entry.value) : [];
+      throw ormError(
+        'ORM.ARGUMENT_INVALID',
+        declaredValues.length === 0
+          ? `variant("${value}") cannot narrow model "${this.#modelName}": it declares no discriminator values`
+          : `variant("${value}") cannot narrow model "${this.#modelName}": the declared discriminator values are ${declaredValues.map((declared) => `"${declared}"`).join(', ')}`,
+        {
+          meta: {
+            method: 'variant',
+            argument: 'value',
+            model: this.#modelName,
+            value,
+            declaredValues,
+          },
+        },
+      );
     }
 
-    const filter = MongoFieldFilter.eq(
-      model.discriminator.field,
-      new MongoParamRef(variantEntry.value),
+    const filter = MongoFieldFilter.eq(discriminator.field, new MongoParamRef(value));
+    return this.#cloneWithVariant<VariantNameForValue<TContract, ModelName, V>>(
+      { filters: [...this.#state.filters, filter] },
+      variantName,
     );
-    return this.#cloneWithVariant<V>({ filters: [...this.#state.filters, filter] }, variantName);
   }
 
   where(
@@ -859,19 +897,24 @@ class MongoCollectionImpl<
     const field = this.#fieldAtPath(filter.field);
     if (field?.type.kind !== 'scalar') return filter;
     const encode = (value: MongoValue): MongoValue => {
+      if (value === null) return null;
       if (value instanceof MongoParamRef) {
         return value.codecId === undefined
           ? this.#wrapFieldValue(value.value, field, filter.field, 'filter')
           : value;
       }
-      if (field.many === true && Array.isArray(value)) return value.map(encode);
+      if (field.many && Array.isArray(value)) return value.map(encode);
       return this.#wrapFieldValue(value, field, filter.field, 'filter');
     };
     if (COMPARISON_OPERATORS.has(filter.op)) {
       return MongoFieldFilter.of(filter.field, filter.op, encode(filter.value));
     }
     if (MEMBERSHIP_OPERATORS.has(filter.op) && Array.isArray(filter.value)) {
-      return MongoFieldFilter.of(filter.field, filter.op, filter.value.map(encode));
+      const values = filter.value;
+      const encoded = values.map(encode);
+      return encoded.every((value, index) => value === values[index])
+        ? filter
+        : MongoFieldFilter.of(filter.field, filter.op, encoded);
     }
     return filter;
   }
@@ -902,7 +945,7 @@ class MongoCollectionImpl<
 
     if (field.type.kind === 'scalar') {
       if (purpose === 'write') this.#assertEnumValues(field, value, path);
-      return this.#scalarParam(value, field, path);
+      return this.#scalarParam(value, field, path, purpose);
     }
 
     if (field.type.kind === 'valueObject') {
@@ -912,15 +955,17 @@ class MongoCollectionImpl<
 
       if (field.many && Array.isArray(value)) {
         return value.map((item, index) =>
-          this.#wrapValueObject(
-            blindCast<
-              Record<string, unknown>,
-              'contract-typed value-object array elements are field-value records'
-            >(item),
-            voDef,
-            `${path}.${index}`,
-            purpose,
-          ),
+          item === null
+            ? null
+            : this.#wrapValueObject(
+                blindCast<
+                  Record<string, unknown>,
+                  'non-null contract-typed value-object array elements are field-value records'
+                >(item),
+                voDef,
+                `${path}.${index}`,
+                purpose,
+              ),
         );
       }
       return this.#wrapValueObject(
@@ -937,7 +982,7 @@ class MongoCollectionImpl<
     return new MongoParamRef(value);
   }
 
-  #nullParam(field: ContractField, path: string, purpose: ValuePurpose): MongoParamRef {
+  #nullParam(field: ContractField, path: string, purpose: ValuePurpose): null {
     if (purpose === 'write' && !field.nullable) {
       throw runtimeError(
         'RUNTIME.ENCODE_FAILED',
@@ -945,7 +990,7 @@ class MongoCollectionImpl<
         { label: path, collection: this.#collectionName },
       );
     }
-    return new MongoParamRef(null);
+    return null;
   }
 
   /**
@@ -958,8 +1003,8 @@ class MongoCollectionImpl<
       this.#contract.domain.namespaces[valueSet.namespaceId]?.enum?.[valueSet.entityName];
     if (contractEnum === undefined) return;
     const allowed = contractEnum.members.map((member) => member.value);
-    const values = field.many === true && Array.isArray(value) ? value : [value];
-    const outside = values.find((entry) => !allowed.includes(entry));
+    const values = field.many && Array.isArray(value) ? value : [value];
+    const outside = values.find((entry) => entry !== null && !allowed.includes(entry));
     if (outside === undefined) return;
     const quoted = allowed.map((entry) => JSON.stringify(entry));
     const list =
@@ -976,11 +1021,21 @@ class MongoCollectionImpl<
   /**
    * A scalar field's value as parameters: a list field's array is encoded element by element through the element codec, so the codec never sees the whole list.
    */
-  #scalarParam(value: unknown, field: ContractField, path: string): MongoValue {
+  #scalarParam(
+    value: unknown,
+    field: ContractField,
+    path: string,
+    purpose: ValuePurpose,
+  ): MongoValue {
     if (field.type.kind !== 'scalar') return new MongoParamRef(value);
     const codecId = field.type.codecId;
-    if (field.many === true && Array.isArray(value)) {
-      return value.map((element, index) => this.#fieldParam(element, codecId, `${path}.${index}`));
+    if (field.many && Array.isArray(value)) {
+      const acceptsNull = field.many.elementNullable || purpose === 'filter';
+      return value.map((element, index) =>
+        element === null && acceptsNull
+          ? null
+          : this.#fieldParam(element, codecId, `${path}.${index}`),
+      );
     }
     return this.#fieldParam(value, codecId, path);
   }
@@ -1121,9 +1176,16 @@ class MongoCollectionImpl<
     const field = this.#fieldAtPath(path);
     if (field === undefined) return value;
     if (operator === '$set') return this.#wrapFieldValue(value.value, field, path, 'write');
+    if (
+      value.value === null &&
+      field.many &&
+      (field.many.elementNullable || operator === '$pull')
+    ) {
+      return null;
+    }
     if (operator === '$pull') return this.#wrapFieldValue(value.value, field, path, 'filter');
     if (field.type.kind === 'scalar') {
-      this.#assertEnumValues(field, field.many === true ? [value.value] : value.value, path);
+      this.#assertEnumValues(field, field.many ? [value.value] : value.value, path);
       return this.#fieldParam(value.value, field.type.codecId, path);
     }
     if (field.type.kind === 'valueObject' && isUnknownRecord(value.value)) {

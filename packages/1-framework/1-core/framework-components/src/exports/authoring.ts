@@ -5,7 +5,6 @@ export type {
 export { findAuthoringTypeConstructorCall } from '../shared/authoring-type-constructor-call';
 export { type EnumBlockMember, readEnumBlockMembers } from '../shared/enum-block-members';
 export {
-  checkUncomposedNamespace,
   fieldPresetSpellings,
   getAuthoringFieldPreset,
 } from '../shared/field-preset-resolution';
@@ -47,11 +46,11 @@ export type {
 export {
   assertNoCrossRegistryCollisions,
   assertResolvableTypeConstructorTemplates,
+  authoringEntryType,
   classifyEnumMemberType,
   collectScalarTypeConstructors,
   flushAuthoringWarnings,
   getAuthoringTypeConstructor,
-  hasRegisteredFieldNamespace,
   instantiateAuthoringEntityType,
   instantiateAuthoringFieldPreset,
   instantiateAuthoringTypeConstructor,
@@ -61,10 +60,13 @@ export {
   isAuthoringModelAttributeDescriptor,
   isAuthoringPslBlockDescriptor,
   isAuthoringTypeConstructorDescriptor,
+  isTagEntryKey,
   mergeAuthoringNamespaces,
   resolveAuthoringTemplateValue,
   resolveEnumCodecId,
+  tagEntryKey,
   validateAuthoringHelperArguments,
+  validateAuthoringTypeParams,
 } from '../shared/framework-authoring';
 export type { AuthoringOption } from '../shared/option-descriptor';
 export type {

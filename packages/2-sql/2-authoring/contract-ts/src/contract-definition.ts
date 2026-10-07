@@ -9,10 +9,10 @@ import type { ColumnTypeDescriptor } from '@internal/framework-components/codec'
 import type { ExtensionPackRef, TargetPackRef } from '@internal/framework-components/components';
 import type { AuthoredIndexMethod } from '@internal/sql-contract/index-naming';
 import type {
+  AuthoredStorageTypeInstance,
   ReferentialAction,
   SqlNamespaceBase,
   SqlNamespaceInput,
-  StorageTypeInstance,
 } from '@internal/sql-contract/types';
 import type { CheckKind } from '@internal/sql-schema-ir/naming';
 import type { EnumTypeHandle } from './enum-type';
@@ -66,6 +66,7 @@ export interface ScalarMemberNode {
   readonly descriptor: ScalarTypeDescriptor;
   readonly nullable: boolean;
   readonly many?: boolean;
+  readonly elementNullable?: boolean;
   /** Present when the field is typed by an enum. */
   readonly enumTypeHandle?: EnumTypeHandle;
 }
@@ -218,6 +219,7 @@ export interface ValueObjectMemberNode {
   readonly valueObjectName: string;
   readonly nullable: boolean;
   readonly many?: boolean;
+  readonly elementNullable?: boolean;
 }
 
 /**
@@ -297,7 +299,7 @@ export interface ContractDefinition {
    */
   readonly storageHash?: string;
   readonly foreignKeyDefaults?: ForeignKeyDefaultsState;
-  readonly storageTypes?: Record<string, StorageTypeInstance>;
+  readonly storageTypes?: Record<string, AuthoredStorageTypeInstance>;
   /**
    * Declared namespace coordinates for this contract — populates
    * `SqlStorage.namespaces` together with `createNamespace`.

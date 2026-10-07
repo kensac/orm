@@ -21,11 +21,17 @@ export type {
   SqlPslBuildContext,
 } from '../core/control-target-descriptor';
 export type {
+  AppliedTableRename,
+  ApplyTableRenameInput,
+  RenameTableReferences,
+  ResolvedTableRename,
+  TableRename,
+} from '../core/migrations/apply-table-rename';
+export { applyTableRename } from '../core/migrations/apply-table-rename';
+export type {
   ContractToSchemaIROptions,
   DefaultRenderer,
   DefaultResolver,
-  EnumNamespaceSchemaResolver,
-  NativeTypeExpander,
 } from '../core/migrations/contract-to-schema-ir';
 // Contract → SchemaIR conversion for offline migration planning
 export {
@@ -39,11 +45,8 @@ export {
   partitionCallsByControlPolicy,
   partitionIssuesByControlPolicy,
 } from '../core/migrations/control-policy';
-export type { DataTypeResolver } from '../core/migrations/data-type-resolver';
-export { buildDataTypeResolver } from '../core/migrations/data-type-resolver';
 export type { PlanFieldEventOperationsOptions } from '../core/migrations/field-event-planner';
 export { planFieldEventOperations } from '../core/migrations/field-event-planner';
-export { buildNativeTypeExpander } from '../core/migrations/native-type-expander';
 export {
   createMigrationPlan,
   plannerFailure,
@@ -57,7 +60,12 @@ export type {
   SqlSchemaDiffInput,
   SqlSchemaDiffResult,
 } from '../core/migrations/schema-differ';
-export type { TableNameCaseGuardTable } from '../core/migrations/table-name-case-guard';
+export { sqlTypeLookupsOf } from '../core/migrations/sql-type-lookups';
+export type {
+  TableNameCaseGuardTable,
+  TableRenameByHand,
+  TableRenameInMigration,
+} from '../core/migrations/table-name-case-guard';
 export {
   detectTableNameCaseChanges,
   TABLE_NAME_CASE_CHANGED_CODE,
@@ -65,7 +73,6 @@ export {
 export type {
   CodecControlHooks,
   CreateSqlMigrationPlanOptions,
-  ExpandNativeTypeInput,
   FieldEvent,
   FieldEventContext,
   ResolveIdentityValueInput,

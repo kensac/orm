@@ -732,9 +732,6 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.22.0
-      temporal-polyfill:
-        specifier: ^1.0.4
-        version: 1.0.4
     devDependencies:
       '@prisma/cli-engine':
         specifier: 0.6.2
@@ -1951,6 +1948,9 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3
     devDependencies:
+      '@internal/mongo-contract-ts':
+        specifier: workspace:8.0.0-rc.13
+        version: link:../contract-ts
       '@repo/tsconfig':
         specifier: workspace:8.0.0-rc.14
         version: link:../../../0-config/tsconfig
@@ -4101,6 +4101,9 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.4
+        version: 0.5.4
       '@internal/psl-printer':
         specifier: workspace:8.0.0-rc.14
         version: link:../../../1-framework/2-authoring/psl-printer
@@ -4173,6 +4176,9 @@ importers:
       '@standard-schema/spec':
         specifier: 1.1.0
         version: 1.1.0
+      arktype:
+        specifier: ^2.2.2
+        version: 2.2.3
     devDependencies:
       '@internal/driver-sqlite':
         specifier: workspace:8.0.0-rc.14
@@ -5815,6 +5821,8 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.22.0
+
+  test/integration/test/fixtures/cli/cli-e2e-test-app/test-1786116311962-dcaev7r38rc: {}
 
   test/integration/test/fixtures/cli/cli-integration-test-app:
     dependencies:

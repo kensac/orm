@@ -17,10 +17,7 @@ import { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-da
 import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-namespace-schema-node';
 import { PostgresNativeEnumSchemaNode } from '../../src/core/schema-ir/postgres-native-enum-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
-import {
-  postgresNativeAuthoringTypes,
-  postgresScalarAuthoringTypes,
-} from '../../src/core/type-constructors';
+import { postgresPslTypeConstructors } from '../../src/core/type-constructors';
 
 /**
  * Wraps a flat `{ tables, annotations? }` introspection fixture into the
@@ -75,8 +72,7 @@ export const inferBuildContext: SqlPslBuildContext = {
   authoringContributions: {
     type: {
       ...postgresAuthoringTypes,
-      ...postgresScalarAuthoringTypes,
-      ...postgresNativeAuthoringTypes,
+      ...postgresPslTypeConstructors,
     },
     dataTypes: postgresDataTypeEntries(),
   },

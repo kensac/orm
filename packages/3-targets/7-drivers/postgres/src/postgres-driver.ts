@@ -26,7 +26,7 @@ import { callbackToPromise } from './callback-to-promise';
 import { type DriverRuntimeError, driverError } from './driver-error';
 import { NamedCursor } from './named-cursor';
 import { isAlreadyConnectedError, isPostgresError, normalizePgError } from './normalize-error';
-import { temporalTextTypes } from './temporal-text-parsers';
+import { serverTextTypes } from './server-text-types';
 
 export type QueryResult<T extends QueryResultRow = QueryResultRow> = PgQueryResult<T>;
 
@@ -424,7 +424,7 @@ abstract class PostgresQueryable<C extends PoolClient | Client = PoolClient | Cl
       unknown[],
       'pg cursor types require a mutable array but pg does not mutate execution params'
     >(params ?? []);
-    const config = { types: temporalTextTypes };
+    const config = { types: serverTextTypes };
     const cursor = client.query(
       name === undefined
         ? new Cursor(sql, values, config)
@@ -462,7 +462,7 @@ abstract class PostgresQueryable<C extends PoolClient | Client = PoolClient | Cl
         unknown[],
         'pg query types require a mutable array but pg does not mutate execution params'
       >(params ?? []),
-      types: temporalTextTypes,
+      types: serverTextTypes,
     };
     const releaseLock = await acquireClientQueryLock(client);
     let result: PgQueryResult;
@@ -728,7 +728,7 @@ class PostgresDirectDriverImpl
         // cannot leave the mutex permanently held.
         async () => {
           try {
-            await this.#closeWhileHoldingLease();
+            await this.#closeWhileHoldingLease({ waitForStatement: false });
           } finally {
             releaseLease();
           }
@@ -744,18 +744,26 @@ class PostgresDirectDriverImpl
   async close(): Promise<void> {
     const releaseLease = await this.#connectionMutex.lock();
     try {
-      await this.#closeWhileHoldingLease();
+      await this.#closeWhileHoldingLease({ waitForStatement: true });
     } finally {
       releaseLease();
     }
   }
 
-  async #closeWhileHoldingLease(): Promise<void> {
+  // close() waits for the statement or cursor stream in flight to finish; destroy() is for a connection in an indeterminate state, so it ends the socket at once.
+  async #closeWhileHoldingLease(options: { readonly waitForStatement: boolean }): Promise<void> {
     if (this.#closed) {
       return;
     }
     this.#closed = true;
-    await this.directClient.end();
+    const releaseQueryLock = options.waitForStatement
+      ? await acquireClientQueryLock(this.directClient)
+      : () => {};
+    try {
+      await this.directClient.end();
+    } finally {
+      releaseQueryLock();
+    }
     this.#connected = false;
   }
 

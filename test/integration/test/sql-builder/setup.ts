@@ -152,6 +152,7 @@ export function setupIntegrationTest() {
     await driver.connect({ kind: 'pgClient', client });
 
     runtime = new PostgresRuntimeImpl({
+      closeRefusal: undefined,
       context,
       adapter: stackInstance.adapter,
       driver,

@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTestSqlNamespace } from '../../../1-core/contract/test/test-support';
-import { interpretPslDocumentToSqlContract } from '../src/interpreter';
-import { fixtureDataTypeSupport } from './fixture-data-types';
+import { fixtureTypeLookups } from './fixture-codec-descriptors';
 import {
   createBuiltinLikeControlMutationDefaults,
+  interpretSqlContract,
   postgresScalarTypeDescriptors,
   postgresTarget,
-  symbolTableInputFromParseArgs,
   testEnumEntityContributions,
 } from './fixtures';
 import { sqlStorageFromSuccessfulSqlInterpretation } from './interpret-sql-contract-storage';
@@ -16,16 +15,14 @@ describe('index naming at PSL lowering', () => {
   const builtinControlMutationDefaults = createBuiltinLikeControlMutationDefaults();
 
   function interpret(schema: string) {
-    const document = symbolTableInputFromParseArgs({ schema, sourceId: 'schema.prisma' });
-    return interpretPslDocumentToSqlContract({
-      ...document,
+    return interpretSqlContract(schema, {
       target: postgresTarget,
       scalarColumnDescriptors: postgresScalarTypeDescriptors,
       authoringContributions: { entityTypes: testEnumEntityContributions, type: {}, field: {} },
       composedExtensionContracts: new Map(),
       controlMutationDefaults: builtinControlMutationDefaults,
       createNamespace: createTestSqlNamespace,
-      dataTypeLookup: fixtureDataTypeSupport.lookup,
+      ...fixtureTypeLookups,
       capabilities: { sql: { scalarList: true } },
     });
   }
@@ -74,16 +71,14 @@ describe('@@index matrix threading at PSL lowering', () => {
   const builtinControlMutationDefaults = createBuiltinLikeControlMutationDefaults();
 
   function interpretMatrix(schema: string) {
-    const document = symbolTableInputFromParseArgs({ schema, sourceId: 'schema.prisma' });
-    return interpretPslDocumentToSqlContract({
-      ...document,
+    return interpretSqlContract(schema, {
       target: postgresTarget,
       scalarColumnDescriptors: postgresScalarTypeDescriptors,
       authoringContributions: { entityTypes: testEnumEntityContributions, type: {}, field: {} },
       composedExtensionContracts: new Map(),
       controlMutationDefaults: builtinControlMutationDefaults,
       createNamespace: createTestSqlNamespace,
-      dataTypeLookup: fixtureDataTypeSupport.lookup,
+      ...fixtureTypeLookups,
       capabilities: { sql: { scalarList: true } },
     });
   }

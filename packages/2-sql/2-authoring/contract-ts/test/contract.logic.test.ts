@@ -24,9 +24,9 @@ describe('SqlContractSerializer logic validation', () => {
     storage: sqlStorageFixture({
       User: {
         columns: {
-          id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-          email: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-          name: { codecId: 'pg/text@1', nativeType: 'text', nullable: true },
+          id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+          email: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+          name: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: true },
         },
         primaryKey: { columns: ['id'] },
         uniques: [{ columns: ['email'] }],
@@ -35,9 +35,9 @@ describe('SqlContractSerializer logic validation', () => {
       },
       Post: {
         columns: {
-          id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-          userId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-          title: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+          id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+          userId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+          title: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
         },
         primaryKey: { columns: ['id'] },
         uniques: [],
@@ -178,8 +178,8 @@ describe('SqlContractSerializer logic validation', () => {
       storage: sqlStorageFixture({
         UserRole: {
           columns: {
-            userId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-            roleId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+            userId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+            roleId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
           },
           primaryKey: { columns: ['userId', 'roleId'] },
           uniques: [],
@@ -197,8 +197,8 @@ describe('SqlContractSerializer logic validation', () => {
       storage: sqlStorageFixture({
         User: {
           columns: {
-            id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-            tenantId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+            id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+            tenantId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
           },
           primaryKey: { columns: ['id', 'tenantId'] },
           uniques: [],
@@ -207,9 +207,9 @@ describe('SqlContractSerializer logic validation', () => {
         },
         Post: {
           columns: {
-            id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-            userId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-            tenantId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+            id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+            userId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+            tenantId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -247,7 +247,11 @@ describe('SqlContractSerializer logic validation', () => {
               fields: { id: { column: 'id' } },
             },
             fields: {
-              id: { type: { kind: 'scalar', codecId: 'pg/text@1' }, nullable: false },
+              id: {
+                type: { kind: 'scalar', codecId: 'pg/text@1' },
+                nullable: false,
+                many: false,
+              },
             },
             relations: {},
           },
@@ -255,7 +259,7 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           User: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
             },
             primaryKey: { columns: ['id'] },
             uniques: [],
@@ -273,15 +277,15 @@ describe('SqlContractSerializer logic validation', () => {
           fields: { id: { column: 'id' }, userId: { column: 'userId' } },
         },
         fields: {
-          id: { type: { kind: 'scalar', codecId: 'pg/text@1' }, nullable: false },
-          userId: { type: { kind: 'scalar', codecId: 'pg/text@1' }, nullable: false },
+          id: { type: { kind: 'scalar', codecId: 'pg/text@1' }, nullable: false, many: false },
+          userId: { type: { kind: 'scalar', codecId: 'pg/text@1' }, nullable: false, many: false },
         },
         relations: {},
       };
       contractTablesRecord(contract)['Post'] = {
         columns: {
-          id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
-          userId: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+          id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
+          userId: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
         },
         primaryKey: { columns: ['id'] },
         uniques: [],
@@ -387,11 +391,11 @@ describe('SqlContractSerializer logic validation', () => {
           columns: {
             id: {
               codecId: 'pg/text@1',
-              nativeType: 'text',
+              dataType: 'pg/text',
               nullable: false,
               default: { kind: 'function', expression: 'gen_random_uuid()' },
             },
-            title: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+            title: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -412,23 +416,23 @@ describe('SqlContractSerializer logic validation', () => {
             columns: {
               id: {
                 codecId: 'pg/int4@1',
-                nativeType: 'int4',
+                dataType: 'pg/int4',
                 nullable: false,
                 default: { kind: 'function', expression: 'autoincrement()' },
               },
               createdAt: {
                 codecId: 'pg/timestamptz-temporal@1',
-                nativeType: 'timestamptz',
+                dataType: 'pg/timestamptz',
                 nullable: false,
                 default: { kind: 'function', expression: 'now()' },
               },
               externalId: {
                 codecId: 'pg/text@1',
-                nativeType: 'text',
+                dataType: 'pg/text',
                 nullable: false,
                 default: { kind: 'function', expression: 'gen_random_uuid()' },
               },
-              title: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              title: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
             },
             primaryKey: { columns: ['id'] },
             uniques: [],
@@ -445,10 +449,10 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           Post: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               status: {
                 codecId: 'pg/text@1',
-                nativeType: 'text',
+                dataType: 'pg/text',
                 nullable: false,
                 default: { kind: 'literal', value: 'draft' },
               },
@@ -468,10 +472,10 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           Post: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               createdAt: {
                 codecId: 'pg/timestamptz-temporal@1',
-                nativeType: 'timestamptz',
+                dataType: 'pg/timestamptz',
                 nullable: false,
                 default: { kind: 'literal', value: '2024-01-01T00:00:00.000Z' },
               },
@@ -497,10 +501,10 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           Post: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               status: {
                 codecId: 'pg/text@1',
-                nativeType: 'text',
+                dataType: 'pg/text',
                 nullable: false,
                 default: { kind: 'now', expression: 'now()' },
               },
@@ -520,10 +524,10 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           Post: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               status: {
                 codecId: 'pg/text@1',
-                nativeType: 'text',
+                dataType: 'pg/text',
                 nullable: false,
                 default: { kind: 'literal' },
               },
@@ -543,10 +547,10 @@ describe('SqlContractSerializer logic validation', () => {
         storage: sqlStorageFixture({
           Post: {
             columns: {
-              id: { codecId: 'pg/text@1', nativeType: 'text', nullable: false },
+              id: { codecId: 'pg/text@1', dataType: 'pg/text', nullable: false },
               status: {
                 codecId: 'pg/text@1',
-                nativeType: 'text',
+                dataType: 'pg/text',
                 nullable: false,
                 default: { kind: 'function', expression: 123 },
               },

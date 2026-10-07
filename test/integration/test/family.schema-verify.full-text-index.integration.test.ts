@@ -12,6 +12,7 @@ import {
 } from '@internal/adapter-postgres/control';
 import { fullTextIndex } from '@internal/postgres/contract-builder';
 import { postgresRenderDefault } from '@internal/target-postgres/control';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import { CreateIndexCall } from '@internal/target-postgres/op-factory-call';
 import { contractToPostgresDatabaseSchemaNode } from '@internal/target-postgres/planner';
 import { blindCast } from '@internal/utils/casts';
@@ -69,7 +70,12 @@ async function createIndexStatements(contract: unknown): Promise<readonly string
     index.name,
     { expression: index.expression },
     { type: index.type ?? 'gin' },
-  ).toOp(new PostgresControlAdapter(createPostgresBuiltinCodecLookup()));
+  ).toOp(
+    new PostgresControlAdapter(
+      createPostgresBuiltinCodecLookup(),
+      createPostgresBuiltinDataTypeLookup(),
+    ),
+  );
   return op.execute.map((step) => step.sql);
 }
 
