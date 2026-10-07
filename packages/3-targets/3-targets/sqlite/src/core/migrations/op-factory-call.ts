@@ -490,17 +490,26 @@ export class RecreateTableCall extends SqliteOpFactoryCallNode {
   readonly summary: string;
   readonly postchecks: readonly RecreatePostcheck[];
   readonly label: string;
+  /**
+   * The columns whose values the copy can change, because their type changes. The planner reads
+   * them to name what the recreate loses; they never reach the operation or `migration.ts`.
+   */
+  readonly lossyColumns: readonly string[];
 
-  constructor(args: {
-    tableName: string;
-    contractTable: SqliteTableSpec;
-    schemaColumnNames: readonly string[];
-    indexes: readonly SqliteIndexSpec[];
-    summary: string;
-    postchecks: readonly RecreatePostcheck[];
-    operationClass: MigrationOperationClass;
-  }) {
+  constructor(
+    args: {
+      tableName: string;
+      contractTable: SqliteTableSpec;
+      schemaColumnNames: readonly string[];
+      indexes: readonly SqliteIndexSpec[];
+      summary: string;
+      postchecks: readonly RecreatePostcheck[];
+      operationClass: MigrationOperationClass;
+    },
+    lossyColumns: readonly string[] = [],
+  ) {
     super();
+    this.lossyColumns = Object.freeze([...lossyColumns]);
     this.tableName = args.tableName;
     this.contractTable = args.contractTable;
     this.schemaColumnNames = args.schemaColumnNames;

@@ -427,6 +427,30 @@ describe('RecreateTableCall', () => {
     expect(op.postcheck.some((s) => s.description.includes('type'))).toBe(true);
   });
 
+  it('keeps its lossy columns out of the operation and the rendered migration', async () => {
+    const args = {
+      tableName: 'user',
+      contractTable: tableSpec([
+        colSpec({ name: 'id', typeSql: 'INTEGER', nullable: false }),
+        colSpec({ name: 'age', typeSql: 'INTEGER', nullable: true }),
+      ]),
+      schemaColumnNames: ['id', 'age'],
+      indexes: [],
+      summary: 'Recreates table user to apply schema changes: type mismatch on age',
+      postchecks: [],
+      operationClass: 'destructive' as const,
+    };
+    const withLossy = new RecreateTableCall(args, ['age']);
+    const without = new RecreateTableCall(args);
+
+    expect(withLossy.lossyColumns).toEqual(['age']);
+    expect(without.lossyColumns).toEqual([]);
+    expect(withLossy.renderTypeScript()).toBe(without.renderTypeScript());
+    expect(JSON.stringify(await withLossy.toOp(stubLowerer('CHECK SQL')))).toBe(
+      JSON.stringify(await without.toOp(stubLowerer('CHECK SQL'))),
+    );
+  });
+
   it('writes each column default the adapter renders, and checks the recreated table carries it', async () => {
     const lowerer: ExecuteRequestLowerer = {
       ...stubLowerer('CHECK SQL'),

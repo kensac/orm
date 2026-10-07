@@ -179,6 +179,32 @@ describe('recreateTableStrategy', () => {
     expect(classes).toEqual(['widening', 'widening']);
   });
 
+  it('records the columns whose type changes as the lossy columns of the recreate', () => {
+    const ctx = makeContext({
+      expected: new SqlSchemaIR({ tables: { user: expectedUserTable } }),
+      actual: new SqlSchemaIR({ tables: { user: actualUserTable } }),
+    });
+    const typeChange = issue({
+      path: ['database', 'user', 'column:email'],
+      expected: expectedColumn({ name: 'email', nativeType: 'TEXT', nullable: true }),
+      actual: actualColumn({ name: 'email', nativeType: 'INTEGER', nullable: true }),
+    });
+    const pkDrift = issue({
+      path: ['database', 'user', 'primary-key'],
+      expected: primaryKey(['id']),
+      actual: primaryKey(['id', 'email']),
+    });
+
+    const lossy = recreateTableStrategy([typeChange, pkDrift], ctx);
+    const lossless = recreateTableStrategy([pkDrift], ctx);
+
+    expect(
+      [lossy, lossless].map((result) =>
+        result.kind === 'match' ? (result.calls[0] as RecreateTableCall).lossyColumns : result.kind,
+      ),
+    ).toEqual([['email'], []]);
+  });
+
   it('classifies a recreate for a nullability tightening and a type change as destructive', () => {
     const ctx = makeContext({
       expected: new SqlSchemaIR({ tables: { user: expectedUserTable } }),

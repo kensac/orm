@@ -70,6 +70,13 @@ export type CallMigrationStrategy = (
  * the copy can change values; a nullability change alone is widening, because
  * a tightening copy fails on a NULL rather than losing it.
  */
+/** The column of a column issue, which `classifyNodeIssue` classes destructive only for a type change. */
+function columnNameOf(issue: SchemaDiffIssue): string {
+  return blindCast<SqlColumnIR, 'a destructive recreate issue is a not-equal column issue'>(
+    issue.expected,
+  ).name;
+}
+
 function classifyNodeIssue(issue: SchemaDiffIssue): 'widening' | 'destructive' | null {
   const node = issue.expected ?? issue.actual;
   if (node === undefined) return null;
@@ -110,7 +117,10 @@ function classifyNodeIssue(issue: SchemaDiffIssue): 'widening' | 'destructive' |
  * issue only carries that attribute's own node, never the whole table.
  */
 export const recreateTableStrategy: CallMigrationStrategy = (issues, ctx) => {
-  const byTable = new Map<string, { issues: SchemaDiffIssue[]; hasDestructive: boolean }>();
+  const byTable = new Map<
+    string,
+    { issues: SchemaDiffIssue[]; hasDestructive: boolean; lossyColumns: string[] }
+  >();
   const consumed = new Set<SchemaDiffIssue>();
 
   for (const issue of issues) {
@@ -118,13 +128,17 @@ export const recreateTableStrategy: CallMigrationStrategy = (issues, ctx) => {
     if (!cls) continue;
     const tableName = issue.path[1];
     if (tableName === undefined) continue;
-    const entry = byTable.get(tableName);
-    if (entry) {
-      entry.issues.push(issue);
-      if (cls === 'destructive') entry.hasDestructive = true;
-    } else {
-      byTable.set(tableName, { issues: [issue], hasDestructive: cls === 'destructive' });
+    const entry = byTable.get(tableName) ?? {
+      issues: [],
+      hasDestructive: false,
+      lossyColumns: [],
+    };
+    entry.issues.push(issue);
+    if (cls === 'destructive') {
+      entry.hasDestructive = true;
+      entry.lossyColumns.push(columnNameOf(issue));
     }
+    byTable.set(tableName, entry);
     consumed.add(issue);
   }
 
@@ -151,15 +165,18 @@ export const recreateTableStrategy: CallMigrationStrategy = (issues, ctx) => {
     }));
 
     calls.push(
-      new RecreateTableCall({
-        tableName,
-        contractTable: tableSpec,
-        schemaColumnNames: Object.keys(actualTable.columns),
-        indexes,
-        summary: buildRecreateSummary(tableName, entry.issues),
-        postchecks: buildRecreatePostchecks(tableName, entry.issues, tableSpec),
-        operationClass,
-      }),
+      new RecreateTableCall(
+        {
+          tableName,
+          contractTable: tableSpec,
+          schemaColumnNames: Object.keys(actualTable.columns),
+          indexes,
+          summary: buildRecreateSummary(tableName, entry.issues),
+          postchecks: buildRecreatePostchecks(tableName, entry.issues, tableSpec),
+          operationClass,
+        },
+        entry.lossyColumns,
+      ),
     );
   }
 
