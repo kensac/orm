@@ -24,7 +24,7 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Outcome.** `migration plan` refuses any plan that loses data, with the error `db update` uses. The refusal lists each destructive operation with the statements that resolve it. `--delete` consents to one operation, for namespaces, models and fields, and replaces `--confirm` on both commands. The terminal consent question asks per operation. Upgrade fragments record both changes; the CLI README describes statements and consent.
 
-**Builds on.** Slice 1. Two things slice 1 leaves for it: the missing-origin check in the CLI statement resolver runs over the whole input and must move inside the per-statement loop so that `--delete` works without an origin contract; and the `@@map`-only rename gap in `deferred.md` must be decided before the refusal text is written.
+**Builds on.** Slice 1. Two things slice 1 leaves for it: the missing-origin check in the CLI statement resolver runs over the whole input and must move inside the per-statement loop so that `--delete` works without an origin contract; and the `@@map`-only rename gap in `deferred.md` must be decided before the refusal text is written. Decided 2026-10-07 on prisma/orm#30638: dropping a row-level-security policy and disabling row-level security stay `widening` (they lose no data), and slice 2 adds a separate consent question before `db update` applies an operation that widens who can read or write rows, answered per operation like the data-loss consent and refused in a non-interactive run unless consented.
 
 **Hands to.** The refusal shape every later verb hooks its statements into; the per-operation consent model; `--confirm` gone.
 
