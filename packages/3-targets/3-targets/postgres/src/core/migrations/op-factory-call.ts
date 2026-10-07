@@ -106,7 +106,7 @@ import {
   renameRlsPolicy,
 } from './operations/rls';
 import type { ForeignKeySpec } from './operations/shared';
-import { qualifiedIdName, step, targetDetails } from './operations/shared';
+import { step, targetDetails } from './operations/shared';
 import { dropTable, renameTable, renameTableOperationId } from './operations/tables';
 import { buildAddNotNullColumnWithTemporaryDefaultOperation } from './planner-recipes';
 import type { PostgresPlanTargetDetails } from './planner-target-details';
@@ -302,7 +302,7 @@ export class CreateTableCall extends PostgresOpFactoryCallNode {
     const absent = await lowerer.lowerToExecuteRequest(checks.tableAbsent());
     const present = await lowerer.lowerToExecuteRequest(checks.tablePresent());
     return {
-      id: `table.${qualifiedIdName(schemaName, tableName)}`,
+      id: `table.${tableName}`,
       label: `Create table "${tableName}"`,
       summary: `Creates table "${tableName}"`,
       operationClass: 'additive',
@@ -429,7 +429,7 @@ export class RenameTableCall extends PostgresOpFactoryCallNode {
 
   /** The id of the operation this call lowers to. */
   get operationId(): string {
-    return renameTableOperationId(this.schemaName, this.oldTableName);
+    return renameTableOperationId(this.oldTableName);
   }
 
   override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
@@ -504,7 +504,7 @@ export class AddColumnCall extends PostgresOpFactoryCallNode {
     const absent = await lowerer.lowerToExecuteRequest(colChecks.columnAbsent());
     const present = await lowerer.lowerToExecuteRequest(colChecks.columnPresent());
     return {
-      id: `column.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+      id: `column.${schemaName}.${tableName}.${columnName}`,
       label: `Add column "${columnName}" to "${tableName}"`,
       operationClass: 'additive',
       target: targetDetails('column', columnName, schemaName, tableName),
@@ -570,7 +570,7 @@ export class RenameColumnCall extends PostgresOpFactoryCallNode {
 
   /** The id of the operation this call lowers to. */
   get operationId(): string {
-    return renameColumnOperationId(this.schemaName, this.tableName, this.oldColumnName);
+    return renameColumnOperationId(this.tableName, this.oldColumnName);
   }
 
   override toOps(lowerer?: ExecuteRequestLowerer): readonly (Op | Promise<Op>)[] {
@@ -942,7 +942,7 @@ export class AddNotNullColumnDirectCall extends PostgresOpFactoryCallNode {
   }
 
   renderTypeScript(): string {
-    return `rawSql(${jsonToTsSource({ id: `column.${qualifiedIdName(this.schemaName, this.tableName)}.${this.columnName}`, label: this.label, operationClass: 'additive' })})`;
+    return `rawSql(${jsonToTsSource({ id: `column.${this.tableName}.${this.columnName}`, label: this.label, operationClass: 'additive' })})`;
   }
 }
 
@@ -1010,7 +1010,7 @@ export class AddNotNullColumnWithTempDefaultCall extends PostgresOpFactoryCallNo
   }
 
   renderTypeScript(): string {
-    return `rawSql(${jsonToTsSource({ id: `column.${qualifiedIdName(this.schemaName, this.tableName)}.${this.columnName}`, label: this.label, operationClass: 'additive' })})`;
+    return `rawSql(${jsonToTsSource({ id: `column.${this.tableName}.${this.columnName}`, label: this.label, operationClass: 'additive' })})`;
   }
 }
 
@@ -1843,7 +1843,7 @@ export class AddNativeEnumValueCall extends PostgresOpFactoryCallNode {
     const valuePresent = await lowerer.lowerToExecuteRequest(valueChecks.valuePresent());
     const qualifiedType = qualifiedNativeEnumTypeName(schemaName, typeName);
     return {
-      id: `addNativeEnumValue.${qualifiedIdName(schemaName, typeName)}.${value}`,
+      id: `addNativeEnumValue.${typeName}.${value}`,
       label: this.label,
       summary: this.summary,
       operationClass: 'additive',

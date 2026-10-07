@@ -1,6 +1,6 @@
 [
   {
-    "id": "index.public.post.post_title_search_724b05e5",
+    "id": "index.post.post_title_search_724b05e5",
     "label": "Create index \"post_title_search_724b05e5\" on \"post\"",
     "operationClass": "additive",
     "target": {

@@ -786,7 +786,9 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
     const { opIds } = await migrate(v2, { from: v1, policy: FULL_POLICY });
 
     // Unqualified for the unbound namespace, matching every other op id here.
-    expect(opIds).toEqual([`checkConstraint.Item.${before[0]?.name}.rename`]);
+    expect(opIds).toEqual([
+      `checkConstraint.${UNBOUND_NAMESPACE_ID}.Item.${before[0]?.name}.rename`,
+    ]);
     expect(opIds.some((id) => id.startsWith('dropCheckConstraint.'))).toBe(false);
 
     expect(await liveCheckNames()).toEqual([renamed.name]);
@@ -870,14 +872,8 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
       .filter((op) => op.id.includes('heckConstraint.'))
       .map((op) => ({ id: op.id, schema: op.target.details?.schema }));
     expect(checkOps).toEqual([
-      {
-        id: `dropCheckConstraint.${SECOND_NAMESPACE_ID}.Item.${sharedName}`,
-        schema: SECOND_NAMESPACE_ID,
-      },
-      {
-        id: `checkConstraint.${SECOND_NAMESPACE_ID}.Item.${widenedName}`,
-        schema: SECOND_NAMESPACE_ID,
-      },
+      { id: `dropCheckConstraint.Item.${sharedName}`, schema: SECOND_NAMESPACE_ID },
+      { id: `checkConstraint.Item.${widenedName}`, schema: SECOND_NAMESPACE_ID },
     ]);
 
     expect(await liveCheckNames('public')).toEqual([sharedName]);
@@ -933,11 +929,11 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
 
     const nullable = authoredScalarListContract(true);
     const toNullable = await migrate(nullable, { from: strict, policy: FULL_POLICY });
-    expect(toNullable.opIds).toEqual([`dropCheckConstraint.public.Item.${transitioningName}`]);
+    expect(toNullable.opIds).toEqual([`dropCheckConstraint.Item.${transitioningName}`]);
     expect((await verify(nullable)).ok).toBe(true);
 
     const toStrict = await migrate(strict, { from: nullable, policy: FULL_POLICY });
-    expect(toStrict.opIds).toEqual([`checkConstraint.public.Item.${transitioningName}`]);
+    expect(toStrict.opIds).toEqual([`checkConstraint.Item.${transitioningName}`]);
     expect((await verify(strict)).ok).toBe(true);
   });
 
@@ -1098,7 +1094,7 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
 
     // Inline in the CREATE TABLE DDL, not a subsequent ALTER: creating the
     // table fresh produces no separate checkConstraint op.
-    expect(opIds).toEqual(['table.public.Item']);
+    expect(opIds).toEqual(['table.Item']);
     expect(await liveCheckNames()).toEqual([checkName]);
 
     await driver!.query(`INSERT INTO "Item" (id, total) VALUES ('a', '5')`);
@@ -1132,8 +1128,8 @@ describe('check-constraint lifecycle', { concurrent: false }, () => {
     const { ops } = await migrate(v2, { from: v1, policy: FULL_POLICY });
     const checkOps = ops.filter((op) => op.id.includes('heckConstraint.'));
     expect(checkOps.map((op) => op.id)).toEqual([
-      `dropCheckConstraint.public.Item.${nameV1}`,
-      `checkConstraint.public.Item.${nameV2}`,
+      `dropCheckConstraint.Item.${nameV1}`,
+      `checkConstraint.Item.${nameV2}`,
     ]);
 
     expect(await liveCheckNames()).toEqual([nameV2]);

@@ -138,17 +138,17 @@ describe('Prisma 8 taking over migrations from the Prisma 7 schema', () => {
           expect(baseline).toMatchObject({ from: null, to: signedHash });
           expect(operationClasses(baseline)).toEqual([
             ['schema.public', 'additive'],
-            ['createNativeEnumType.public.Role', 'additive'],
-            ['table.public.Post', 'additive'],
-            ['table.public.Tag', 'additive'],
-            ['table.public.User', 'additive'],
-            ['table.public._PostToTag', 'additive'],
-            ['index.public.Tag.Tag_name_key', 'additive'],
-            ['index.public.User.User_email_key', 'additive'],
-            ['index.public._PostToTag._PostToTag_B_index', 'additive'],
-            ['foreignKey.public.Post.Post_authorId_fkey', 'additive'],
-            ['foreignKey.public._PostToTag._PostToTag_A_fkey', 'additive'],
-            ['foreignKey.public._PostToTag._PostToTag_B_fkey', 'additive'],
+            ['createNativeEnumType.Role', 'additive'],
+            ['table.Post', 'additive'],
+            ['table.Tag', 'additive'],
+            ['table.User', 'additive'],
+            ['table._PostToTag', 'additive'],
+            ['index.Tag.Tag_name_key', 'additive'],
+            ['index.User.User_email_key', 'additive'],
+            ['index._PostToTag._PostToTag_B_index', 'additive'],
+            ['foreignKey.Post.Post_authorId_fkey', 'additive'],
+            ['foreignKey._PostToTag._PostToTag_A_fkey', 'additive'],
+            ['foreignKey._PostToTag._PostToTag_B_fkey', 'additive'],
           ]);
           const bundleNames = [additivePlan['baselineDir'], additivePlan['dir']].map((bundleDir) =>
             basename(String(bundleDir)),
@@ -157,11 +157,11 @@ describe('Prisma 8 taking over migrations from the Prisma 7 schema', () => {
           const additive = readBundle(dir, String(additivePlan['dir']));
           expect(additive).toMatchObject({ from: signedHash, to: additiveHash });
           expect(operationClasses(additive)).toEqual([
-            ['table.public.Comment', 'additive'],
+            ['table.Comment', 'additive'],
             ['column.public.Post.likes', 'additive'],
             ['column.public.User.bio', 'additive'],
-            ['index.public.Post.Post_authorId_idx', 'additive'],
-            ['foreignKey.public.Comment.Comment_postId_fkey', 'additive'],
+            ['index.Post.Post_authorId_idx', 'additive'],
+            ['foreignKey.Comment.Comment_postId_fkey', 'additive'],
           ]);
           const additiveSql = renderedSql(additive);
           expect(additiveSql).toContain('ALTER TABLE "public"."User" ADD COLUMN "bio" text');
@@ -202,9 +202,9 @@ describe('Prisma 8 taking over migrations from the Prisma 7 schema', () => {
           const destructive = readBundle(dir, String(destructivePlan['dir']));
           expect(destructive).toMatchObject({ from: additiveHash, to: destructiveHash });
           expect(operationClasses(destructive)).toEqual([
-            ['dropDefault.public.Post.likes', 'widening'],
-            ['dropColumn.public.User.bio', 'destructive'],
-            ['alterNullability.dropNotNull.public.Post.likes', 'widening'],
+            ['dropDefault.Post.likes', 'widening'],
+            ['dropColumn.User.bio', 'destructive'],
+            ['alterNullability.dropNotNull.Post.likes', 'widening'],
           ]);
           const destructiveSql = renderedSql(destructive);
           expect(destructiveSql).toContain('ALTER TABLE "public"."User" DROP COLUMN "bio"');

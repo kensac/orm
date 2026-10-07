@@ -423,8 +423,8 @@ function lifecycleSuite(cfg: LifecycleConfig): void {
         const plan = await planContract(contract, emptySchema, INIT_ADDITIVE_POLICY);
 
         const ids = await opIds(plan);
-        const createTypeIdx = ids.indexOf(`createNativeEnumType.${cfg.schemaName}.${cfg.typeName}`);
-        const createTableIdx = ids.indexOf(`table.${cfg.schemaName}.${cfg.tableName}`);
+        const createTypeIdx = ids.indexOf(`createNativeEnumType.${cfg.typeName}`);
+        const createTableIdx = ids.indexOf(`table.${cfg.tableName}`);
         expect(createTypeIdx).toBeGreaterThanOrEqual(0);
         expect(createTableIdx).toBeGreaterThanOrEqual(0);
         // Ordering: the type must exist before the table that references it.
@@ -433,7 +433,7 @@ function lifecycleSuite(cfg: LifecycleConfig): void {
         // The CREATE TABLE column renders the enum type as a per-segment-quoted
         // (schema-qualified) identifier — not bare, not whole-string-quoted.
         const createTableOp = (await Promise.all(plan.operations)).find(
-          (op) => op.id === `table.${cfg.schemaName}.${cfg.tableName}`,
+          (op) => op.id === `table.${cfg.tableName}`,
         );
         const createTableSql = createTableOp?.execute.map((s) => s.sql).join('\n') ?? '';
         expect(createTableSql).toContain(`"${cfg.columnName}" ${cfg.expectedColumnTypeSql}`);
@@ -477,7 +477,7 @@ function lifecycleSuite(cfg: LifecycleConfig): void {
         const plan = await planContract(contract, introspected, ALLOW_DESTRUCTIVE);
 
         const ids = await opIds(plan);
-        const dropTypeIdx = ids.indexOf(`dropNativeEnumType.${cfg.schemaName}.${cfg.typeName}`);
+        const dropTypeIdx = ids.indexOf(`dropNativeEnumType.${cfg.typeName}`);
         const dropColumnIdx = ids.findIndex((id) => id.startsWith('dropColumn.'));
         expect(dropTypeIdx).toBeGreaterThanOrEqual(0);
         expect(dropColumnIdx).toBeGreaterThanOrEqual(0);
@@ -717,7 +717,7 @@ describe('managed native-enum suffix-append (R8)', { concurrent: false }, () => 
       );
 
       const ids = await opIds(appendPlan);
-      expect(ids).toEqual(['addNativeEnumValue.public.order_status.done']);
+      expect(ids).toEqual(['addNativeEnumValue.order_status.done']);
 
       // The op's rendered description carries the non-transactional caveat
       // (spec §4) — the text `migration plan` shows for this op at plan time.
@@ -763,9 +763,9 @@ describe('managed native-enum suffix-append (R8)', { concurrent: false }, () => 
 
       const ids = await opIds(plan);
       expect(ids).toEqual([
-        'addNativeEnumValue.public.order_status.archived',
-        'addNativeEnumValue.public.order_status.cancelled',
-        'addNativeEnumValue.public.order_status.refunded',
+        'addNativeEnumValue.order_status.archived',
+        'addNativeEnumValue.order_status.cancelled',
+        'addNativeEnumValue.order_status.refunded',
       ]);
 
       await applyPlan(driver, plan, targetContract, INIT_ADDITIVE_POLICY);

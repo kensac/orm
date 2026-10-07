@@ -10,13 +10,6 @@ changes:
   - id: rename-statements
     summary: |
       `prisma migration plan` and `prisma db update` accept `--rename <old>:<new>`, repeatable, to rename a model or a field instead of dropping and creating its table or column. Each side is `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`, and a field's model is named as the new contract names it: `--rename Profile:User --rename User.name:User.fullName`.
-  - id: postgres-operation-ids-name-the-schema
-    summary: |
-      On Postgres, the id of every operation that changes a table, a column, a constraint, an index or a native enum type now names the schema: `table.public.User`, `dropColumn.public.User.bio`, `renameTable.auth.Profile`. Objects in the unbound namespace, whose schema the connection's `search_path` picks, keep ids without a schema. Migrations already planned keep the ids in their `ops.json`.
-    detection:
-      glob: "**/*.{sh,bash,zsh,mjs,cjs,js,ts,mts,cts}"
-      matches:
-        - '["''`](?:table|dropTable|renameTable|renameColumn|column|dropColumn|alterType|setDefault|dropDefault|primaryKey|unique|foreignKey|checkConstraint|dropCheckConstraint|dropConstraint|index|dropIndex|createNativeEnumType|dropNativeEnumType|addNativeEnumValue|alterNullability\.(?:setNotNull|dropNotNull))\.[A-Za-z_]'
 ---
 
 # Non-data drops are widening, and renames are stated on the command line
@@ -28,7 +21,3 @@ For each `prisma db update ... --confirm <database>` or `prisma migration plan .
 ## `rename-statements`
 
 When a contract change renames a model or a field and the plan drops and creates its table or column, state the rename instead of editing the migration by hand: `prisma migration plan --rename <old>:<new>` or `prisma db update --rename <old>:<new>`. The planner then renames the table or column, and the constraints and indexes named after it, and keeps the rows. `db update` resolves the old names against the contract snapshot of the database's last update, which it stores when it advances a ref; with `--db <url>`, pass `--advance-ref <name>` on the run before the rename so the snapshot exists. Nothing in an existing project needs to change.
-
-## `postgres-operation-ids-name-the-schema`
-
-Ids appear in `ops.json`, in `--json` output (`plan.operations[].id`, and the `operationIds` of `appliedStatements`), and in runner errors. Code or scripts that look up a Postgres operation by id, such as `op.id === 'table.User'`, now match `table.public.User`, with the table's schema after the kind. Ids of objects in the unbound namespace, and the ids of other kinds of operation (`schema.public`, `extension.citext`, `data_migration.<name>`), do not change. Migrations planned before the upgrade keep their ids and their hashes; nothing re-plans them.

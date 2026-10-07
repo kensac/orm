@@ -5,7 +5,7 @@ import { InternalError } from '@internal/utils/internal-error';
 import { constraintExistsAst } from '../../../contract-free/checks';
 import { quoteIdentifier } from '../../sql-utils';
 import { qualifyTableName } from '../planner-sql-checks';
-import { type ForeignKeySpec, type Op, qualifiedIdName, step, targetDetails } from './shared';
+import { type ForeignKeySpec, type Op, step, targetDetails } from './shared';
 
 async function constraintCheckSteps(
   lowerer: ExecuteRequestLowerer,
@@ -60,7 +60,7 @@ export async function addPrimaryKey(
     table: tableName,
   });
   return {
-    id: `primaryKey.${qualifiedIdName(schemaName, tableName)}.${constraintName}`,
+    id: `primaryKey.${tableName}.${constraintName}`,
     label: `Add primary key on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('primaryKey', constraintName, schemaName, tableName),
@@ -92,7 +92,7 @@ export async function addUnique(
     table: tableName,
   });
   return {
-    id: `unique.${qualifiedIdName(schemaName, tableName)}.${constraintName}`,
+    id: `unique.${tableName}.${constraintName}`,
     label: `Add unique constraint on "${tableName}" (${columns.join(', ')})`,
     operationClass: 'additive',
     target: targetDetails('unique', constraintName, schemaName, tableName),
@@ -121,7 +121,7 @@ export async function addForeignKey(
     table: tableName,
   });
   return {
-    id: `foreignKey.${qualifiedIdName(schemaName, tableName)}.${fk.name}`,
+    id: `foreignKey.${tableName}.${fk.name}`,
     label: `Add foreign key "${fk.name}" on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('foreignKey', fk.name, schemaName, tableName),
@@ -145,7 +145,7 @@ export async function addCheckConstraint(
     table: tableName,
   });
   return {
-    id: `checkConstraint.${qualifiedIdName(schemaName, tableName)}.${constraintName}`,
+    id: `checkConstraint.${tableName}.${constraintName}`,
     label: `Add check constraint "${constraintName}" on "${tableName}"`,
     operationClass: 'additive',
     target: targetDetails('checkConstraint', constraintName, schemaName, tableName),
@@ -186,7 +186,7 @@ export function renameConstraintOperationId(
   tableName: string,
   fromName: string,
 ): string {
-  return `${kind}.${qualifiedIdName(schemaName, tableName)}.${fromName}.rename`;
+  return `${kind}.${schemaName}.${tableName}.${fromName}.rename`;
 }
 
 export async function renameConstraint(
@@ -244,7 +244,7 @@ export async function dropCheckConstraint(
     table: tableName,
   });
   return {
-    id: `dropCheckConstraint.${qualifiedIdName(schemaName, tableName)}.${constraintName}`,
+    id: `dropCheckConstraint.${tableName}.${constraintName}`,
     label: `Drop check constraint "${constraintName}" on "${tableName}"`,
     operationClass: 'widening',
     target: targetDetails('checkConstraint', constraintName, schemaName, tableName),
@@ -282,7 +282,7 @@ export async function dropConstraint(
     table: tableName,
   });
   return {
-    id: `dropConstraint.${qualifiedIdName(schemaName, tableName)}.${constraintName}`,
+    id: `dropConstraint.${tableName}.${constraintName}`,
     label: `Drop constraint "${constraintName}" on "${tableName}"`,
     operationClass: 'widening',
     target: targetDetails(kind, constraintName, schemaName, tableName),

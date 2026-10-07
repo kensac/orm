@@ -12,7 +12,7 @@ import {
 } from '../../contract-free/checks';
 import * as contractFreeDdl from '../../contract-free/ddl';
 import { boundSchema } from './bound-schema';
-import { qualifiedIdName, step } from './operations/shared';
+import { step } from './operations/shared';
 import { buildColumnTypeSql } from './planner-ddl-builders';
 import { buildTargetDetails, type PostgresPlanTargetDetails } from './planner-target-details';
 
@@ -25,7 +25,7 @@ export function buildAddColumnOperationIdentity(
   'id' | 'label' | 'summary' | 'target'
 > {
   return {
-    id: `column.${qualifiedIdName(schema, tableName)}.${columnName}`,
+    id: `column.${tableName}.${columnName}`,
     label: `Add column ${columnName} to ${tableName}`,
     summary: `Adds column ${columnName} to table ${tableName}`,
     target: {

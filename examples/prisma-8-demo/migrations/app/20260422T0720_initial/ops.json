@@ -27,7 +27,7 @@
     ]
   },
   {
-    "id": "table.public.bug",
+    "id": "table.bug",
     "label": "Create table \"bug\"",
     "summary": "Creates table \"bug\"",
     "operationClass": "additive",
@@ -62,7 +62,7 @@
     ]
   },
   {
-    "id": "table.public.feature",
+    "id": "table.feature",
     "label": "Create table \"feature\"",
     "summary": "Creates table \"feature\"",
     "operationClass": "additive",
@@ -97,7 +97,7 @@
     ]
   },
   {
-    "id": "table.public.tag",
+    "id": "table.tag",
     "label": "Create table \"tag\"",
     "summary": "Creates table \"tag\"",
     "operationClass": "additive",
@@ -132,7 +132,7 @@
     ]
   },
   {
-    "id": "table.public.user",
+    "id": "table.user",
     "label": "Create table \"user\"",
     "summary": "Creates table \"user\"",
     "operationClass": "additive",
@@ -167,7 +167,7 @@
     ]
   },
   {
-    "id": "table.public.post",
+    "id": "table.post",
     "label": "Create table \"post\"",
     "summary": "Creates table \"post\"",
     "operationClass": "additive",
@@ -202,7 +202,7 @@
     ]
   },
   {
-    "id": "table.public.task",
+    "id": "table.task",
     "label": "Create table \"task\"",
     "summary": "Creates table \"task\"",
     "operationClass": "additive",
@@ -237,7 +237,7 @@
     ]
   },
   {
-    "id": "table.public.post_tag",
+    "id": "table.post_tag",
     "label": "Create table \"post_tag\"",
     "summary": "Creates table \"post_tag\"",
     "operationClass": "additive",
@@ -272,7 +272,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.post.post_userId_fkey",
+    "id": "foreignKey.post.post_userId_fkey",
     "label": "Add foreign key \"post_userId_fkey\" on \"post\"",
     "operationClass": "additive",
     "target": {
@@ -306,7 +306,7 @@
     ]
   },
   {
-    "id": "index.public.post.post_userId_idx_a489d58a",
+    "id": "index.post.post_userId_idx_a489d58a",
     "label": "Create index \"post_userId_idx_a489d58a\" on \"post\"",
     "operationClass": "additive",
     "target": {
@@ -341,7 +341,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.task.task_userId_fkey",
+    "id": "foreignKey.task.task_userId_fkey",
     "label": "Add foreign key \"task_userId_fkey\" on \"task\"",
     "operationClass": "additive",
     "target": {
@@ -375,7 +375,7 @@
     ]
   },
   {
-    "id": "index.public.task.task_userId_idx_a489d58a",
+    "id": "index.task.task_userId_idx_a489d58a",
     "label": "Create index \"task_userId_idx_a489d58a\" on \"task\"",
     "operationClass": "additive",
     "target": {
@@ -410,7 +410,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.bug.bug_id_fkey",
+    "id": "foreignKey.bug.bug_id_fkey",
     "label": "Add foreign key \"bug_id_fkey\" on \"bug\"",
     "operationClass": "additive",
     "target": {
@@ -444,7 +444,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.feature.feature_id_fkey",
+    "id": "foreignKey.feature.feature_id_fkey",
     "label": "Add foreign key \"feature_id_fkey\" on \"feature\"",
     "operationClass": "additive",
     "target": {
@@ -478,7 +478,7 @@
     ]
   },
   {
-    "id": "index.public.post_tag.post_tag_postId_idx_a7a72715",
+    "id": "index.post_tag.post_tag_postId_idx_a7a72715",
     "label": "Create index \"post_tag_postId_idx_a7a72715\" on \"post_tag\"",
     "operationClass": "additive",
     "target": {
@@ -513,7 +513,7 @@
     ]
   },
   {
-    "id": "index.public.post_tag.post_tag_tagId_idx_86854244",
+    "id": "index.post_tag.post_tag_tagId_idx_86854244",
     "label": "Create index \"post_tag_tagId_idx_86854244\" on \"post_tag\"",
     "operationClass": "additive",
     "target": {
@@ -548,7 +548,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.post_tag.post_tag_postId_fkey",
+    "id": "foreignKey.post_tag.post_tag_postId_fkey",
     "label": "Add foreign key \"post_tag_postId_fkey\" on \"post_tag\"",
     "operationClass": "additive",
     "target": {
@@ -582,7 +582,7 @@
     ]
   },
   {
-    "id": "foreignKey.public.post_tag.post_tag_tagId_fkey",
+    "id": "foreignKey.post_tag.post_tag_tagId_fkey",
     "label": "Add foreign key \"post_tag_tagId_fkey\" on \"post_tag\"",
     "operationClass": "additive",
     "target": {

@@ -2,7 +2,7 @@ import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter
 import { tableExistsAst } from '../../../contract-free/checks';
 import { quoteIdentifier } from '../../sql-utils';
 import { qualifyTableName } from '../planner-sql-checks';
-import { type Op, qualifiedIdName, step, targetDetails } from './shared';
+import { type Op, step, targetDetails } from './shared';
 
 export async function dropTable(
   schemaName: string,
@@ -14,7 +14,7 @@ export async function dropTable(
   const present = await lowerer.lowerToExecuteRequest(checks.tablePresent());
   const absent = await lowerer.lowerToExecuteRequest(checks.tableAbsent());
   return {
-    id: `dropTable.${qualifiedIdName(schemaName, tableName)}`,
+    id: `dropTable.${tableName}`,
     label: `Drop table "${tableName}"`,
     operationClass: 'destructive',
     target: targetDetails('table', tableName, schemaName),
@@ -28,8 +28,8 @@ export function renameTableStatement(schemaName: string, fromName: string, toNam
   return `ALTER TABLE ${qualifyTableName(schemaName, fromName)} RENAME TO ${quoteIdentifier(toName)}`;
 }
 
-export function renameTableOperationId(schemaName: string, fromName: string): string {
-  return `renameTable.${qualifiedIdName(schemaName, fromName)}`;
+export function renameTableOperationId(fromName: string): string {
+  return `renameTable.${fromName}`;
 }
 
 export async function renameTable(
@@ -45,7 +45,7 @@ export async function renameTable(
   const toPresent = await lowerer.lowerToExecuteRequest(toChecks.tablePresent());
   const fromAbsent = await lowerer.lowerToExecuteRequest(fromChecks.tableAbsent());
   return {
-    id: renameTableOperationId(schemaName, fromName),
+    id: renameTableOperationId(fromName),
     label: `Rename table "${fromName}" to "${toName}"`,
     operationClass: 'widening',
     target: targetDetails('table', toName, schemaName),

@@ -210,8 +210,8 @@ describe('hash pairing (prefix-only rename)', () => {
       ALL_CLASSES_POLICY,
     );
     expect(opIds).toEqual([
-      `dropCheckConstraint.public.${OTHER_TABLE}.others_email_check_ab12cd34`,
-      `checkConstraint.public.${TABLE_NAME}.items_email_present_ab12cd34`,
+      `dropCheckConstraint.${OTHER_TABLE}.others_email_check_ab12cd34`,
+      `checkConstraint.${TABLE_NAME}.items_email_present_ab12cd34`,
     ]);
   });
 });
@@ -225,8 +225,8 @@ describe('what does not pair', () => {
       ALL_CLASSES_POLICY,
     );
     expect(opIds).toEqual([
-      `dropCheckConstraint.public.${TABLE_NAME}.items_email_check_00000000`,
-      `checkConstraint.public.${TABLE_NAME}.items_email_present_11111111`,
+      `dropCheckConstraint.${TABLE_NAME}.items_email_check_00000000`,
+      `checkConstraint.${TABLE_NAME}.items_email_present_11111111`,
     ]);
   });
 
@@ -237,8 +237,8 @@ describe('what does not pair', () => {
       ALL_CLASSES_POLICY,
     );
     expect(opIds).toEqual([
-      `dropCheckConstraint.public.${TABLE_NAME}.items_email_check`,
-      `checkConstraint.public.${TABLE_NAME}.items_email_check_ab12cd34`,
+      `dropCheckConstraint.${TABLE_NAME}.items_email_check`,
+      `checkConstraint.${TABLE_NAME}.items_email_check_ab12cd34`,
     ]);
   });
 
@@ -251,7 +251,7 @@ describe('what does not pair', () => {
       ]),
       ALL_CLASSES_POLICY,
     );
-    expect(opIds).toEqual([`dropCheckConstraint.public.${TABLE_NAME}.items_email_check_99999999`]);
+    expect(opIds).toEqual([`dropCheckConstraint.${TABLE_NAME}.items_email_check_99999999`]);
   });
 });
 
@@ -284,6 +284,6 @@ describe('policy gating', () => {
       actualSchema([wire('items_email_check', 'ab12cd34')]),
       ADDITIVE_ONLY_POLICY,
     );
-    expect(opIds).toEqual([`checkConstraint.public.${TABLE_NAME}.items_email_present_ab12cd34`]);
+    expect(opIds).toEqual([`checkConstraint.${TABLE_NAME}.items_email_present_ab12cd34`]);
   });
 });

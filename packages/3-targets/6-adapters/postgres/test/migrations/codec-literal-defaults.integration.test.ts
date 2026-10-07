@@ -295,7 +295,7 @@ describe('literal defaults rendered through the column codec', { concurrent: fal
     await applyWithRunner(contract, migration, additiveAndWidening);
 
     expect({ operationIds, rows: await insertedRow() }).toEqual({
-      operationIds: cases.map((defaultCase) => `setDefault.public.${table}.${defaultCase.column}`),
+      operationIds: cases.map((defaultCase) => `setDefault.${table}.${defaultCase.column}`),
       rows: [storedDefaults],
     });
   });

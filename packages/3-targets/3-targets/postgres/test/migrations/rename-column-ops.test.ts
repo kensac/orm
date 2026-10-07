@@ -27,7 +27,7 @@ describe('renameColumn (postgres)', () => {
     const op = await renameColumn('auth', 'User', 'name', 'fullName', lowerer);
 
     expect(op).toMatchObject({
-      id: 'renameColumn.auth.User.name',
+      id: 'renameColumn.User.name',
       label: 'Rename column "User"."name" to "fullName"',
       operationClass: 'widening',
       target: {
@@ -112,7 +112,7 @@ describe('RenameColumnCall (postgres)', () => {
     ]);
     const ops = await Promise.all(call.toOps(lowerer));
     expect(ops.map((op) => op.id)).toEqual([
-      'renameColumn.public.User.name',
+      'renameColumn.User.name',
       expect.stringContaining('User_name_key'),
     ]);
   });

@@ -386,7 +386,7 @@ describe('Postgres planner ownership consultation', () => {
     if (result.kind !== 'success') return;
     const ops = await Promise.all(result.plan.operations);
     const dropIds = ops.filter((op) => op.id.startsWith('dropTable.')).map((op) => op.id);
-    expect(dropIds).toEqual(['dropTable.tenant_b.orphan_table']);
+    expect(dropIds).toEqual(['dropTable.orphan_table']);
   });
 
   it('drops a table extra even when the oracle declares a same-named entity of a different kind', async () => {

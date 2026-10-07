@@ -282,7 +282,7 @@ describe('policy drops run before structural DDL that the policy blocks', () => 
 
     expect(await planOpIds(contract, schema)).toEqual([
       'rlsPolicy.public.profiles.p_pub_22222222.drop',
-      'dropColumn.public.profiles.published',
+      'dropColumn.profiles.published',
     ]);
   });
 
@@ -301,7 +301,7 @@ describe('policy drops run before structural DDL that the policy blocks', () => 
 
     expect(await planOpIds(contract, schema)).toEqual([
       'rlsPolicy.public.posts.p_pub_22222222.drop',
-      'dropColumn.public.profiles.published',
+      'dropColumn.profiles.published',
     ]);
   });
 
@@ -314,7 +314,7 @@ describe('policy drops run before structural DDL that the policy blocks', () => 
 
     expect(await planOpIds(contract, schema)).toEqual([
       'rlsPolicy.public.profiles.p_team_22222222.drop',
-      'dropTable.public.teams',
+      'dropTable.teams',
     ]);
   });
 
@@ -336,7 +336,7 @@ describe('policy drops run before structural DDL that the policy blocks', () => 
     const schema = liveSchema({ profiles: PROFILES }, [before]);
     const expected = [
       'rlsPolicy.public.profiles.p_read_11111111.drop',
-      'alterType.public.profiles.user_id',
+      'alterType.profiles.user_id',
       'rlsPolicy.public.profiles.p_read_22222222',
     ];
 
@@ -365,7 +365,7 @@ describe('policy drops run before structural DDL that the policy blocks', () => 
 
     expect(await planOpIds(contract, schema)).toEqual([
       'rlsPolicy.public.profiles.p_admin_22222222.drop',
-      'dropNativeEnumType.public.app_role',
+      'dropNativeEnumType.app_role',
     ]);
   });
 

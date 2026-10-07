@@ -14,7 +14,7 @@ import { postgresError } from '../../errors';
 import { quoteIdentifier } from '../../sql-utils';
 import { boundSchema } from '../bound-schema';
 import { qualifyTableName } from '../planner-sql-checks';
-import { type Op, qualifiedIdName, step, targetDetails } from './shared';
+import { type Op, step, targetDetails } from './shared';
 
 type CheckStep = { sql: string; params?: readonly unknown[] };
 
@@ -41,7 +41,7 @@ export async function dropColumn(
     column: columnName,
   });
   return {
-    id: `dropColumn.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `dropColumn.${tableName}.${columnName}`,
     label: `Drop column "${columnName}" from "${tableName}"`,
     operationClass: 'destructive',
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -65,12 +65,8 @@ export function renameColumnStatement(
   return `ALTER TABLE ${qualifyTableName(schemaName, tableName)} RENAME COLUMN ${quoteIdentifier(fromName)} TO ${quoteIdentifier(toName)}`;
 }
 
-export function renameColumnOperationId(
-  schemaName: string,
-  tableName: string,
-  fromName: string,
-): string {
-  return `renameColumn.${qualifiedIdName(schemaName, tableName)}.${fromName}`;
+export function renameColumnOperationId(tableName: string, fromName: string): string {
+  return `renameColumn.${tableName}.${fromName}`;
 }
 
 export async function renameColumn(
@@ -91,7 +87,7 @@ export async function renameColumn(
     column: toName,
   });
   return {
-    id: renameColumnOperationId(schemaName, tableName, fromName),
+    id: renameColumnOperationId(tableName, fromName),
     label: `Rename column "${tableName}"."${fromName}" to "${toName}"`,
     operationClass: 'widening',
     target: targetDetails('column', toName, schemaName, tableName),
@@ -150,7 +146,7 @@ export async function alterColumnType(
     }),
   );
   return {
-    id: `alterType.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `alterType.${tableName}.${columnName}`,
     label: `Alter type of "${tableName}"."${columnName}" to ${options.rawTargetTypeForLabel}`,
     operationClass: 'destructive',
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -196,7 +192,7 @@ export async function setNotNull(
     }),
   );
   return {
-    id: `alterNullability.setNotNull.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `alterNullability.setNotNull.${tableName}.${columnName}`,
     label: `Set NOT NULL on "${tableName}"."${columnName}"`,
     operationClass: 'destructive',
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -237,7 +233,7 @@ export async function dropNotNull(
     }),
   );
   return {
-    id: `alterNullability.dropNotNull.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `alterNullability.dropNotNull.${tableName}.${columnName}`,
     label: `Drop NOT NULL on "${tableName}"."${columnName}"`,
     operationClass: 'widening',
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -291,7 +287,7 @@ export async function setDefault(
         )
       : undefined;
   return {
-    id: `setDefault.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `setDefault.${tableName}.${columnName}`,
     label: `Set default on "${tableName}"."${columnName}"`,
     operationClass,
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -349,7 +345,7 @@ export async function dropDefault(
     columnDefaultAst({ schema: schemaName, table: tableName, column: columnName }).defaultAbsent(),
   );
   return {
-    id: `dropDefault.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `dropDefault.${tableName}.${columnName}`,
     label: `Drop default on "${tableName}"."${columnName}"`,
     operationClass: 'widening',
     target: targetDetails('column', columnName, schemaName, tableName),
@@ -397,7 +393,7 @@ export async function addNotNullColumnDirect(
     }),
   );
   return {
-    id: `column.${qualifiedIdName(schemaName, tableName)}.${columnName}`,
+    id: `column.${tableName}.${columnName}`,
     label: `Add column ${columnName} to ${tableName}`,
     summary: `Adds column ${columnName} to table ${tableName}`,
     operationClass: 'additive',
