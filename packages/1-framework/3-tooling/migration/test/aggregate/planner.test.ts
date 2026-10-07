@@ -162,6 +162,44 @@ describe('planMigration', () => {
     expect(result.assertOk().perSpace.get('app')?.appliedStatements).toEqual([applied]);
   });
 
+  it('rejects with policyConflict when the app space has statements but is not planned from the diff', async () => {
+    const aggregate = makeAggregate({ app: makeSpace({ spaceId: 'app' }) });
+    const statement = {
+      kind: 'rename',
+      entity: 'model',
+      from: { namespaceId: 'app', model: 'Profile' },
+      to: { namespaceId: 'app', model: 'User' },
+    } as unknown as ResolvedMigrationStatement;
+    let planned = false;
+    const planner: MigrationPlanner<'sql', 'postgres'> = {
+      plan: () => {
+        planned = true;
+        return { kind: 'success', plan: makeSyntheticPlan('postgres'), appliedStatements: [] };
+      },
+      emptyMigration: () => {
+        throw new Error('not used');
+      },
+    };
+
+    const result = await planMigration({
+      aggregate,
+      currentDBState: { markersBySpaceId: new Map(), schemaIntrospection: { tables: {} } },
+      adapter: STUB_ADAPTER,
+      migrations: makeStubMigrations(planner),
+      frameworkComponents: [],
+      callerPolicy: { ignoreGraphFor: new Set() },
+      operationPolicy: POLICY,
+      appSpace: { fromContract: null, statements: [statement] },
+    });
+
+    expect(result.assertNotOk()).toEqual({
+      kind: 'policyConflict',
+      spaceId: 'app',
+      detail: expect.stringContaining('1 statement'),
+    });
+    expect(planned).toBe(false);
+  });
+
   it('gives the origin contract and statements to the app space only, and none to an extension space planned from the diff', async () => {
     const aggregate = makeAggregate({
       app: makeSpace({ spaceId: 'app' }),

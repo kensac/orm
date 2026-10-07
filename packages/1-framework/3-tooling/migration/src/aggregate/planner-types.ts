@@ -89,7 +89,8 @@ export interface PlannerInput<TFamilyId extends string, TTargetId extends string
   /**
    * What the application space's diff plan starts from: the contract the
    * database is at, when the caller knows it, and the statements the user gave.
-   * Other spaces plan with no origin contract and no statements.
+   * Other spaces plan with no origin contract and no statements. Statements need the app space
+   * in `callerPolicy.ignoreGraphFor`; otherwise the planner refuses them with `policyConflict`.
    */
   readonly appSpace: AppSpacePlanningInputs;
 }
