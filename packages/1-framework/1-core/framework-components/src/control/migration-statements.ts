@@ -8,8 +8,8 @@ export interface ModelCoordinate {
 }
 
 /**
- * A field of a model, named as the contract's model names it. A MongoDB contract keys a model's
- * fields by their stored names, so there it is the stored field name.
+ * A field of a model, named as the contract's model keys it in `fields`. Whether that is the
+ * field's name in the contract source or its stored name in every family is not settled yet.
  */
 export interface FieldCoordinate extends ModelCoordinate {
   readonly field: string;

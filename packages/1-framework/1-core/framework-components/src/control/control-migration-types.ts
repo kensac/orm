@@ -75,7 +75,7 @@ export interface MigrationMetadata {
  *   a wider type, and a drop of an object that holds no data (an index; a unique, foreign-key or
  *   check constraint; a default; a native enum type; a row-level-security policy) or disabling
  *   row-level security. Dropping a policy or disabling row-level security widens who can read and
- *   write rows. MongoDB still classes dropping an index as 'destructive'.
+ *   write rows.
  * - 'destructive': loses data, such as dropping a table or a column.
  * - 'data': transforms data, such as a backfill or a type conversion.
  */
@@ -294,8 +294,7 @@ export interface MigrationPlannerConflict {
   readonly refusedOperationClass?: MigrationOperationClass;
   /**
    * Set when the conflict refuses a statement: the statement, in domain coordinates. Consumers key
-   * on this field, not on the conflict's kind, which each family names (the SQL and MongoDB
-   * planners use `statementRefused`).
+   * on this field, not on the conflict's kind, which each family names.
    */
   readonly refusedStatement?: ResolvedMigrationStatement;
 }
