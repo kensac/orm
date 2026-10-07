@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { planOriginOf } from '@internal/framework-components/control';
 import { integerColumn, textColumn } from '@prisma/orm-sqlite/adapter/column-types';
 import sqliteAdapterDescriptor, {
   createSqliteBuiltinCodecLookup,
@@ -14,6 +13,7 @@ import {
   issueOutcome,
   type MigrationOperationPolicy,
   type MigrationRunnerFailure,
+  planOriginOf,
 } from '@prisma/orm-sqlite/components/control';
 import type { Contract } from '@prisma/orm-sqlite/contract/types';
 import { field } from '@prisma/orm-sqlite/contract-builder';
