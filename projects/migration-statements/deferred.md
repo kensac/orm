@@ -19,3 +19,9 @@ A user keeps `model User` and changes `@@map("users")` to `@@map("app_users")`. 
 **Found:** slice 1, dispatch 5 review (2026-10-06).
 
 `db update` passes the origin contract to the planner only when `--rename` is given. Without statements, field-event planning has no prior contract and reports every column as added, as before this slice; with statements it reports only real changes. No codec in the repository implements `onFieldEvent` today, so nothing observable differs. If a codec starts relying on the hook under `db update`, decide whether `db update` should always supply the origin contract (which needs the runner's origin handling kept separate, as slice 1 did with `origin: null`).
+
+## Which field name a MongoDB statement uses
+
+**Found:** slice 1, dispatch 7 review (2026-10-07). For slice 4.
+
+On SQL a statement names the model's field (`User.fullName`), and the storage bridge maps it to a column. On MongoDB every authoring surface keys a model's `fields` by the stored name (`@map("_id")` gives `fields._id`), so a statement resolved today against a Mongo contract names the stored field (`User._id`). Slice 4 must decide whether Mongo statements name the model's field or the stored field, and make the resolver agree on both families.
