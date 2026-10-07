@@ -1,4 +1,3 @@
-import { domainModelsAtDefaultNamespace } from '@internal/contract/types';
 import { AsyncIterableResult } from '@internal/framework-components/runtime';
 import { describe, expect, it, vi } from 'vitest';
 import * as collectionContract from '../src/collection-contract';
@@ -280,51 +279,5 @@ describe('mapPolymorphicRow()', () => {
     const result = mapPolymorphicRow(contract, 'public', 'Task', polyInfo, row);
 
     expect(result).toEqual({ id: 3, title: 'Unknown', type: 'epic' });
-  });
-
-  it('preserves identity-mapped fields (no explicit column mapping)', () => {
-    const contract = buildMixedPolyContract();
-    // Remove explicit column mappings to create identity-mapped fields
-    const models = domainModelsAtDefaultNamespace(contract.domain) as unknown as Record<
-      string,
-      Record<string, unknown>
-    >;
-    models['Task']!['storage'] = {
-      table: 'tasks',
-      fields: { id: {}, title: {}, type: {} },
-    };
-    models['Bug']!['storage'] = {
-      table: 'tasks',
-      fields: { severity: {} },
-    };
-    models['Feature']!['storage'] = {
-      table: 'features',
-      fields: { priority: {} },
-    };
-
-    const polyInfo = resolvePolymorphismInfo(contract, 'public', 'Task')!;
-
-    const stiRow = { id: 1, title: 'Crash', type: 'bug', severity: 'high' };
-    expect(mapPolymorphicRow(contract, 'public', 'Task', polyInfo, stiRow)).toEqual({
-      id: 1,
-      title: 'Crash',
-      type: 'bug',
-      severity: 'high',
-    });
-
-    const mtiRow = { id: 2, title: 'Feature', type: 'feature', features__priority: 5 };
-    expect(mapPolymorphicRow(contract, 'public', 'Task', polyInfo, mtiRow)).toEqual({
-      id: 2,
-      title: 'Feature',
-      type: 'feature',
-      priority: 5,
-    });
-
-    const unknownRow = { id: 3, title: 'Unknown', type: 'epic' };
-    expect(mapPolymorphicRow(contract, 'public', 'Task', polyInfo, unknownRow)).toEqual({
-      id: 3,
-      title: 'Unknown',
-      type: 'epic',
-    });
   });
 });

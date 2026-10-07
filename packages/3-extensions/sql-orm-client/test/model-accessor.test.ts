@@ -436,26 +436,6 @@ describe('createModelAccessor', () => {
     expect(accessor['name']).toBeUndefined();
   });
 
-  it('resolves column when storage.table maps to a declared table with the field', () => {
-    const base = getTestContract();
-    const modelNameFallbackContract = withPatchedDomainModels(base, (models) => ({
-      ...models,
-      User: {
-        ...(models['User'] as Record<string, unknown>),
-        storage: { namespaceId: 'public', table: 'users' },
-        relations: {},
-      },
-    }));
-
-    expect(
-      createModelAccessor(
-        { ...context, contract: modelNameFallbackContract } as never,
-        'public',
-        'User',
-      )['name']!.isNull(),
-    ).toEqual(NullCheckExpr.isNull(ColumnRef.of('users', 'name')));
-  });
-
   it('has no accessor for a column no field maps, under its column or its field name', () => {
     const contract = buildUnexposedColumnContract();
     const accessor = createModelAccessor(buildTestContextFromContract(contract), 'public', 'User');

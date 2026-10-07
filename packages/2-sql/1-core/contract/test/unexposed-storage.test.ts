@@ -72,6 +72,25 @@ describe('storage no domain object exposes', () => {
     );
   });
 
+  it('refuses a domain field with no storage entry, so every field names its column', () => {
+    const user = userModel({ id: { column: 'id' }, email: { column: 'email' } });
+    const { email: _email, ...storageFields } = blindCast<
+      { fields: Record<string, SqlModelFieldStorage> },
+      'model() builds SqlModelStorage'
+    >(user.storage).fields;
+    const contract = createContract<SqlStorage>({
+      storage: storage(tables),
+      models: { User: { ...user, storage: { ...user.storage, fields: storageFields } } },
+    });
+
+    expect(() => validateSqlContractFully(contract)).toThrow(
+      new ContractValidationError(
+        'Model "__unbound__:User" field "email" has no entry in storage.fields, so no column holds it',
+        'storage',
+      ),
+    );
+  });
+
   it('refuses a generated default on a column no field maps, since the ORM never writes it', () => {
     const contract = createContract<SqlStorage>({
       storage: storage(tables),

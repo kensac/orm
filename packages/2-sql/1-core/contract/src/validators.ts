@@ -740,8 +740,8 @@ export function validateStorageSemantics(storage: SqlStorage): string[] {
 
 /**
  * SQL storage logical-consistency checks: every model.storage.table
- * resolves to a real table and every model.storage.fields[*].column
- * resolves to a real column. Throws `ContractValidationError` on the first
+ * resolves to a real table, every domain field has a model.storage.fields
+ * entry, and every model.storage.fields[*].column resolves to a real column. Throws `ContractValidationError` on the first
  * mismatch.
  */
 export function validateModelStorageReferences(contract: Contract<SqlStorage>): void {
@@ -773,6 +773,15 @@ export function validateModelStorageReferences(contract: Contract<SqlStorage>): 
       const table = blindCast<StorageTable, 'table entry in structurally validated SQL storage'>(
         rawTable,
       );
+
+      for (const fieldName of Object.keys(model.fields ?? {})) {
+        if (!Object.hasOwn(modelStorage.fields, fieldName)) {
+          throw new ContractValidationError(
+            `Model "${qualifiedName}" field "${fieldName}" has no entry in storage.fields, so no column holds it`,
+            'storage',
+          );
+        }
+      }
 
       const columnNames = new Set(Object.keys(table.columns));
       for (const [fieldName, field] of Object.entries(modelStorage.fields)) {

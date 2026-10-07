@@ -178,7 +178,7 @@ export interface ModelFieldColumn {
 }
 
 /**
- * A model's fields, keyed by field name, with the table and column each maps: its own fields on its own table (a field with no storage entry maps a column of its own name), and the fields it inherits from its base model on the base model's table. This is the one definition of a model's fields; name resolution and default projections both read it. A column no field maps has no entry.
+ * A model's fields, keyed by field name, with the table and column each maps: its own fields on its own table, and the fields it inherits from its base model on the base model's table. This is the one definition of a model's fields; name resolution and default projections both read it. A column no field maps has no entry.
  */
 export function getModelFields(
   contract: Contract<SqlStorage>,
@@ -191,10 +191,9 @@ export function getModelFields(
     const own =
       table === undefined
         ? []
-        : Object.entries({
-            ...Object.fromEntries(Object.keys(model?.fields ?? {}).map((field) => [field, field])),
-            ...getFieldToColumnMap(contract, namespaceId, modelName),
-          }).map(([field, column]) => [field, { table, column }] as const);
+        : Object.entries(getFieldToColumnMap(contract, namespaceId, modelName)).map(
+            ([field, column]) => [field, { table, column }] as const,
+          );
     const base = model?.base;
     return {
       ...(base === undefined ? {} : getModelFields(contract, base.namespace, base.model)),
