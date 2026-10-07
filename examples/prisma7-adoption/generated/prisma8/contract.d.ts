@@ -21,7 +21,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'44d4d2f54a9d0fe736aa5eb026f74e493e17e4953f0a463736c5183fb2f411d1'>;
+  StorageHashBase<'cee288aa57be618663c6c6118ece25e6ae2049027a7337e8e04c1742faedfff3'>;
 export type ExecutionHash =
   ExecutionHashBase<'76ee8948067fff39e1b787eafdf2c9319ebe5e0f5029f71536b4f58b92d7790e'>;
 export type ProfileHash =
@@ -427,7 +427,10 @@ type ContractBase = Omit<
                   readonly many: false;
                 };
               };
-              primaryKey: { readonly columns: readonly ['A', 'B'] };
+              primaryKey: {
+                readonly columns: readonly ['A', 'B'];
+                readonly name: '_PostToTag_AB_pkey';
+              };
               uniques: readonly [];
               indexes: readonly [
                 {
