@@ -197,7 +197,7 @@ It takes exactly one field, an optional `language` (default `english`, from the 
 @@index(expression: sql`to_tsvector('english', "text")`, type: "gin", name: "message_text_search_custom")
 ```
 
-Every argument that holds raw SQL (`where:`, `expression:`, and a policy's `using` and `withCheck`) takes a `sql` literal; a plain string is refused. See [ADR 260](../../../../docs/architecture%20docs/adrs/ADR%20260%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md).
+Every argument that holds raw SQL (`where:`, `expression:`, and a policy's `using` and `withCheck`) takes a `sql` literal; a plain string is refused. See [ADR 267](../../../../docs/architecture%20docs/adrs/ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md).
 
 ## Codec descriptor authoring
 

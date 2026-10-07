@@ -4,7 +4,7 @@ What the PSL editor tools (language server, formatter, highlighting) do for tagg
 
 ## Where a tagged literal appears
 
-A `sql` literal writes a value of the data type `sql/expression` ([ADR 260](../architecture%20docs/adrs/ADR%20260%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)). It is the only form these places take:
+A `sql` literal writes a value of the data type `sql/expression` ([ADR 267](../architecture%20docs/adrs/ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)). It is the only form these places take:
 
 - `@default(...)`, beside the other literals and the default functions;
 - `@@index(where:)` and `@@index(expression:)`;

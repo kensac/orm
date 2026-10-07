@@ -42,7 +42,7 @@ policy_update profile_owner_write {
 }
 ```
 
-PSL writes each predicate as a `sql` literal, so the quoted column name needs no escaping ([ADR 260](ADR%20260%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
+PSL writes each predicate as a `sql` literal, so the quoted column name needs no escaping ([ADR 267](ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
 
 The lowering normalizes the content, hashes it, and stores the full wire name in the IR:
 

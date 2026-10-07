@@ -173,9 +173,9 @@ export type CastRefusal =
   | { readonly kind: 'unreadable'; readonly message: string };
 
 export function entryForTag(support: DataTypeSupport, tag: string):
-  { readonly key: DataTypeId; readonly entry: DataTypeAuthoringEntry } | undefined;
+  { readonly key: string; readonly entry: DataTypeAuthoringEntry } | undefined;
 export function entryForPlain(support: DataTypeSupport, syntax: 'string' | 'boolean' | 'number'):
-  { readonly key: DataTypeId; readonly entry: DataTypeAuthoringEntry } | undefined;
+  { readonly key: string; readonly entry: DataTypeAuthoringEntry } | undefined;
 export function knownTags(support: DataTypeSupport): readonly string[];
 export function readWrittenValue(support: DataTypeSupport, written: WrittenScalar): Result<TypedValue, ReadRefusal>;
 export function castTypedValue(support: DataTypeSupport, receivingType: DataTypeId, typed: TypedValue): Result<TypedValue, CastRefusal>;
@@ -214,7 +214,7 @@ export function exactRewrite(support: DataTypeSupport, receivingType: DataTypeId
 
 Behaviour:
 
-- `entryForTag` and `entryForPlain` convert the matching entry's string key with `dataTypeId(key)`; assembly guarantees every key is a registered id (section 3.4).
+- `entryForTag` and `entryForPlain` return the matching entry under its raw string key, which is not always a data type id: SQLite's `json` tag sits under `tag:json`. The value's data type comes from `authoringEntryType(key, entry)`: the tag's `type` when the tag declares one, or else the key.
 - `entryForTag`, `entryForPlain`, `knownTags`, `readWrittenValue` and `castTypedValue` are the current `entryForTag`, `entryForPlain`, `knownTags`, `readValue` and `castInto` from `data-type-default.ts`, with these changes: no lowering-entry filter; refusals carry no `elementIndex`; an `unreadable` refusal has no `json` field (section 10.1 retires the JSON-specific code); `castTypedValue` returns a `TypedValue` of the receiving type, and its `no-cast` refusal names the receiving type `receivingType`.
 - `admittedTags(support, T)` returns, without duplicates and in this order: the tag of the entry keyed `T` when its written form is a tag; then, for each key `S` of `support.lookup.get(T)?.casts` in key order, the tag of the entry keyed `S` when its written form is a tag.
 - `describeRefusal(refusal, support, guidance)` is the one wording of a cast-rule refusal. Every message leads with what to write. `guidance` is `{ forms, rewrite }`: `forms` are the admitted forms (`admittedForms`), whose phrases `describeExpected` joins with ` or ` as `F` in `` `Expected ${F}` ``, and `rewrite` is `exactRewrite` of the written value or `undefined`. `unknown-tag`: `PSL_UNKNOWN_LITERAL_TAG`, `` `Unknown literal tag "${tag}". Known tags: ${known.join(', ')}.` ``. `unwritable`: `PSL_VALUE_TYPE_INCOMPATIBLE`, `` `Expected ${F}; this target has no data type for a ${syntax} value` ``. `unreadable`: `PSL_INVALID_LITERAL`, the refusal's message. `no-cast`: `PSL_VALUE_TYPE_INCOMPATIBLE`, worded by `describeRefusedValueType`: when the value type's written form is one of `forms` (a number too large or not whole for a number type), `` `Expected ${F} that ${receivingType} can hold; got ${valueType}` ``; otherwise `` `Expected ${F}` ``, followed by `` `; write ${rewrite}` `` when there is a rewrite. Two forms are the same when their kinds are, and, for tags, their tags; the phrases are not compared. Each consumer adds only its location, if any.
@@ -724,7 +724,7 @@ These fail at run time, not compile time:
 
 ## 19. Documentation and ADRs
 
-A new ADR 260, "Raw SQL is a value of the data type `sql/expression`", written in slice 2b (numbered 260 because `main` and open branches already use 256 to 259), holds design-notes decisions 1–7, 11 and 12 with their rejected alternatives. ADRs 129, 195, 231, 234, 236, 243, 244, 249, 254 and 255 are amended briefly and link to it.
+A new ADR 267, "Raw SQL is a value of the data type `sql/expression`", written in slice 2b (numbered 267 because `main` already uses 256 to 266), holds design-notes decisions 1–7, 11 and 12 with their rejected alternatives. ADRs 129, 195, 231, 234, 236, 243, 244, 249, 254 and 262 are amended briefly and link to it.
 
 | Doc | Slice | Change |
 | --- | --- | --- |
