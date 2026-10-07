@@ -234,7 +234,7 @@ type DefaultLiteralValue<CodecId extends string, Encoded> = CodecId extends keyo
 export type FieldOutputTypes = {
   readonly public: {
     readonly Bug: { readonly severity: CodecTypes['pg/text@1']['output'] };
-    readonly Chore: Record<string, never>;
+    readonly Chore: {};
     readonly Task: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly title: CodecTypes['pg/text@1']['output'];
@@ -245,7 +245,7 @@ export type FieldOutputTypes = {
 export type FieldInputTypes = {
   readonly public: {
     readonly Bug: { readonly severity: CodecTypes['pg/text@1']['input'] };
-    readonly Chore: Record<string, never>;
+    readonly Chore: {};
     readonly Task: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly title: CodecTypes['pg/text@1']['input'];
@@ -422,7 +422,7 @@ type ContractBase = Omit<
             readonly base: { readonly namespace: 'public' & NamespaceId; readonly model: 'Task' };
           };
           readonly Chore: {
-            readonly fields: Record<string, never>;
+            readonly fields: {};
             readonly relations: Record<string, never>;
             readonly storage: { readonly table: 'chores'; readonly namespaceId: 'public' };
             readonly base: { readonly namespace: 'public' & NamespaceId; readonly model: 'Task' };

@@ -5,7 +5,7 @@ import postgresAdapter from '@internal/adapter-postgres/runtime';
 import { orm } from '@internal/sql-orm-client';
 import { createExecutionContext, createSqlExecutionStack } from '@internal/sql-runtime';
 import postgresTarget, { PostgresContractSerializer } from '@internal/target-postgres/runtime';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { Contract } from './fixtures/polymorphism-key-only-variant/generated/contract';
 import contractJson from './fixtures/polymorphism-key-only-variant/generated/contract.json' with {
   type: 'json',
@@ -36,7 +36,7 @@ describe('integration/polymorphism-key-only-variant', () => {
         const db = ormFor(runtime, contract);
 
         const chore = await db.public.Task.variant('chore').create({ title: 'Sweep' });
-        expect(chore).toEqual({ id: chore.id, title: 'Sweep', type: 'chore' });
+        expect(chore).toEqual({ id: expect.any(Number), title: 'Sweep', type: 'chore' });
 
         const bug = await db.public.Task.variant('bug').create({
           title: 'Crash',
@@ -56,4 +56,18 @@ describe('integration/polymorphism-key-only-variant', () => {
     },
     timeouts.spinUpPpgDev,
   );
+
+  it('types a variant with no field of its own with exactly the fields it inherits', () => {
+    type Db = ReturnType<typeof ormFor>;
+    const choresOf = (db: Db) => db.public.Task.variant('chore');
+    type ChoreCollection = ReturnType<typeof choresOf>;
+    type ChoreRow = Awaited<ReturnType<ChoreCollection['all']>>[number];
+
+    expectTypeOf<keyof ChoreRow>().toEqualTypeOf<'id' | 'title' | 'type'>();
+
+    const createChore = (chores: ChoreCollection) =>
+      // @ts-expect-error `bogus` is not a field of the variant
+      chores.create({ title: 'Sweep', bogus: 1 });
+    expectTypeOf(createChore).toBeFunction();
+  });
 });

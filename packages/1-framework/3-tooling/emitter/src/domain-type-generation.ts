@@ -101,12 +101,19 @@ export function generateModelFieldEntry(fieldName: string, field: ContractField)
   return `readonly ${serializeObjectKey(fieldName)}: { readonly nullable: ${nullable}; readonly type: ${serializeValue(type)}${mods} }`;
 }
 
+/**
+ * An object type with the given member entries. A model with no fields is `{}`: `Record<string, never>` would make `keyof` the whole of `string`, so a row type built from it would accept any key.
+ */
+function objectTypeOf(entries: readonly string[]): string {
+  return entries.length > 0 ? `{ ${entries.join('; ')} }` : '{}';
+}
+
 export function generateModelFieldsType(fields: Record<string, ContractField>): string {
   const fieldEntries: string[] = [];
   for (const [fieldName, field] of Object.entries(fields)) {
     fieldEntries.push(generateModelFieldEntry(fieldName, field));
   }
-  return fieldEntries.length > 0 ? `{ ${fieldEntries.join('; ')} }` : 'Record<string, never>';
+  return objectTypeOf(fieldEntries);
 }
 
 export function generateModelRelationsType(relations: Record<string, unknown>): string {
@@ -478,14 +485,8 @@ export function generateBothFieldTypesMaps(
       outputFieldEntries.push(`${key}: ${resolved.output}`);
       inputFieldEntries.push(`${key}: ${resolved.input}`);
     }
-    const outputFields =
-      outputFieldEntries.length > 0
-        ? `{ ${outputFieldEntries.join('; ')} }`
-        : 'Record<string, never>';
-    const inputFields =
-      inputFieldEntries.length > 0
-        ? `{ ${inputFieldEntries.join('; ')} }`
-        : 'Record<string, never>';
+    const outputFields = objectTypeOf(outputFieldEntries);
+    const inputFields = objectTypeOf(inputFieldEntries);
     const modelKey = `readonly ${serializeObjectKey(modelName)}`;
     outputModelEntries.push(`${modelKey}: ${outputFields}`);
     inputModelEntries.push(`${modelKey}: ${inputFields}`);

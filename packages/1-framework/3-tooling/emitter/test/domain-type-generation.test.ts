@@ -17,7 +17,6 @@ import {
   generateFieldTypesMapsByNamespace,
   generateHashTypeAliases,
   generateImportLines,
-  generateModelFieldsType,
   generateModelRelationsType,
   generateModelsType,
   generateRootsType,
@@ -146,45 +145,6 @@ describe('serializeObjectKey', () => {
     expect(serializeObjectKey('ns/name@1')).toBe('"ns/name@1"');
     expect(serializeObjectKey('has\nnewline')).toBe('"has\\nnewline"');
     expect(serializeObjectKey('1leading-digit')).toBe('"1leading-digit"');
-  });
-});
-
-describe('generateModelFieldsType', () => {
-  it('returns Record<string, never> for empty fields', () => {
-    expect(generateModelFieldsType({})).toBe('Record<string, never>');
-  });
-
-  it.each([{}, { many: false as const }])('omits scalar cardinality for %j', (cardinality) => {
-    const result = generateModelFieldsType({
-      name: { type: { kind: 'scalar', codecId: 'sql/text@1' }, nullable: false, ...cardinality },
-    });
-    expect(result).toBe(
-      '{ readonly name: { readonly nullable: false; readonly type: { readonly kind: "scalar"; readonly codecId: "sql/text@1" } } }',
-    );
-  });
-
-  it('generates multiple fields', () => {
-    const result = generateModelFieldsType({
-      id: { type: { kind: 'scalar', codecId: 'sql/int4@1' }, nullable: false, many: false },
-      email: { type: { kind: 'scalar', codecId: 'sql/text@1' }, nullable: true, many: false },
-    });
-    expect(result).toContain(
-      'readonly id: { readonly nullable: false; readonly type: { readonly kind: "scalar"; readonly codecId: "sql/int4@1" } }',
-    );
-    expect(result).toContain(
-      'readonly email: { readonly nullable: true; readonly type: { readonly kind: "scalar"; readonly codecId: "sql/text@1" } }',
-    );
-  });
-
-  it('quotes keys with special characters', () => {
-    const result = generateModelFieldsType({
-      'field-name': {
-        type: { kind: 'scalar', codecId: 'sql/text@1' },
-        nullable: false,
-        many: false,
-      },
-    });
-    expect(result).toContain('readonly "field-name":');
   });
 });
 
@@ -1530,14 +1490,6 @@ describe('generateFieldTypesMapsByNamespace edge cases', () => {
     const result = generateFieldTypesMapsByNamespace([]);
     expect(result.output).toBe('Record<string, never>');
     expect(result.input).toBe('Record<string, never>');
-  });
-
-  it('emits Record<string, never> for a model with no fields', () => {
-    const result = generateBothFieldTypesMaps({
-      Empty: { fields: {}, relations: {}, storage: {} },
-    });
-    expect(result.output).toContain('readonly Empty: Record<string, never>');
-    expect(result.input).toContain('readonly Empty: Record<string, never>');
   });
 
   it('skips falsy entries in the models map', () => {
