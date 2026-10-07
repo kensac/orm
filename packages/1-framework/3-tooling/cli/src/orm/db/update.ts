@@ -22,6 +22,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
+import { renameStatements } from '../../control-api/statements/statement-text';
 import type { CreateControlClient, DbUpdateResult, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
 import { closeQuietly } from '../../utils/command-helpers';
@@ -223,7 +224,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
             contract: contractJson,
             mode,
             migrationsDir,
-            renames: args.flags.rename ?? [],
+            statements: renameStatements(args.flags.rename),
             ...(consent === undefined ? {} : { consent }),
             onProgress: controlProgressReporter(ctx.report),
           });

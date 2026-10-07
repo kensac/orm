@@ -51,6 +51,7 @@ import {
   reportAppliedStatements,
 } from '../statements/report-applied-statements';
 import { resolveStatements } from '../statements/resolve-statements';
+import type { StatementText } from '../statements/statement-text';
 import type { ControlClient, DestructivePlanOperation } from '../types';
 import { errorFromCaught } from './caught-errors';
 import {
@@ -79,10 +80,10 @@ export interface MigrationPlanOptions {
   readonly from?: string;
   readonly to?: string;
   /**
-   * `--rename <old>:<new>` statements, as the user wrote them. They resolve
+   * The statements as the user wrote them, in the order given. They resolve
    * against the origin and destination contracts before anything is written.
    */
-  readonly renames?: readonly string[];
+  readonly statements?: readonly StatementText[];
   /** Renders the declarations of the destination snapshot from its `contract.json`. */
   readonly client: Pick<ControlClient, 'renderContractDts'>;
   /**
@@ -543,10 +544,10 @@ async function executeMigrationPlanCommandInner(
   // Statements resolve against the two contracts now settled, before anything
   // is written. A plan from an empty database has no model to rename.
   let statements: readonly ResolvedMigrationStatement[] = [];
-  const renames = options.renames ?? [];
-  if (renames.length > 0) {
+  const statementTexts = options.statements ?? [];
+  if (statementTexts.length > 0) {
     const resolved = resolveStatements({
-      renames,
+      statements: statementTexts,
       origin: { kind: 'contract', contract: fromContract ?? EMPTY_ORIGIN },
       destination: toContract,
     });

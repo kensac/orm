@@ -564,43 +564,49 @@ export function errorPlanOriginUnknown(
 }
 
 /**
- * A `--rename` statement is malformed, or names two things that cannot be
+ * A statement is malformed, or names two things that cannot be
  * renamed into each other (a model and a field, or fields of two models).
  */
+/** A statement as the user wrote it: its verb and its text. */
+interface WrittenStatement {
+  readonly verb: string;
+  readonly text: string;
+}
+
 export function errorStatementInvalid(
-  statement: string,
+  statement: WrittenStatement,
   why: string,
   fix: string,
 ): ActionableCliError {
   return new ActionableCliError(
     'MIGRATION.STATEMENT_INVALID',
-    `Invalid statement "--rename ${statement}"`,
+    `Invalid statement "--${statement.verb} ${statement.text}"`,
     {
       why,
       fix,
       nextActions: [chooseAction('Correct the statement')],
-      meta: { statement },
+      meta: { statement: statement.text, verb: statement.verb },
     },
   );
 }
 
 /**
- * A `--rename` statement is well formed, but its names do not resolve in the
+ * A statement is well formed, but its names do not resolve in the
  * origin and destination contracts the way a rename requires.
  */
 export function errorStatementUnresolved(
-  statement: string,
+  statement: WrittenStatement,
   why: string,
   fix: string,
 ): ActionableCliError {
   return new ActionableCliError(
     'MIGRATION.STATEMENT_UNRESOLVED',
-    `Cannot resolve statement "--rename ${statement}"`,
+    `Cannot resolve statement "--${statement.verb} ${statement.text}"`,
     {
       why,
       fix,
       nextActions: [chooseAction('Correct the names in the statement')],
-      meta: { statement },
+      meta: { statement: statement.text, verb: statement.verb },
     },
   );
 }

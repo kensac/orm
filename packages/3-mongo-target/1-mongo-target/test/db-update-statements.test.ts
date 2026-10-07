@@ -82,7 +82,7 @@ describe('db update with statements on MongoDB', () => {
       frameworkComponents: [],
       migrationsDir,
       targetId: 'mongo',
-      renames: ['Profile:User'],
+      statements: [{ verb: 'rename', text: 'Profile:User' }],
     });
 
     expect(result).toMatchObject({

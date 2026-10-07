@@ -23,7 +23,7 @@ The written `migration.ts` contains `...this.renameTable({ table: 'Profile', to:
 
 ### Grammar
 
-- Both commands take `--rename <old>:<new>`, declared with the engine's `flag.repeated`, so it may appear any number of times. Statements are processed in the order given.
+- Both commands take `--rename <old>:<new>`, declared with the engine's `flag.repeated`, so it may appear any number of times. Statements are processed in the order given. The command hands the control API one ordered list of statements, each with its verb and text (`{ verb: 'rename', text }`), and the parser and resolver take that list, so a later verb joins the same list. The engine's repeated flags keep the order within one flag, not across flags; when a second verb arrives, its statements follow all `--rename` statements unless the engine keeps the order across flags by then.
 - Each side is a coordinate: `Model`, `namespace.Model`, `Model.field` or `namespace.Model.field`. Segments are separated by `.`; the sides by one `:`. A side with no `:`, more than one `:`, an empty segment, or more than three segments is `MIGRATION.STATEMENT_INVALID`, and the message quotes the statement and shows the four accepted forms.
 - Both sides must have the same depth: model to model, or field to field. A model on one side and a field on the other is `MIGRATION.STATEMENT_INVALID`.
 - A two-segment side is read as `namespace.Model` and as `Model.field`. Resolution decides: exactly one reading resolving is that reading; both resolving is `MIGRATION.STATEMENT_UNRESOLVED` naming both readings; neither is `MIGRATION.STATEMENT_UNRESOLVED` naming both attempts.

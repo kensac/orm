@@ -25,6 +25,7 @@ import type { ExecuteDbSignResult } from './operations/db-sign';
 import type { ExecuteDbVerifyResult } from './operations/db-verify';
 import type { RenderContractDtsOptions, RenderContractDtsResult } from './render-contract-dts';
 import type { AppliedStatementReport } from './statements/report-applied-statements';
+import type { StatementText } from './statements/statement-text';
 
 // ============================================================================
 // Client Options
@@ -233,11 +234,11 @@ export interface DbUpdateOptions {
    */
   readonly migrationsDir: string;
   /**
-   * `--rename <old>:<new>` statements, as the user wrote them. They resolve
+   * The statements as the user wrote them, in the order given. They resolve
    * against the contract the database marker names, read from the snapshot
    * store, and the destination contract.
    */
-  readonly renames?: readonly string[];
+  readonly statements?: readonly StatementText[];
   /** Optional progress callback for observing operation progress */
   readonly onProgress?: OnControlProgress;
 }

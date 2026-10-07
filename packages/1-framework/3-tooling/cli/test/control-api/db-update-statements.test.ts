@@ -18,6 +18,7 @@ import { ok } from '@internal/utils/result';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executeDbUpdate } from '../../src/control-api/operations/db-update';
+import { renameStatements } from '../../src/control-api/statements/statement-text';
 import { createTestProjectDir } from '../utils/test-project-dir';
 
 const ORIGIN_HASH = 'a'.repeat(64);
@@ -173,7 +174,7 @@ function update(options: {
     frameworkComponents: [],
     migrationsDir: options.migrationsDir,
     targetId: 'postgres',
-    renames: options.renames,
+    statements: renameStatements(options.renames),
     ...(options.verifySnapshotContent === undefined
       ? {}
       : { verifySnapshotContent: options.verifySnapshotContent }),

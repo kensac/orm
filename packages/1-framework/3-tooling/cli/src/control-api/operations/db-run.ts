@@ -45,6 +45,7 @@ import {
   reportAppliedStatements,
 } from '../statements/report-applied-statements';
 import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
+import type { StatementText } from '../statements/statement-text';
 import type {
   DbInitFailure,
   DbInitResult,
@@ -104,8 +105,8 @@ export interface ExecuteRunOptions<TFamilyId extends string, TTargetId extends s
   readonly targetId: TTargetId;
   readonly policy: MigrationOperationPolicy;
   readonly action: 'dbInit' | 'dbUpdate';
-  /** `--rename <old>:<new>` statements as the user wrote them; empty for `db init`. */
-  readonly renames: readonly string[];
+  /** The statements as the user wrote them, in the order given; empty for `db init`. */
+  readonly statements: readonly StatementText[];
   /**
    * Identity of the plan the caller consented to (`db update` only). When
    * set, the apply refuses with `CONSENT_PLAN_MISMATCH` if the freshly
@@ -180,7 +181,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // read and the plan has no origin contract, as before statements existed.
   let fromContract: Contract | null = null;
   let statements: readonly ResolvedMigrationStatement[] = [];
-  if (options.renames.length > 0) {
+  if (options.statements.length > 0) {
     const appOrigin = await readAppOrigin({
       marker: markerRows.get(aggregate.app.spaceId) ?? null,
       migrationsDir,
@@ -188,7 +189,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     });
     const resolved = resolveStatements({
-      renames: options.renames,
+      statements: options.statements,
       origin: appOrigin.origin,
       destination: contract,
     });

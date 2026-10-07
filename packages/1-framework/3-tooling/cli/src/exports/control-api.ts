@@ -148,6 +148,7 @@ export {
   resolveStatements,
   type StatementOrigin,
 } from '../control-api/statements/resolve-statements';
+export type { StatementText, StatementVerb } from '../control-api/statements/statement-text';
 // CLI-specific types
 export type {
   ContractEmitOptions,

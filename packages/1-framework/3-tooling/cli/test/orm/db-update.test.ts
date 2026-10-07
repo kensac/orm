@@ -171,13 +171,18 @@ describe('db update --rename', () => {
       cwd: projectDir,
     });
     expect(mocks.dbUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ renames: ['Profile:User', 'User.a:User.b'] }),
+      expect.objectContaining({
+        statements: [
+          { verb: 'rename', text: 'Profile:User' },
+          { verb: 'rename', text: 'User.a:User.b' },
+        ],
+      }),
     );
   });
 
   it('hands an empty list when no --rename is given', async () => {
     await harness().run(['db', 'update'], { cwd: projectDir });
-    expect(mocks.dbUpdate).toHaveBeenCalledWith(expect.objectContaining({ renames: [] }));
+    expect(mocks.dbUpdate).toHaveBeenCalledWith(expect.objectContaining({ statements: [] }));
   });
 
   it('lists the applied statements after the operations, and in the JSON document', async () => {

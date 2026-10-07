@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveStatements } from '../../../src/control-api/statements/resolve-statements';
+import { renameStatements } from '../../../src/control-api/statements/statement-text';
 import { contractOf, expectFailure, expectValue } from './statement-fixtures';
 
 const UNRESOLVED = 'MIGRATION.STATEMENT_UNRESOLVED';
@@ -11,7 +12,7 @@ function resolve(
   destination: ReturnType<typeof contractOf>,
 ) {
   return resolveStatements({
-    renames,
+    statements: renameStatements(renames),
     origin: { kind: 'contract', contract: origin },
     destination,
   });

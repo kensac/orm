@@ -13,6 +13,7 @@ import type {
   MigrationPlanResult,
 } from '../../control-api/operations/migration-plan';
 import { executeMigrationPlanCommand } from '../../control-api/operations/migration-plan';
+import { renameStatements } from '../../control-api/statements/statement-text';
 import type { CreateControlClient, DestructivePlanOperation } from '../../control-api/types';
 import { ERROR_CODE_DESTRUCTIVE_CHANGES } from '../../utils/cli-errors';
 import {
@@ -338,7 +339,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
             ...ifDefined('name', args.flags.name),
             ...ifDefined('from', args.flags.from),
             ...ifDefined('to', args.flags.to),
-            renames: args.flags.rename ?? [],
+            statements: renameStatements(args.flags.rename),
             ...ifDefined('consent', consent),
             ...ifDefined(
               'carryEmittedExtensionDirs',

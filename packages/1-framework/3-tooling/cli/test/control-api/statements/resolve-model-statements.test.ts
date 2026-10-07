@@ -1,6 +1,7 @@
 import { UNBOUND_DOMAIN_NAMESPACE_ID } from '@internal/contract/types';
 import { describe, expect, it } from 'vitest';
 import { resolveStatements } from '../../../src/control-api/statements/resolve-statements';
+import { renameStatements } from '../../../src/control-api/statements/statement-text';
 import { contractOf, expectFailure, expectValue } from './statement-fixtures';
 
 const UNRESOLVED = 'MIGRATION.STATEMENT_UNRESOLVED';
@@ -12,7 +13,7 @@ function resolve(
   destination: ReturnType<typeof contractOf>,
 ) {
   return resolveStatements({
-    renames,
+    statements: renameStatements(renames),
     origin: { kind: 'contract', contract: origin },
     destination,
   });
@@ -267,7 +268,7 @@ describe('resolveStatements, origin contract unknown', () => {
 
   it('refuses before reading any statement, naming the hash and the directory', () => {
     const result = resolveStatements({
-      renames: ['not a statement'],
+      statements: renameStatements(['not a statement']),
       origin: {
         kind: 'missing',
         hash: 'sha256:abc',
@@ -286,7 +287,7 @@ describe('resolveStatements, origin contract unknown', () => {
 
   it('says there is no marker when there is no hash to look for', () => {
     const result = resolveStatements({
-      renames: ['Profile:User'],
+      statements: renameStatements(['Profile:User']),
       origin: {
         kind: 'missing',
         hash: null,
@@ -300,7 +301,7 @@ describe('resolveStatements, origin contract unknown', () => {
 
   it('resolves to no statements when none are given', () => {
     const result = resolveStatements({
-      renames: [],
+      statements: renameStatements([]),
       origin: {
         kind: 'missing',
         hash: null,

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { parseRenameStatement } from '../../../src/control-api/statements/parse-rename';
 import { expectFailure, expectValue } from './statement-fixtures';
 
+function rename(text: string) {
+  return { verb: 'rename', text } as const;
+}
+
 const FORMS = ['`Model`', '`namespace.Model`', '`Model.field`', '`namespace.Model.field`'];
 
 describe('parseRenameStatement', () => {
@@ -14,11 +18,17 @@ describe('parseRenameStatement', () => {
       ['Profile:auth.User', ['Profile'], ['auth', 'User']],
       ['auth.User.name:User.fullName', ['auth', 'User', 'name'], ['User', 'fullName']],
     ])('splits %s into its two sides', (text, from, to) => {
-      expect(expectValue(parseRenameStatement(text))).toEqual({ text, from, to });
+      expect(expectValue(parseRenameStatement(rename(text)))).toEqual({
+        verb: 'rename',
+        text,
+        from,
+        to,
+      });
     });
 
     it('keeps the case of every segment', () => {
-      expect(expectValue(parseRenameStatement('user:User'))).toEqual({
+      expect(expectValue(parseRenameStatement(rename('user:User')))).toEqual({
+        verb: 'rename',
         text: 'user:User',
         from: ['user'],
         to: ['User'],
@@ -36,14 +46,19 @@ describe('parseRenameStatement', () => {
       ['a trailing dot', 'Profile.:User'],
       ['more than three segments', 'a.b.c.d:User'],
     ])('rejects %s, quoting the statement and listing the accepted forms', (_case, text) => {
-      expectFailure(parseRenameStatement(text), 'MIGRATION.STATEMENT_INVALID', text, ...FORMS);
+      expectFailure(
+        parseRenameStatement(rename(text)),
+        'MIGRATION.STATEMENT_INVALID',
+        text,
+        ...FORMS,
+      );
     });
 
     it.each(['Profile:auth.User.name', 'auth.User.name:Profile'])(
       'rejects %s, a model on one side and a field on the other',
       (text) => {
         expectFailure(
-          parseRenameStatement(text),
+          parseRenameStatement(rename(text)),
           'MIGRATION.STATEMENT_INVALID',
           text,
           'model on one side and a field on the other',

@@ -10,6 +10,7 @@ import type {
 import type { SnapshotContentVerifier } from '@internal/migration-tools/contract-snapshot-store';
 import { ifDefined } from '@internal/utils/defined';
 import { notOk } from '@internal/utils/result';
+import type { StatementText } from '../statements/statement-text';
 import type { DbUpdateResult, OnControlProgress } from '../types';
 import { executeRun } from './db-run';
 import { computePlanHash } from './plan-identity';
@@ -52,10 +53,10 @@ export interface ExecuteDbUpdateOptions<TFamilyId extends string, TTargetId exte
   /** Content check for contract snapshots the aggregate loader resolves. */
   readonly verifySnapshotContent?: SnapshotContentVerifier;
   /**
-   * `--rename <old>:<new>` statements as the user wrote them. Both the plan and
-   * the destructive pre-plan resolve and apply them.
+   * The statements as the user wrote them, in the order given. Both the plan
+   * and the destructive pre-plan resolve and apply them.
    */
-  readonly renames?: readonly string[];
+  readonly statements?: readonly StatementText[];
   readonly onProgress?: OnControlProgress;
 }
 
@@ -83,7 +84,7 @@ export async function executeDbUpdate<TFamilyId extends string, TTargetId extend
     extensions: options.extensions ?? [],
     policy: DB_UPDATE_POLICY,
     action: 'dbUpdate' as const,
-    renames: options.renames ?? [],
+    statements: options.statements ?? [],
     ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     ...ifDefined('onProgress', options.onProgress),
   };

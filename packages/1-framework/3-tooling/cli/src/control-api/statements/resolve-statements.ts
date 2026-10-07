@@ -22,6 +22,7 @@ import {
   STATEMENT_FORMS_FIX,
   type StatementSide,
 } from './parse-rename';
+import type { StatementText } from './statement-text';
 
 /**
  * The origin contract statements resolve against, or where the command looked
@@ -42,7 +43,8 @@ export type StatementOrigin =
  * names that exist only in an extension space never resolve.
  */
 export interface ResolveStatementsInput {
-  readonly renames: readonly string[];
+  /** The statements as the user wrote them, in the order given. */
+  readonly statements: readonly StatementText[];
   readonly origin: StatementOrigin;
   readonly destination: ContractWithDomain;
 }
@@ -97,7 +99,7 @@ const CHECK_NAMES_FIX =
   'The old name must exist in the origin contract and not in the destination contract, and the new name the other way round. Names match exactly, including case.';
 const VALUE_OBJECT_FIX = 'Leave value objects and their fields out of the statements.';
 const REPEATED_NAME_FIX =
-  'Give each model or field at most one --rename statement, and each new name to one model or field only.';
+  'Give each model or field at most one statement, and each new name to one model or field only.';
 
 function qualifiedModel(coordinate: ModelCoordinate): string {
   return `${coordinate.namespaceId}.${coordinate.model}`;
@@ -118,8 +120,8 @@ function sentence(reason: string): string {
   return `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`;
 }
 
-function unresolved(text: string, refusal: Refusal): CliStructuredError {
-  return errorStatementUnresolved(text, sentence(refusal.reason), refusal.fix);
+function unresolved(statement: StatementText, refusal: Refusal): CliStructuredError {
+  return errorStatementUnresolved(statement, sentence(refusal.reason), refusal.fix);
 }
 
 function modelIn(
@@ -358,7 +360,7 @@ function readSide(
 
 function resolveModelRename(
   state: ResolutionState,
-  text: string,
+  statement: StatementText,
   from: ModelCoordinate,
   to: ModelCoordinate,
 ): Result<ResolvedMigrationStatement, CliStructuredError> {
@@ -367,7 +369,7 @@ function resolveModelRename(
   if (state.renamedFrom.has(fromKey)) {
     return notOk(
       errorStatementInvalid(
-        text,
+        statement,
         `An earlier statement already renames "${qualifiedModel(from)}".`,
         REPEATED_NAME_FIX,
       ),
@@ -376,7 +378,7 @@ function resolveModelRename(
   if (state.renamedTo.has(toKey)) {
     return notOk(
       errorStatementInvalid(
-        text,
+        statement,
         `An earlier statement already renames a model to "${qualifiedModel(to)}".`,
         REPEATED_NAME_FIX,
       ),
@@ -385,7 +387,7 @@ function resolveModelRename(
   if (modelAt(state.origin.contract, to) !== undefined) {
     return notOk(
       errorStatementUnresolved(
-        text,
+        statement,
         `"${qualifiedModel(to)}" already exists in the origin contract, so it cannot be the new name of a model.`,
         CHECK_NAMES_FIX,
       ),
@@ -394,7 +396,7 @@ function resolveModelRename(
   if (modelAt(state.destination.contract, from) !== undefined) {
     return notOk(
       errorStatementUnresolved(
-        text,
+        statement,
         `"${qualifiedModel(from)}" still exists in the destination contract, so it was not renamed.`,
         CHECK_NAMES_FIX,
       ),
@@ -431,24 +433,24 @@ function oldModelNotInDestination(
   const modelStatement = `${oldModel}:${newModel}`;
   const why = [
     `"${qualifiedModel(from.coordinate)}" is not a model of the destination contract, and a field cannot move between models.`,
-    `Name a field's model as the destination contract names it: --rename ${corrected}.`,
+    `Name a field's model as the destination contract names it: --${statement.verb} ${corrected}.`,
     ...(modelRenamed
       ? []
       : [`The model also needs its own statement, --rename ${modelStatement}, before it.`]),
   ].join(' ');
   const fix = modelRenamed
-    ? `Write the statement as --rename ${corrected}.`
-    : `Write the statements as --rename ${modelStatement} --rename ${corrected}.`;
-  return errorStatementInvalid(statement.text, why, fix);
+    ? `Write the statement as --${statement.verb} ${corrected}.`
+    : `Write the statements as --rename ${modelStatement} --${statement.verb} ${corrected}.`;
+  return errorStatementInvalid(statement, why, fix);
 }
 
 function fieldMovesBetweenModels(
-  text: string,
+  statement: StatementText,
   fromModel: string,
   toModel: string,
 ): CliStructuredError {
   return errorStatementInvalid(
-    text,
+    statement,
     `The old name is a field of "${fromModel}" and the new name a field of "${toModel}"; a field cannot move between models.`,
     'Rename a field within one model, and name that model as the destination contract names it.',
   );
@@ -480,24 +482,25 @@ function resolveFieldRename(
   from: FieldReading,
   to: FieldReading,
 ): Result<ResolvedMigrationStatement, CliStructuredError> {
-  const text = statement.text;
   const toModel = qualifiedModel(to.coordinate);
   if (from.destinationModel === undefined) {
     return notOk(
       oldSideNamesNewModel(state, from, to)
         ? oldModelNotInDestination(state, statement, from, toModel)
-        : fieldMovesBetweenModels(text, qualifiedModel(from.coordinate), toModel),
+        : fieldMovesBetweenModels(statement, qualifiedModel(from.coordinate), toModel),
     );
   }
   if (qualifiedModel(from.destinationModel) !== toModel) {
-    return notOk(fieldMovesBetweenModels(text, qualifiedModel(from.destinationModel), toModel));
+    return notOk(
+      fieldMovesBetweenModels(statement, qualifiedModel(from.destinationModel), toModel),
+    );
   }
   const fromKey = `${FIELD_RENAMES}:${qualifiedField(from.coordinate)}`;
   const toKey = `${FIELD_RENAMES}:${qualifiedField(to.coordinate)}`;
   if (state.renamedFrom.has(fromKey)) {
     return notOk(
       errorStatementInvalid(
-        text,
+        statement,
         `An earlier statement already renames "${qualifiedField(from.coordinate)}".`,
         REPEATED_NAME_FIX,
       ),
@@ -506,7 +509,7 @@ function resolveFieldRename(
   if (state.renamedTo.has(toKey)) {
     return notOk(
       errorStatementInvalid(
-        text,
+        statement,
         `An earlier statement already renames a field to "${qualifiedField(to.coordinate)}".`,
         REPEATED_NAME_FIX,
       ),
@@ -515,7 +518,7 @@ function resolveFieldRename(
   if (hasField(from.model, to.coordinate.field)) {
     return notOk(
       errorStatementUnresolved(
-        text,
+        statement,
         `The field "${to.coordinate.field}" already exists on the origin model "${qualifiedModel(from.coordinate)}", so it cannot be the new name of a field.`,
         CHECK_NAMES_FIX,
       ),
@@ -524,7 +527,7 @@ function resolveFieldRename(
   if (hasField(to.model, from.coordinate.field)) {
     return notOk(
       errorStatementUnresolved(
-        text,
+        statement,
         `The field "${from.coordinate.field}" still exists on the destination model "${toModel}", so it was not renamed.`,
         CHECK_NAMES_FIX,
       ),
@@ -540,18 +543,18 @@ function resolveStatement(
   statement: ParsedRename,
 ): Result<ResolvedMigrationStatement, CliStructuredError> {
   const from = readSide(state, 'old', statement.from);
-  if (!from.ok) return notOk(unresolved(statement.text, from.failure));
+  if (!from.ok) return notOk(unresolved(statement, from.failure));
   const to = readSide(state, 'new', statement.to);
-  if (!to.ok) return notOk(unresolved(statement.text, to.failure));
+  if (!to.ok) return notOk(unresolved(statement, to.failure));
   if (from.value.entity === 'model' && to.value.entity === 'model') {
-    return resolveModelRename(state, statement.text, from.value.coordinate, to.value.coordinate);
+    return resolveModelRename(state, statement, from.value.coordinate, to.value.coordinate);
   }
   if (from.value.entity === 'field' && to.value.entity === 'field') {
     return resolveFieldRename(state, statement, from.value, to.value);
   }
   return notOk(
     errorStatementInvalid(
-      statement.text,
+      statement,
       'The statement names a model on one side and a field on the other.',
       STATEMENT_FORMS_FIX,
     ),
@@ -559,14 +562,14 @@ function resolveStatement(
 }
 
 /**
- * Resolves the `--rename` statements a user gave, in order, against the
- * origin and destination contracts. Each resolved statement names its old and
- * new entity by namespace, model and field.
+ * Resolves the statements a user gave, in order, against the origin and
+ * destination contracts. Each resolved statement names its old and new entity
+ * by namespace, model and field.
  */
 export function resolveStatements(
   input: ResolveStatementsInput,
 ): Result<readonly ResolvedMigrationStatement[], CliStructuredError> {
-  if (input.renames.length === 0) return ok([]);
+  if (input.statements.length === 0) return ok([]);
   if (input.origin.kind === 'missing') {
     return notOk(errorStatementOriginUnknown(input.origin));
   }
@@ -578,8 +581,8 @@ export function resolveStatements(
     renamedTo: new Set(),
   };
   const resolved: ResolvedMigrationStatement[] = [];
-  for (const text of input.renames) {
-    const parsed = parseRenameStatement(text);
+  for (const entry of input.statements) {
+    const parsed = parseRenameStatement(entry);
     if (!parsed.ok) return parsed;
     const statement = resolveStatement(state, parsed.value);
     if (!statement.ok) return statement;
