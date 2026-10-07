@@ -1,4 +1,6 @@
 export { Collection } from '../collection';
+export type { CollectionTables } from '../collection-tables';
+export { bindCollectionTables } from '../collection-tables';
 export type {
   CollectionRowOf,
   CollectionTypeStateOf,
@@ -32,6 +34,7 @@ export {
   orderByField,
   type ScopeFacts,
 } from '../scopes';
+export type { TableBinding, TableScope, TableStorageCoordinate } from '../table-scope';
 export type {
   AggregateBuilder,
   AggregateIncludeReducers,
