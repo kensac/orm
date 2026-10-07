@@ -177,6 +177,8 @@ function planBlocks(result: MigrationPlanResult, migrationsRelative: string): re
       ...warningBlocks(result),
       { kind: 'summary', status: 'warn', text: result.summary },
       ...originNoticeBlocks(result),
+      ...operationBlocks(result),
+      ...appliedStatementBlocks(result.appliedStatements),
       outcome,
     ];
   }

@@ -220,6 +220,14 @@ async function runPlannerLeg(
   });
 }
 
+/**
+ * The operations a result lists. For a leg with unfilled placeholders these are the operations
+ * that resolved; the placeholders themselves are not operations yet.
+ */
+function operationSummaries(ops: readonly MigrationPlanOperation[]) {
+  return ops.map((op) => ({ id: op.id, label: op.label, operationClass: op.operationClass }));
+}
+
 async function writePlannedMigrationPackage(
   packageDir: string,
   fromHash: string | null,
@@ -750,7 +758,7 @@ async function executeMigrationPlanCommandInner(
             to: toStorageHash,
             dir: baselineDir,
             baselineDir,
-            operations: [],
+            operations: operationSummaries(baselineLeg.value.plannedOps),
             emittedExtensionDirs,
             ...(warnings.length > 0 ? { warnings } : {}),
             pendingPlaceholders: true,
@@ -805,7 +813,8 @@ async function executeMigrationPlanCommandInner(
           to: toStorageHash,
           dir: relative(cwd, deltaPackageDir),
           baselineDir: relative(cwd, baselinePackageDir),
-          operations: [],
+          operations: operationSummaries(deltaLeg.value.plannedOps),
+          baselineOperations: operationSummaries(baselineLeg.value.plannedOps),
           emittedExtensionDirs,
           ...(warnings.length > 0 ? { warnings } : {}),
           pendingPlaceholders: true,
@@ -907,7 +916,7 @@ async function executeMigrationPlanCommandInner(
         from: fromHash,
         to: toStorageHash,
         dir: relative(cwd, packageDir),
-        operations: [],
+        operations: operationSummaries(deltaLeg.value.plannedOps),
         emittedExtensionDirs,
         ...(warnings.length > 0 ? { warnings } : {}),
         pendingPlaceholders: true,

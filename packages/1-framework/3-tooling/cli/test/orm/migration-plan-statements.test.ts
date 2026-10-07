@@ -1,8 +1,10 @@
 import { readdir } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BIN_GROUPS } from '../../src/orm/cli';
+import { errorUnfilledPlaceholder } from '../../src/utils/cli-errors';
 import { createOrmTestCli } from '../helpers/orm-test-cli';
 import {
+  ADDITIVE_OP,
   createOfflineProject,
   type FakePlannerScript,
   OFFLINE_COMMANDS,
@@ -251,5 +253,32 @@ describe('migration plan --rename', () => {
       envelope: { ok: false, error: { code: 'MIGRATION.PLANNING_FAILED' } },
     });
     expect(await plannedDirs(project)).toEqual([]);
+  });
+
+  it('lists the resolved operations and the statements of a plan that has placeholders, in JSON and human output', async () => {
+    const project = await renamingProject();
+    const run = await harness(project, {
+      operations: [ADDITIVE_OP],
+      throwOnOperations: errorUnfilledPlaceholder('backfill'),
+    }).run(['migration', 'plan', '--rename', 'Profile:User'], {
+      cwd: project.dir,
+      isTty: { stdout: true },
+    });
+
+    expect(run.exitCode).toBe(0);
+    expect(run.presented?.data).toMatchObject({
+      pendingPlaceholders: true,
+      operations: [{ id: ADDITIVE_OP.id }],
+      appliedStatements: [{ statement: profileToUser, operationIds: [ADDITIVE_OP.id] }],
+    });
+    const labels = (run.presented?.presentation.human ?? []).flatMap((block) =>
+      block.kind === 'tree'
+        ? block.roots.flatMap((root) => [
+            root.label,
+            ...(root.children ?? []).map((child) => child.label),
+          ])
+        : [],
+    );
+    expect(labels).toEqual(expect.arrayContaining([ADDITIVE_OP.label, 'Statements applied']));
   });
 });
