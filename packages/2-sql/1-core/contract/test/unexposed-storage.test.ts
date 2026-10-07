@@ -1,6 +1,7 @@
 /**
  * Storage the domain does not expose: a column no field maps, a table no model maps, and a foreign key no relation travels. The contract validates; only a field must map a column that exists.
  */
+import { ContractValidationError } from '@internal/contract/contract-validation-error';
 import type { ContractModel } from '@internal/contract/types';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { blindCast } from '@internal/utils/casts';
@@ -69,5 +70,48 @@ describe('storage no domain object exposes', () => {
     expect(() => validateSqlContractFully(contract)).toThrow(
       /field "legacyKey" references non-existent column "legacyKey" in table "user"/,
     );
+  });
+
+  it('refuses a generated default on a column no field maps, since the ORM never writes it', () => {
+    const contract = createContract<SqlStorage>({
+      storage: storage(tables),
+      models: { User: userModel({ id: { column: 'id' }, email: { column: 'email' } }) },
+      execution: {
+        mutations: {
+          defaults: [
+            {
+              ref: { namespace: UNBOUND_NAMESPACE_ID, entry: 'user', field: 'legacy_key' },
+              onCreate: { kind: 'generator', id: 'uuidv4' },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(() => validateSqlContractFully(contract)).toThrow(
+      new ContractValidationError(
+        'Execution default for column "legacy_key" of table "__unbound__.user" targets a column no field maps; the ORM never writes such a column, so the default could never run. Give the column a database default instead.',
+        'storage',
+      ),
+    );
+  });
+
+  it('accepts a generated default on a column a field maps', () => {
+    const contract = createContract<SqlStorage>({
+      storage: storage(tables),
+      models: { User: userModel({ id: { column: 'id' }, email: { column: 'email' } }) },
+      execution: {
+        mutations: {
+          defaults: [
+            {
+              ref: { namespace: UNBOUND_NAMESPACE_ID, entry: 'user', field: 'email' },
+              onCreate: { kind: 'generator', id: 'uuidv4' },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(() => validateSqlContractFully(contract)).not.toThrow();
   });
 });

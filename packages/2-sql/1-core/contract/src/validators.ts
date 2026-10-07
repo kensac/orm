@@ -734,6 +734,35 @@ export function validateModelStorageReferences(contract: Contract<SqlStorage>): 
 }
 
 /**
+ * Every execution default targets a column some model's field maps. The ORM writes only such columns, so a generated default on a column no field maps could never run. Throws `ContractValidationError` on the first such default.
+ */
+export function validateExecutionDefaultsTargetMappedColumns(contract: Contract<SqlStorage>): void {
+  const mappedColumns = new Set<string>();
+  for (const namespace of Object.values(contract.domain.namespaces)) {
+    for (const model of Object.values(namespace.models)) {
+      const modelStorage = blindCast<
+        SqlModelStorage,
+        'model storage validated by ModelStorageSchema'
+      >(model.storage);
+      for (const field of Object.values(modelStorage.fields)) {
+        mappedColumns.add(
+          JSON.stringify([modelStorage.namespaceId, modelStorage.table, field.column]),
+        );
+      }
+    }
+  }
+
+  for (const { ref } of contract.execution?.mutations.defaults ?? []) {
+    if (!mappedColumns.has(JSON.stringify([ref.namespace, ref.entry, ref.field]))) {
+      throw new ContractValidationError(
+        `Execution default for column "${ref.field}" of table "${ref.namespace}.${ref.entry}" targets a column no field maps; the ORM never writes such a column, so the default could never run. Give the column a database default instead.`,
+        'storage',
+      );
+    }
+  }
+}
+
+/**
  * Cross-table consistency checks for SQL storage: primary key, unique,
  * index, and foreign key column references resolve to real columns;
  * NOT NULL columns don't carry a literal `null` default; FK column
@@ -892,6 +921,7 @@ export function validateSqlContractFully<T extends Contract<SqlStorage>>(
     );
   }
   validateModelStorageReferences(validated);
+  validateExecutionDefaultsTargetMappedColumns(validated);
   validateRelationThroughConsistency(validated);
   validateToOneRelationNullabilityAgainstStorage(validated);
   return validated;
