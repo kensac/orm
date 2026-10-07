@@ -50,4 +50,6 @@ Dispatches 1 and 2 do not touch the prompt and start before the engine ships. Di
 
 ## Open items
 
+- Dispatch 5 adds a planner test where a codec hook emits a destructive call, proving the hook-call-to-field match (by object identity) survives the control-policy partitions.
+
 - Whether the Mongo planner's `statementRefused` for `rename` needs its wording changed now that `delete` exists: dispatch 3 reads the text and decides.
