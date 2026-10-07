@@ -631,7 +631,7 @@ export function refuseSqlTextThatDoesNotReadBack(input: {
   const { kind, namespaceId, table, name } = input;
   throw unsupported(
     `${kind} "${name}" on "${namespaceId}"."${table}" holds SQL that a sql literal cannot write back unchanged, so it cannot be written in Prisma 8 PSL.`,
-    'A sql literal is canonicalized when it is read: indentation shared by every line, a blank first or last line, a carriage return and a whitespace-only line are removed, so this text would read back as different SQL.',
+    'A sql literal is canonicalized when it is read: indentation shared by every line, blank lines at the start or end, a carriage return and a whitespace-only line are removed, so this text would read back as different SQL.',
     "Write the SQL in that canonical form in the contract's source, or keep authoring this contract in its current source.",
     kind === 'policy' ? { namespaceId, table, policy: name } : { namespaceId, table, name },
   );
