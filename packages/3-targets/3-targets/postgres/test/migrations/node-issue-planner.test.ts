@@ -336,7 +336,19 @@ describe('buildPostgresPlanDiff + planNodeIssues (one-differ path)', () => {
             many: { elementNullable: false },
           },
         ),
-      ]).toEqual(['destructive', 'destructive', 'destructive']);
+        alterClass(
+          { nativeType: 'float4' },
+          { dataType: 'pg/int8', codecId: 'pg/int8@1', nullable: false },
+        ),
+        alterClass(
+          { nativeType: 'numeric(10,2)' },
+          { dataType: 'pg/int8', codecId: 'pg/int8@1', nullable: false },
+        ),
+        alterClass(
+          { nativeType: 'int4' },
+          { dataType: 'pg/float8', codecId: 'pg/float8@1', nullable: false },
+        ),
+      ]).toEqual(Array(6).fill('destructive'));
     });
   });
 

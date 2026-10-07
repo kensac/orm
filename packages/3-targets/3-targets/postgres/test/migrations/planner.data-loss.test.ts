@@ -1,6 +1,10 @@
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
-import { APP_SPACE_ID, planOriginOf } from '@internal/framework-components/control';
+import {
+  APP_SPACE_ID,
+  planOriginOf,
+  type ResolvedMigrationStatement,
+} from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { applicationDomainOf } from '@repo/test-utils';
@@ -11,6 +15,7 @@ import { PostgresRlsEnablement } from '../../src/core/postgres-rls-enablement';
 import { PostgresRlsPolicy } from '../../src/core/postgres-rls-policy';
 import { PostgresSchema } from '../../src/core/postgres-schema';
 import { postgresTypeComponents } from '../postgres-type-lookups';
+import { emailIndex } from './rename-column-fixtures';
 
 const stubLowerer: ExecuteRequestLowerer = {
   lower: () => ({ sql: 'stub', params: [] }),
@@ -33,6 +38,8 @@ interface TableSpec {
   readonly columns: Readonly<Record<string, keyof typeof columnTypes>>;
   /** The `using` of the table's one policy, which also turns on row-level security. */
   readonly policy?: string;
+  /** A column with an index named after the table. */
+  readonly indexed?: string;
 }
 
 function policyOn(table: string, using: string): PostgresRlsPolicy {
@@ -67,7 +74,7 @@ function contract(seed: string, tables: Readonly<Record<string, TableSpec>>): Co
             primaryKey: { columns: ['id'] },
             foreignKeys: [],
             uniques: [],
-            indexes: [],
+            indexes: spec.indexed === undefined ? [] : [emailIndex(table, spec.indexed)],
           }),
         ]),
       ),
@@ -119,6 +126,7 @@ async function planned(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
   fromContract: Contract<SqlStorage> | null = from,
+  statements: readonly ResolvedMigrationStatement[] = [],
 ) {
   const result = createPostgresMigrationPlanner(stubLowerer).plan({
     contract: to,
@@ -126,7 +134,7 @@ async function planned(
     policy: ALL_CLASSES,
     fromContract,
     origin: planOriginOf(fromContract),
-    statements: [],
+    statements,
     frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
@@ -142,6 +150,7 @@ async function planned(
       subject,
     }));
   return {
+    labels,
     dataLoss: labelled(result.dataLoss),
     accessWidening: labelled(result.accessWidening),
   };
@@ -199,16 +208,14 @@ describe('Postgres planner, data loss', () => {
       User: { columns: { id: 'int4' }, policy: 'true' },
     });
     const to = contract('to', { User: { columns: { id: 'int4' } } });
+    const { dataLoss, accessWidening } = await planned(from, to);
 
-    expect(await planned(from, to)).toEqual({
+    const user = { kind: 'model', namespaceId: unbound, model: 'User' };
+    expect({ dataLoss, accessWidening }).toEqual({
       dataLoss: [],
       accessWidening: [
-        expect.objectContaining({
-          subject: { kind: 'model', namespaceId: unbound, model: 'User' },
-        }),
-        expect.objectContaining({
-          subject: { kind: 'model', namespaceId: unbound, model: 'User' },
-        }),
+        { operation: 'Disable row-level security on "User"', subject: user },
+        { operation: 'Drop RLS policy "User readers" on "User"', subject: user },
       ],
     });
   });
@@ -217,6 +224,46 @@ describe('Postgres planner, data loss', () => {
     const from = contract('from', { User: { columns: { id: 'int4' }, policy: 'true' } });
     const to = contract('to', { User: { columns: { id: 'int4' }, policy: 'false' } });
 
-    expect(await planned(from, to)).toEqual({ dataLoss: [], accessWidening: [] });
+    const { dataLoss, accessWidening } = await planned(from, to);
+    expect({ dataLoss, accessWidening }).toEqual({ dataLoss: [], accessWidening: [] });
+  });
+
+  it('names the origin model and fields of a table a statement renamed earlier in the plan', async () => {
+    const from = contract('from', {
+      User: {
+        columns: { id: 'int4', handle: 'text', nickname: 'text', age: 'text' },
+        indexed: 'handle',
+      },
+    });
+    const to = contract('to', {
+      Account: { columns: { id: 'int4', handle: 'text', age: 'int4' }, indexed: 'handle' },
+    });
+    const renameUser: ResolvedMigrationStatement = {
+      kind: 'rename',
+      entity: 'model',
+      from: { namespaceId: unbound, model: 'User' },
+      to: { namespaceId: unbound, model: 'Account' },
+    };
+
+    const result = await planned(from, to, from, [renameUser]);
+
+    expect(result.labels).toEqual([
+      'Rename table "User" to "Account"',
+      'Rename primary key "User_pkey" to "Account_pkey" on "Account"',
+      expect.stringMatching(/^Rename index "User_handle_idx_\w+" to "Account_handle_idx_\w+"/),
+      'Drop column "nickname" from "Account"',
+      'placeholder',
+      'Alter type of "Account"."age" to int4',
+    ]);
+    expect(result.dataLoss).toEqual([
+      {
+        operation: 'Drop column "nickname" from "Account"',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' },
+      },
+      {
+        operation: 'Alter type of "Account"."age" to int4',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'age' },
+      },
+    ]);
   });
 });
