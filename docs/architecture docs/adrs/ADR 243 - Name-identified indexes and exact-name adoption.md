@@ -49,7 +49,7 @@ model User {
 }
 ```
 
-The expression is a `sql` literal, the only form PSL takes for raw SQL ([ADR 267](ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
+The expression is a `sql` literal, the only form PSL takes for raw SQL ([ADR 268](ADR%20268%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
 
 Lowering hashes the canonical content tuple and stores the wire name in the contract:
 

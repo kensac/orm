@@ -724,7 +724,7 @@ These fail at run time, not compile time:
 
 ## 19. Documentation and ADRs
 
-A new ADR 267, "Raw SQL is a value of the data type `sql/expression`", written in slice 2b (numbered 267 because `main` already uses 256 to 266), holds design-notes decisions 1–7, 11 and 12 with their rejected alternatives. ADRs 129, 195, 231, 234, 236, 243, 244, 249, 254 and 262 are amended briefly and link to it.
+A new ADR 268, "Raw SQL is a value of the data type `sql/expression`", written in slice 2b (numbered 268 because `main` uses 256 to 266 and an open pull request claims 267), holds design-notes decisions 1–7, 11 and 12 with their rejected alternatives. ADRs 129, 195, 231, 234, 236, 243, 244, 249, 254 and 262 are amended briefly and link to it.
 
 | Doc | Slice | Change |
 | --- | --- | --- |

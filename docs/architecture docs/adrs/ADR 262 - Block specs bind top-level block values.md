@@ -1,6 +1,6 @@
 # ADR 262 — Block specs bind top-level block values
 
-**Status:** Accepted. Amended 2026-09-30: block specs may read the stack's data types, so a policy's predicates take `sql` literals ([ADR 267](ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
+**Status:** Accepted. Amended 2026-09-30: block specs may read the stack's data types, so a policy's predicates take `sql` literals ([ADR 268](ADR%20268%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)).
 **Date:** 2026-09-22
 **Builds on:** [ADR 231 — Declarative attribute specifications](ADR%20231%20-%20Declarative%20attribute%20specifications.md), [ADR 126 — PSL top-level block SPI](ADR%20126%20-%20PSL%20top-level%20block%20SPI.md), [ADR 249 — Central attribute-spec registry](ADR%20249%20-%20Central%20attribute-spec%20registry.md)
 
@@ -171,7 +171,7 @@ The hook picks only the destination namespace — entity kind and key stay fixed
 
 ### Block specs may read the stack's data types
 
-A block spec may depend on the stack's data types. `BlockSpecContext.dataTypes` is the same value as `AttributeSpecContext.dataTypes`, and `interpretExtensionBlocks` and the binder put it into every block spec and block attribute context they build. This is how a policy's `using` and `withCheck` receive `sql/expression` through `dataTypeValue`, so they take only a `sql` literal ([ADR 267](ADR%20267%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)). Admitting a value of a data type chooses no codec and no stored representation, so the reason below for keeping codec registries out of parsing does not apply.
+A block spec may depend on the stack's data types. `BlockSpecContext.dataTypes` is the same value as `AttributeSpecContext.dataTypes`, and `interpretExtensionBlocks` and the binder put it into every block spec and block attribute context they build. This is how a policy's `using` and `withCheck` receive `sql/expression` through `dataTypeValue`, so they take only a `sql` literal ([ADR 268](ADR%20268%20-%20Raw%20SQL%20is%20a%20value%20of%20the%20data%20type%20sql-expression.md)). Admitting a value of a data type chooses no codec and no stored representation, so the reason below for keeping codec registries out of parsing does not apply.
 
 ---
 

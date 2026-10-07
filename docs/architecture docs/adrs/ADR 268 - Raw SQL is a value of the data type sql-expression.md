@@ -1,4 +1,4 @@
-# ADR 267 — Raw SQL is a value of the data type `sql/expression`
+# ADR 268 — Raw SQL is a value of the data type `sql/expression`
 
 **Status:** Accepted. Built: the data type, the `sql` tag, and the six PSL places. Decided and not yet built: the TypeScript builder's `sql` values (the TypeScript examples below show that surface as planned) and the wire-name rule for line comments.
 **Date:** 2026-09-30
