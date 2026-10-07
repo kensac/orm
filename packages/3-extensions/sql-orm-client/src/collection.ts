@@ -485,7 +485,7 @@ export class CollectionBase<
   }
 
   /**
-   * Call `fn` with this collection and return its result. A pure filter is `where(rowFragment)`; `with` runs a query fragment for what `where` cannot express, such as a shared `select` and `include`, an order or a limit. For a fragment made by the client's `fragment` method, the result is this collection's own type plus the filter and order the fragment's body established.
+   * Call `fn`, a query fragment, with this collection and return its result. `fn` may be a scope, which only imposes conditions and declares the fields it needs, or a fragment for what `where` cannot express, such as a shared `select` and `include`, an order or a limit. A condition on one row that needs no declared fields is `where(rowFragment)`. For a fragment made by the client's `fragment` method, the result is this collection's own type plus the filter and order the fragment's body established.
    */
   with<Self, Facts extends FragmentFacts>(
     this: Self,

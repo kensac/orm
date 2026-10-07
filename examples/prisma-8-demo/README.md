@@ -433,7 +433,7 @@ Run `pnpm dev` for the Vite app that visualizes the contract. It renders directl
 - `src/prisma/db.ts` - One-liner Postgres client + query roots (emit workflow)
 - `src/prisma-no-emit/context.ts` - Env-free execution stack/context + query roots (no-emit workflow)
 - `src/prisma-no-emit/runtime.ts` - Runtime factory (no-emit workflow)
-- `src/orm-client/client.ts` - ORM client + custom collection scopes
+- `src/orm-client/client.ts` - ORM client, registering the custom collection classes in `collections.ts`
 - `src/orm-client/*.ts` - End-to-end ORM client query examples
 - `src/extensions/engagement-stats.ts` - Local extension contributing the `stddev` aggregate operation
 - `src/main.ts` - App entrypoint with arktype config validation (emit workflow)

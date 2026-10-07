@@ -309,7 +309,7 @@ The same holds for an `if` with an early return, a `switch`, a loop and a reassi
 A custom collection class gives a model its own named queries. Extend `Collection`, register the class with `orm({ collections })`, and build that client inside the request from `db.runtime()` and `db.context`:
 
 ```typescript
-import { Collection, type Filtered, type Ordered, orm, type Fragment } from '@prisma/orm-postgres/orm-client';
+import { Collection, type Filtered, type Fragment, type Ordered, orm } from '@prisma/orm-postgres/orm-client';
 import type { Contract } from './prisma/contract.d';
 
 class PostCollection extends Collection<Contract, 'Post'> {
@@ -341,7 +341,7 @@ After `.select(...)` or `.variant(...)` the class methods are gone: those return
 
 Inside a class body, a class method called on the result of another call loses what that call established. So a class method whose body chains two class methods loses the first call's facts for every caller: with `latest() { return this.byAuthor(id).newestFirst(); }`, `Post.latest()` is known to be ordered but not filtered. The same holds for `.prepared` after `.include(...)` inside the class: it describes the class's row without the included relation. Inside the class, follow a class method with built-in methods (`this.byAuthor(id).orderBy(...)`), or chain the class methods from outside the class, where they keep every fact.
 
-`with(fn)` calls a function with the collection and returns its result. A pure filter is `where(rowFragment)`; `with` is for what `where` cannot express, such as a shared `select` and `include`, an order, a limit or offset, or a variant. A function from a collection to a collection is a query fragment, of type `Fragment<In, Out>`, so a query can be written once and applied to any collection of that class:
+`with(fn)` calls a function with the collection and returns its result. The function is a query fragment, described in Workflow — Query fragments below, of type `Fragment<In, Out>`, so a query can be written once and applied to any collection of that class:
 
 ```typescript
 const newest: Fragment<PostCollection, Ordered<PostCollection>> = (posts) => posts.newestFirst();
@@ -360,7 +360,7 @@ await deleteMatching(Post.byAuthor(userId)).toArray();
 
 ## Workflow — Query fragments
 
-A piece of a query used in several places is a function. Do not build a filter object and spread it into each query; write a function and pass it to `.where(...)`, `.orderBy(...)` or `.with(...)`. A function from a collection to a collection is a **query fragment** (a **fragment** for short), and `.with(...)` runs it. A fragment that only imposes conditions on the query, such as `createdSince` below, is also called a **scope**. A pure filter is `where(rowFragment)`; `with` is for what `where` cannot express, such as a shared `select` and `include`, an order, a limit or offset, or a variant.
+A piece of a query used in several places is a function. Do not build a filter object and spread it into each query; write a function and pass it to `.where(...)`, `.orderBy(...)` or `.with(...)`. A **row fragment** is a function of the model accessor, and `.where(...)` and `.orderBy(...)` take it. A **query fragment** (a **fragment** for short) is a function from a collection to a collection, and `.with(...)` runs it. A **scope** is a fragment that only imposes conditions on the query, such as `createdSince` below, and is also run with `.with(...)`. When the condition is a function of one row and needs no declared fields, pass a row fragment to `.where(...)`. When the same condition should apply to every model that has some fields, write a scope: it declares the fields, checks them at run time, and returns the collection with the `Filtered` fact. `.with(...)` also runs what `.where(...)` cannot express, such as a shared `select` and `include`, an order, a limit or offset, or a variant.
 
 **The same filter on several models.** Define a fragment with `db.orm.fragment(fields, body)`. Declare each field the fragment needs with the same builder the schema uses, from the `field` that `@prisma/orm-postgres/contract-builder` exports, adding `.optional()` for a field that may be null. The body sees only those fields:
 

@@ -8,7 +8,7 @@
 
 ## At a glance
 
-An application extends `Collection` with its own query methods and registers the class with the client. The methods are the application's named queries, in the way Rails scopes are:
+An application extends `Collection` with its own query methods and registers the class with the client. The methods are the application's named queries, in the way Rails scopes are. A Rails scope is any named query, and these methods match that usage; in this project's vocabulary a scope is narrower, a query fragment that only imposes conditions on the query (ADR 259):
 
 ```ts
 class PostCollection extends Collection<Contract, 'Post'> {
@@ -66,7 +66,7 @@ Each fact has three names. The flag `hasWhere` in the type state is set to `true
 | `select` | `Collection<Contract, Model, NarrowedRow, State>` | no | a different row |
 | `variant` | `Collection<Contract, Model, VariantRow, VariantState>` | no | a different row and a different type argument |
 
-`with` is the principle made explicit: it calls a function with the receiver and returns the result. A pure filter is `where(rowFragment)`; `with` is for what `where` cannot express, such as a shared `select` and `include`, an order, a limit or offset, or a variant. A class method `withTitle(term) { return this.where(...) }` has the type `Filtered<this>`; the same query as a fragment is `(posts: PostCollection) => Filtered<PostCollection>`, and `db.Post.with((posts) => posts.where(...))` has the same type as `db.Post.withTitle(term)`. A class method is a named fragment, and one that only filters, such as `withTitle`, is a named scope. `with` accepts any function, including one that ends in a terminal such as `first()`; when the function returns a collection, it is a fragment.
+`with` is the principle made explicit: it calls a function with the receiver and returns the result. A condition on one row that needs no declared fields is `where(rowFragment)`. `with` runs a scope, which applies the same condition to every model with the fields it declares, and what `where` cannot express, such as a shared `select` and `include`, an order, a limit or offset, or a variant. A class method `withTitle(term) { return this.where(...) }` has the type `Filtered<this>`; the same query as a fragment is `(posts: PostCollection) => Filtered<PostCollection>`, and `db.Post.with((posts) => posts.where(...))` has the same type as `db.Post.withTitle(term)`. A class method is a named fragment, and one that only filters, such as `withTitle`, is a named scope. `with` accepts any function, including one that ends in a terminal such as `first()`; when the function returns a collection, it is a fragment.
 
 The facts live in two declared properties on the class, the **type state** and the **row**:
 
