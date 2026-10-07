@@ -84,6 +84,9 @@ export function expectFailure<T>(
   for (const fragment of fragments) {
     expect(text).toContain(fragment);
   }
+  if (code === 'MIGRATION.STATEMENT_INVALID' || code === 'MIGRATION.STATEMENT_UNRESOLVED') {
+    expect(result.failure.nextActions?.map((action) => action.label)).toEqual([result.failure.fix]);
+  }
   return result.failure;
 }
 

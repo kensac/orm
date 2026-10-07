@@ -1,4 +1,7 @@
-import type { ResolvedMigrationStatement } from '@internal/framework-components/control';
+import {
+  migrationStatementJson,
+  type ResolvedMigrationStatement,
+} from '@internal/framework-components/control';
 import { ifDefined } from '@internal/utils/defined';
 import type { Diagnostic, NextAction, StructuredError } from '@internal/utils/structured-error';
 import { docsUrlFor } from '@internal/utils/structured-error';
@@ -378,6 +381,12 @@ export function errorContractMissingExtensions(options: {
   );
 }
 
+function conflictJson(conflict: CliErrorConflict): Record<string, unknown> {
+  return conflict.refusedStatement === undefined
+    ? { ...conflict }
+    : { ...conflict, refusedStatement: migrationStatementJson(conflict.refusedStatement) };
+}
+
 /**
  * Migration planning failed due to conflicts.
  */
@@ -399,7 +408,7 @@ export function errorMigrationPlanningFailed(options: {
   return new CliStructuredError('MIGRATION.PLANNING_FAILED', 'Migration planning failed', {
     why: computedWhy,
     fix: computedFix,
-    meta: { conflicts: options.conflicts },
+    meta: { conflicts: options.conflicts.map(conflictJson) },
     docsUrl: docsUrlFor('MIGRATION.PLANNING_FAILED'),
   });
 }

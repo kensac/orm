@@ -2,10 +2,17 @@ import type { ContractWithDomain } from '@internal/contract/types';
 import {
   type AppliedMigrationStatement,
   describeMigrationStatement,
+  type MigrationStatementJson,
+  migrationStatementJson,
 } from '@internal/framework-components/control';
 
-/** A statement a plan applied, as the CLI reports it: the planner's entry and its description. */
-export interface AppliedStatementReport extends AppliedMigrationStatement {
+/**
+ * A statement a plan applied, as the CLI reports it: the statement as JSON output writes it, the
+ * ids of its operations, and its description.
+ */
+export interface AppliedStatementReport {
+  readonly statement: MigrationStatementJson;
+  readonly operationIds: readonly string[];
   /** The statement in domain names, for example `rename model "Profile" to "User"`. */
   readonly description: string;
 }
@@ -16,7 +23,8 @@ export function reportAppliedStatements(
   contract: ContractWithDomain,
 ): readonly AppliedStatementReport[] {
   return applied.map((entry) => ({
-    ...entry,
+    statement: migrationStatementJson(entry.statement),
+    operationIds: entry.operationIds,
     description: describeMigrationStatement(entry.statement, fromContract ?? contract, contract),
   }));
 }

@@ -6,6 +6,7 @@ import {
   type MigrationOperationClass,
   type MigrationOperationPolicy,
   type ModelCoordinate,
+  modelDisplayName,
   type ResolvedFieldRenameStatement,
   type ResolvedMigrationStatement,
   type ResolvedModelRenameStatement,
@@ -214,10 +215,6 @@ function statementRefused(
   };
 }
 
-function qualified(coordinate: ModelCoordinate): string {
-  return `${coordinate.namespaceId}.${coordinate.model}`;
-}
-
 function tableControlPolicy(contract: Contract<SqlStorage>, table: ModelTable) {
   const node = contract.storage.namespaces[table.namespaceId]?.entries.table?.[table.table];
   return controlPolicyForCall(
@@ -386,8 +383,8 @@ class StatementPlanner<TCall extends StatementCall> {
       return notOk(
         statementRefused(
           statement,
-          `Model "${qualified(worked.failure.model)}" has no table in its contract`,
-          `A model rename renames the model's table, and model "${qualified(worked.failure.model)}" has none in its contract. Leave out this statement.`,
+          `Model "${modelDisplayName(worked.failure.model)}" has no table in its contract`,
+          `A model rename renames the model's table, and model "${modelDisplayName(worked.failure.model)}" has none in its contract. Leave out this statement.`,
           undefined,
         ),
       );
@@ -398,7 +395,7 @@ class StatementPlanner<TCall extends StatementCall> {
       return notOk(
         statementRefused(
           statement,
-          `Moving a model to another namespace is not supported in this release: "${qualified(statement.from)}" to "${qualified(statement.to)}"`,
+          `Moving a model to another namespace is not supported in this release: "${modelDisplayName(statement.from)}" to "${modelDisplayName(statement.to)}"`,
           `The model's table would move from namespace "${effect.from.namespaceId}" to namespace "${effect.to.namespaceId}". Leave out this statement and move the table yourself in a hand-written migration, or keep the model in namespace "${effect.from.namespaceId}".`,
           effect.from,
         ),
@@ -437,8 +434,8 @@ class StatementPlanner<TCall extends StatementCall> {
       return notOk(
         statementRefused(
           statement,
-          `Model "${qualified(worked.failure.model)}" has no table in its contract`,
-          `A field rename renames the field's column, and model "${qualified(worked.failure.model)}" has no table in its contract. Leave out this statement.`,
+          `Model "${modelDisplayName(worked.failure.model)}" has no table in its contract`,
+          `A field rename renames the field's column, and model "${modelDisplayName(worked.failure.model)}" has no table in its contract. Leave out this statement.`,
           undefined,
         ),
       );
@@ -447,7 +444,7 @@ class StatementPlanner<TCall extends StatementCall> {
       return notOk(
         statementRefused(
           statement,
-          `Field "${qualified(statement.from)}.${statement.from.field}" has a column on one side only of ${describeMigrationStatement(statement, this.#fromContract, this.#contract)}`,
+          `Field "${modelDisplayName(statement.from)}.${statement.from.field}" has a column on one side only of ${describeMigrationStatement(statement, this.#fromContract, this.#contract)}`,
           'A field rename renames a column or changes nothing in storage, and this field gains or loses its column. Leave out this statement and plan the change without it.',
           undefined,
         ),

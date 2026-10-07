@@ -584,7 +584,7 @@ export function errorStatementInvalid(
     {
       why,
       fix,
-      nextActions: [chooseAction('Correct the statement')],
+      nextActions: [chooseAction(fix)],
       meta: { statement: statement.text, verb: statement.verb },
     },
   );
@@ -605,7 +605,7 @@ export function errorStatementUnresolved(
     {
       why,
       fix,
-      nextActions: [chooseAction('Correct the names in the statement')],
+      nextActions: [chooseAction(fix)],
       meta: { statement: statement.text, verb: statement.verb },
     },
   );

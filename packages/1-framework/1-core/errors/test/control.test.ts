@@ -1,4 +1,5 @@
 import type { ResolvedMigrationStatement } from '@internal/framework-components/control';
+import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { NextAction } from '@internal/utils/structured-error';
 import { docsUrlFor } from '@internal/utils/structured-error';
 import { describe, expect, it } from 'vitest';
@@ -363,17 +364,27 @@ describe('Config Errors', () => {
     expect(error.meta?.['conflicts']).toEqual(conflicts);
   });
 
-  it('errorMigrationPlanningFailed carries the statement a conflict refuses', () => {
-    const statement = {
+  it('errorMigrationPlanningFailed carries the statement a conflict refuses, as JSON output writes it', () => {
+    const refusedStatement = {
       kind: 'rename',
       entity: 'model',
-      from: { namespaceId: 'app', model: 'Profile' },
-      to: { namespaceId: 'app', model: 'User' },
+      from: { namespaceId: UNBOUND_NAMESPACE_ID, model: 'Profile' },
+      to: { namespaceId: UNBOUND_NAMESPACE_ID, model: 'User' },
     } as unknown as ResolvedMigrationStatement;
-    const conflicts = [{ kind: 'statementRefused', summary: 'Cannot rename', statement }];
-    const error = errorMigrationPlanningFailed({ conflicts });
+    const error = errorMigrationPlanningFailed({
+      conflicts: [{ kind: 'statementRefused', summary: 'Cannot rename', refusedStatement }],
+    });
     expect(error.meta?.['conflicts']).toEqual([
-      { kind: 'statementRefused', summary: 'Cannot rename', statement },
+      {
+        kind: 'statementRefused',
+        summary: 'Cannot rename',
+        refusedStatement: {
+          kind: 'rename',
+          entity: 'model',
+          from: { model: 'Profile' },
+          to: { model: 'User' },
+        },
+      },
     ]);
   });
 

@@ -1,4 +1,5 @@
 import type { ContractWithDomain, NamespaceId } from '@internal/contract/types';
+import { UNBOUND_NAMESPACE_ID } from '../ir/namespace';
 
 /** A model: its namespace and its name as the contract source writes it, never a table name. */
 export interface ModelCoordinate {
@@ -47,10 +48,63 @@ export interface AppliedMigrationStatement {
   readonly operationIds: readonly string[];
 }
 
+/**
+ * A model's name in messages: `namespace.Model`, or `Model` alone in the unbound namespace, whose
+ * id is internal.
+ */
+export function modelDisplayName(coordinate: ModelCoordinate): string {
+  return coordinate.namespaceId === UNBOUND_NAMESPACE_ID
+    ? coordinate.model
+    : `${coordinate.namespaceId}.${coordinate.model}`;
+}
+
 function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
   return Object.keys(contract.domain.namespaces).length > 1
-    ? `${coordinate.namespaceId}.${coordinate.model}`
+    ? modelDisplayName(coordinate)
     : coordinate.model;
+}
+
+/** A model coordinate in JSON output: `namespaceId` is left out for the unbound namespace. */
+export interface ModelCoordinateJson {
+  readonly namespaceId?: NamespaceId;
+  readonly model: string;
+}
+
+/** A field coordinate in JSON output: `namespaceId` is left out for the unbound namespace. */
+export interface FieldCoordinateJson extends ModelCoordinateJson {
+  readonly field: string;
+}
+
+/** A resolved statement in JSON output, with each coordinate written as `*CoordinateJson`. */
+export type MigrationStatementJson =
+  | {
+      readonly kind: 'rename';
+      readonly entity: 'model';
+      readonly from: ModelCoordinateJson;
+      readonly to: ModelCoordinateJson;
+    }
+  | {
+      readonly kind: 'rename';
+      readonly entity: 'field';
+      readonly from: FieldCoordinateJson;
+      readonly to: FieldCoordinateJson;
+    };
+
+function coordinateJson<T extends ModelCoordinate>(
+  coordinate: T,
+): Omit<T, 'namespaceId'> & ModelCoordinateJson {
+  if (coordinate.namespaceId !== UNBOUND_NAMESPACE_ID) return coordinate;
+  const { namespaceId: _unbound, ...rest } = coordinate;
+  return rest;
+}
+
+/** The statement as JSON output writes it. */
+export function migrationStatementJson(
+  statement: ResolvedMigrationStatement,
+): MigrationStatementJson {
+  return statement.entity === 'model'
+    ? { ...statement, from: coordinateJson(statement.from), to: coordinateJson(statement.to) }
+    : { ...statement, from: coordinateJson(statement.from), to: coordinateJson(statement.to) };
 }
 
 /**
