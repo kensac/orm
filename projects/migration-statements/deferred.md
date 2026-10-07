@@ -31,3 +31,9 @@ On SQL a statement names the model's field (`User.fullName`), and the storage br
 **Found:** slice 1, whole-slice architect review (2026-10-07). For slice 2 and slice 4.
 
 Project requirement 10 says drops that lose no data are widening on every target. Slice 1 reclassified them on Postgres and SQLite only; the MongoDB planner still classes an index drop as `destructive`. Slice 2's refusal must not refuse a drop no statement can resolve, so either slice 2 reclassifies Mongo's index drops first or slice 4 does it before Mongo statements ship.
+
+## A SQLite column rename followed by a table rebuild builds the replacement index twice
+
+**Found:** slice 1, whole-slice code review (2026-10-07), finding F04.
+
+When one plan renames a column on SQLite and a later step rebuilds the same table, the column rename's companion index replacement (drop and create) runs, then the rebuild creates the index again. Rows are kept; one index build is wasted. Removing the companion would need the planner to rewrite statement calls after the diff, and then re-running `migration.ts` (whose `renameColumn` cannot see the later rebuild) would no longer reproduce `ops.json`. Fixing it properly needs operations that carry dependency information, which the design notes already name as a direction.
