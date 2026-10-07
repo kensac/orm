@@ -1685,7 +1685,7 @@ namespace app {
       ['title', 'title'],
       ['slug', 'slug'],
       ['wildcard', `wildcard(${emptySnippetPlaceholder1})`],
-      ['sort', 'sort(${1:field}, ${2:direction})'],
+      ['sort', 'sort($' + '{1:field}, $' + '{2:direction})'],
     ]);
     expect(
       completeWithActualStack(schema('[sort(|)]'), stack).items.map((item) => item.label),
@@ -1711,7 +1711,7 @@ namespace app {
     ).toEqual([
       ['scopedOnly', 'scopedOnly'],
       ['wildcard', `wildcard(${emptySnippetPlaceholder1})`],
-      ['sort', 'sort(${1:field}, ${2:direction})'],
+      ['sort', 'sort($' + '{1:field}, $' + '{2:direction})'],
     ]);
     expect(
       completeWithActualStack(schema.replace('[|]', '[sort(|)]'), stack).items.map(
