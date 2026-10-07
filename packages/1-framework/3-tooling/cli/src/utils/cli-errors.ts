@@ -704,7 +704,7 @@ export function errorStatementOriginUnknown(origin: {
 }
 
 /** Where a `migration plan` leg plans from: an empty database, an empty database toward the `db` ref's contract (the automatic baseline), or an earlier contract. */
-export type PlanOrigin =
+export type PlanLegOrigin =
   | { readonly kind: 'empty' }
   | { readonly kind: 'baseline'; readonly hash: string }
   | { readonly kind: 'contract'; readonly hash: string };
@@ -718,7 +718,10 @@ export interface PlanDestination {
 const REPORT_MISSED_CHANGE =
   'If you expected the database to change, migration plan missed it: report it with the output of `prisma migration plan --json`.';
 
-function noOperationsConflict(origin: PlanOrigin, destination: PlanDestination): CliErrorConflict {
+function noOperationsConflict(
+  origin: PlanLegOrigin,
+  destination: PlanDestination,
+): CliErrorConflict {
   switch (origin.kind) {
     case 'empty':
       return {
@@ -749,7 +752,7 @@ function noOperationsConflict(origin: PlanOrigin, destination: PlanDestination):
 
 /** `migration plan` refuses a leg whose planner produced no operations, and says how to proceed from where it planned. */
 export function errorPlanProducedNoOperations(
-  origin: PlanOrigin,
+  origin: PlanLegOrigin,
   destination: PlanDestination,
 ): CliStructuredError {
   return errorMigrationPlanningFailed({ conflicts: [noOperationsConflict(origin, destination)] });

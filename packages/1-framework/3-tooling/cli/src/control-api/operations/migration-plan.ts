@@ -39,7 +39,7 @@ import {
   errorPlanProducedNoOperations,
   errorTargetMigrationNotSupported,
   type PlanDestination,
-  type PlanOrigin,
+  type PlanLegOrigin,
 } from '../../utils/cli-errors';
 import {
   getTargetMigrations,
@@ -129,9 +129,9 @@ const EMPTY_ORIGIN: ContractWithDomain = { domain: { namespaces: {} } };
 type TargetMigrationsApi = NonNullable<ReturnType<typeof getTargetMigrations>>;
 
 /** A plan origin whose earlier contract the planner diffs against. */
-type PlannerLegOrigin =
-  | Exclude<PlanOrigin, { readonly kind: 'contract' }>
-  | (Extract<PlanOrigin, { readonly kind: 'contract' }> & { readonly contract: Contract });
+type PlanLegOriginWithContract =
+  | Exclude<PlanLegOrigin, { readonly kind: 'contract' }>
+  | (Extract<PlanLegOrigin, { readonly kind: 'contract' }> & { readonly contract: Contract });
 
 /**
  * Why a planner leg failed: the planner refused (a conflict, such as a refused statement), or it
@@ -147,7 +147,7 @@ async function runPlannerLeg(
   migrations: TargetMigrationsApi,
   frameworkComponents: ReturnType<typeof assertFrameworkComponentsCompatible>,
   contract: Contract,
-  origin: PlannerLegOrigin,
+  origin: PlanLegOriginWithContract,
   destination: PlanDestination,
   statements: readonly ResolvedMigrationStatement[],
   /**
@@ -548,7 +548,7 @@ async function executeMigrationPlanCommandInner(
       break;
   }
   const resolvedFrom = resolutionResult.value;
-  const fromOrigin: PlannerLegOrigin =
+  const fromOrigin: PlanLegOriginWithContract =
     resolvedFrom.kind === 'greenfield'
       ? { kind: 'empty' }
       : {
