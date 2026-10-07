@@ -4,17 +4,39 @@
 
 A model maps to a table, and the table may hold columns the model does not map. A table may have no model at all. Such storage is declared in storage terms, next to the models, and migrations manage it like any other. The ORM reads, writes and types only the columns a model's fields map.
 
+There are two authoring surfaces and each gets two forms, one for a modelled table's extra columns and one for a table with no model. The four forms lower to the same storage.
+
+In Prisma 8 PSL, an `sql { }` block inside a model and a `table` block beside models:
+
+```prisma
+model User {
+  id    Int    @id
+  email String @unique
+
+  sql {
+    legacy_key pg/text?            // in the table, migrated with it; no field maps it
+  }
+}
+
+table audit_rows {                 // a table no model maps
+  id          pg/int4 @id
+  recorded_at pg/timestamptz
+}
+```
+
+In TypeScript, `columns` in a model's `.sql({ ... })` and a `table(...)` declaration beside models:
+
 ```ts
 const User = model('User', {
   id:    field.int().id(),
   email: field.text().unique(),
 }).sql({
   columns: {
-    legacy_key: column(textColumn).nullable(),        // in the table, migrated with it; no field maps it
+    legacy_key: column(textColumn).nullable(),
   },
 });
 
-const AuditRows = table('audit_rows', {                 // a table no model maps
+const AuditRows = table('audit_rows', {
   columns: {
     id:          column(int4Column),
     recorded_at: column(timestamptzColumn),
@@ -22,6 +44,11 @@ const AuditRows = table('audit_rows', {                 // a table no model maps
   id: { columns: ['id'] },
 });
 ```
+
+| | A modelled table's extra columns | A table with no model |
+|---|---|---|
+| Prisma 8 PSL | `sql { }` block inside the `model` | `table` block beside models |
+| TypeScript | `columns` in `.sql({ ... })` | `table(...)` beside models |
 
 A contract has two halves. Storage lists tables, columns, keys and constraints. Domain lists models, fields and relations, and each field names the column that holds it. The declarations above lower to:
 
@@ -50,15 +77,17 @@ Every database holds objects the application must not touch: a column kept for a
 
 The separation of storage from domain exists for this. Storage is what the migration system receives, and it must be complete and unambiguous on its own. Domain is what the application sees. A column the application must not see is a storage fact with no domain counterpart, and the authoring surface says exactly that: it describes the table, not a field the model is told to hide.
 
-## Declaring storage as storage
+## The four forms
 
-A model's `.sql({ ... })` section already describes the model's table rather than the model: its name, its control policy, its indexes, checks and foreign keys. It gains `columns`, the columns the table holds beyond those the model's fields map. A column there is written in storage terms: a column name, a storage type, nullability, an optional database default, and an optional control policy that defaults to the table's. It has no field name, because there is no field, and it never carries an execution default, because nothing writes it.
+A model's `.sql({ ... })` section already describes the model's table rather than the model: its name, its control policy, its indexes, checks and foreign keys. It gains `columns`, the columns the table holds beyond those the model's fields map. The PSL `sql { }` block inside a `model` is the same section in PSL. A column in either is written in storage terms: a column name, a storage type such as `pg/text`, nullability, an optional database default, and an optional control policy that defaults to the table's. It has no field name, because there is no field, and it never carries an execution default, because nothing writes it. The column type is a storage type, not a Prisma scalar, because there is no field to resolve a scalar through.
 
-A table no model maps is declared with `table(...)` beside the models, with the same storage vocabulary: columns, primary key, uniques, indexes, checks, foreign keys and control policy. A foreign key from such a table to a modelled one, or from an extra column to anywhere, is a foreign key in storage, resolved by table and column name; it is never a relation, because there is no model to relate.
+A table no model maps is declared with `table(...)` beside the models in TypeScript and with a `table` block in PSL, in the family of storage-only blocks such as `native_enum` and `role`. Both carry the same storage vocabulary: columns, primary key, uniques, indexes, checks, foreign keys and control policy. A foreign key from such a table to a modelled one, or from an extra column to anywhere, is a foreign key in storage, resolved by table and column name; it is never a relation, because there is no model to relate.
 
-Prisma 8 PSL gets the same two forms: an `sql { }` block inside a `model`, and a `table` block beside models, in the family of storage-only blocks such as `native_enum` and `role`. Each must lower to the same storage as its TypeScript twin, under the parity rule of ADR 096. A `table` block naming a table a model maps is refused; a modelled table's extra columns go in that model's `sql { }` block, so one declaration owns each table's table-level properties.
+Each PSL form must lower to the same storage as its TypeScript twin, under the parity rule of ADR 096. A `table` block or declaration naming a table a model maps is refused; a modelled table's extra columns go in that model's `sql` section, so one declaration owns each table's table-level properties.
 
 One rule holds across every surface: each column of a table is declared exactly once, either by a field or in the storage declaration, never both.
+
+The other two forms that were considered for PSL are in the alternatives: a field on the model with a column-level policy, and a `table` block for a modelled table's extra columns.
 
 ## How a contract is assembled
 
@@ -106,6 +135,8 @@ Who manages the storage is a separate question from whether the application sees
 ## Alternatives considered
 
 - **A field the model is told to hide.** A flag on a field node, or `@ignore` as a Prisma 8 attribute, describes storage as domain with a negation. It needs a model to carry it, so a table with no model becomes a model with invented field names, and the vocabulary names the thing by what the ORM refuses to do. Storage declared as storage needs neither.
+- **A field on the model with a column-level policy**, such as `legacy_id unknown @control(external)` among the fields. A field is part of the query API, so the column would appear in the client with no usable type; and it says nothing about a table with no model.
+- **A `table` block beside the model for a modelled table's extra columns.** Two blocks would then describe one table, each able to state table-level properties such as control policy, and both would have to be kept in step. The `sql { }` block inside the model keeps one declaration per table and mirrors the TypeScript `.sql({ ... })` section, so both surfaces keep one shape. The `table` block is kept for the case it is needed for: a table with no model.
 - **A flag on storage tables and columns.** Storage would record a decision the ORM makes, the two halves could disagree, and the storage hash would change when exposure changed, so every `@ignore` edit would plan a migration.
 - **Control policy instead of exposure.** Marking the objects `tolerated` or `external` satisfies verify, but those policies mean migrations do not manage the object, and an ignored column is managed. The two answer different questions and both are needed.
 - **Leaving the objects out of the contract and verifying leniently.** The planner then treats them as foreign, dropping or re-creating them as the schema edits around them, and strict verify can never pass.
