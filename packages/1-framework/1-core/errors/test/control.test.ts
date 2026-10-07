@@ -396,6 +396,16 @@ describe('Config Errors', () => {
     ]);
   });
 
+  it('errorMigrationPlanningFailed keeps the namespace of a location in a named namespace', () => {
+    const location = { namespaceId: 'auth', entityKind: 'table', entityName: 'users' };
+    const error = errorMigrationPlanningFailed({
+      conflicts: [{ kind: 'statementRefused', summary: 'Cannot rename', location }],
+    });
+    expect(error.meta?.['conflicts']).toEqual([
+      { kind: 'statementRefused', summary: 'Cannot rename', location },
+    ]);
+  });
+
   it('errorMigrationPlanningFailed with custom why', () => {
     const conflicts = [{ kind: 'conflict-1', summary: 'Summary 1' }];
     const error = errorMigrationPlanningFailed({ conflicts, why: 'Custom reason' });
