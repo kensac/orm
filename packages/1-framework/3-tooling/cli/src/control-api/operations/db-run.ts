@@ -20,7 +20,6 @@ import type {
 import {
   CONTRACT_SNAPSHOTS_DIRNAME,
   hasOperationPreview,
-  hasOperationStorageNaming,
   isStorageHashHex,
 } from '@internal/framework-components/control';
 import type { ContractMarkerRecordLike } from '@internal/migration-tools/aggregate';
@@ -285,11 +284,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       : undefined;
   const subjects =
     action === 'dbUpdate'
-      ? planSubjects(orderedResolutions, (operation) =>
-          hasOperationStorageNaming(familyInstance)
-            ? familyInstance.storageNameOf(operation)
-            : operation.id,
-        )
+      ? planSubjects(orderedResolutions, (operation) => familyInstance.storageNameOf(operation))
       : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.

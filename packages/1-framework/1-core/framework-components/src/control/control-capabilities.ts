@@ -104,20 +104,6 @@ export function hasOperationPreview<TFamilyId extends string, TSchemaIR>(
 }
 
 /**
- * Capability declaring that a family can name the storage object an operation is about, as the
- * database knows it, for an operation of a recorded migration that no planner mapped to a model.
- */
-export interface OperationStorageNaming {
-  storageNameOf(operation: MigrationPlanOperation): string;
-}
-
-export function hasOperationStorageNaming<TFamilyId extends string, TSchemaIR>(
-  instance: ControlFamilyInstance<TFamilyId, TSchemaIR>,
-): instance is ControlFamilyInstance<TFamilyId, TSchemaIR> & OperationStorageNaming {
-  return typeof Reflect.get(instance, 'storageNameOf') === 'function';
-}
-
-/**
  * The granularity of a {@link SchemaDiffIssue}'s subject, resolved on demand
  * from the issue's node `nodeKind` — never stamped on the issue or the node.
  *

@@ -7,6 +7,7 @@ import type {
   TargetBoundComponentDescriptor,
   TargetInstance,
 } from '../shared/framework-components';
+import type { MigrationPlanOperation } from './control-migration-types';
 import type {
   SpaceSignature,
   SpaceToSign,
@@ -25,6 +26,12 @@ export interface ControlFamilyInstance<TFamilyId extends string, TSchemaIR>
    * `pnpm lint:no-contract-cast`.
    */
   deserializeContract(contractJson: unknown): Contract;
+
+  /**
+   * The name the database knows the object an operation is about by, for an operation of a
+   * recorded migration that no planner mapped to a model.
+   */
+  storageNameOf(operation: MigrationPlanOperation): string;
 
   verify(options: {
     readonly driver: ControlDriverInstance<TFamilyId, string>;

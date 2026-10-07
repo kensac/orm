@@ -11,7 +11,6 @@ export type {
   DiffSubjectGranularity,
   MigratableTargetDescriptor,
   OperationPreviewCapable,
-  OperationStorageNaming,
   PslContractBuildCapable,
   PslContractDocument,
   PslContractInferCapable,
@@ -22,7 +21,6 @@ export type {
 export {
   hasMigrations,
   hasOperationPreview,
-  hasOperationStorageNaming,
   hasPslContractBuild,
   hasPslContractInfer,
   hasSchemaSubjectClassifier,
