@@ -132,18 +132,24 @@ function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoor
   return typeof collection === 'string' ? collection : coordinate.model;
 }
 
-/** The model of `fromContract` that stores its documents in `collection`, if any. */
+/**
+ * The model of `fromContract` that stores its documents in `collection`, if any: the root model
+ * when variants share the collection with it.
+ */
 function modelStoredIn(
   fromContract: ContractWithDomain,
   collection: string,
 ): ModelCoordinate | undefined {
-  for (const [namespaceId, namespace] of Object.entries(fromContract.domain.namespaces)) {
-    for (const model of Object.keys(namespace.models)) {
-      const coordinate = { namespaceId: asNamespaceId(namespaceId), model };
-      if (collectionOf(fromContract, coordinate) === collection) return coordinate;
-    }
-  }
-  return undefined;
+  const storing = Object.entries(fromContract.domain.namespaces).flatMap(
+    ([namespaceId, namespace]) =>
+      Object.entries(namespace.models).flatMap(([model, definition]) => {
+        const coordinate = { namespaceId: asNamespaceId(namespaceId), model };
+        return collectionOf(fromContract, coordinate) === collection
+          ? [{ coordinate, isRoot: definition.base === undefined }]
+          : [];
+      }),
+  );
+  return (storing.find(({ isRoot }) => isRoot) ?? storing[0])?.coordinate;
 }
 
 /** Each collection drop of the plan, with the model whose documents it loses. */

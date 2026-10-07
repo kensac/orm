@@ -135,4 +135,35 @@ describe('planSubjects', () => {
       ],
     });
   });
+
+  describe('models that share a table', () => {
+    const sharing = contractOf({
+      Admin: { table: 'users', base: 'User', fields: { id: 'id', level: 'level' } },
+      Guest: { table: 'users', base: 'User', fields: { id: 'id' } },
+      User: { table: 'users', fields: { id: 'id', email: 'email' } },
+    });
+
+    it('names the root model of a dropped table, and the model with a field for a dropped column', () => {
+      expect(
+        planSubjects([losing(table('users')), losing(column('users', 'email'))], {
+          fromContract: sharing,
+          contract: sharing,
+          statements: [],
+        }).dataLoss.map(({ subject }) => subject),
+      ).toEqual([
+        { kind: 'model', namespaceId: app, model: 'User' },
+        { kind: 'field', namespaceId: app, model: 'User', field: 'email' },
+      ]);
+    });
+
+    it('names a field only a variant has through the variant', () => {
+      expect(
+        planSubjects([losing(column('users', 'level'))], {
+          fromContract: sharing,
+          contract: sharing,
+          statements: [],
+        }).dataLoss.map(({ subject }) => subject),
+      ).toEqual([{ kind: 'field', namespaceId: app, model: 'Admin', field: 'level' }]);
+    });
+  });
 });

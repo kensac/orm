@@ -2,8 +2,10 @@ import { asNamespaceId, type ContractWithDomain } from '@internal/contract/types
 import type {
   MigrationOperationSubject,
   MigrationStatementSubject,
+  ModelCoordinate,
   ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
+import type { SqlModelStorage } from '@internal/sql-contract/types';
 import {
   fieldRenameStorageEffect,
   isSqlModelStorage,
@@ -84,6 +86,34 @@ function originColumn(
   return column;
 }
 
+interface StoringModel {
+  readonly coordinate: ModelCoordinate;
+  readonly isRoot: boolean;
+  readonly fields: SqlModelStorage['fields'];
+}
+
+/** The models of `contract` that store `table`: a model and its variants share one. */
+function modelsStoring(
+  contract: ContractWithDomain,
+  namespaceId: string,
+  table: string,
+): readonly StoringModel[] {
+  return Object.entries(contract.domain.namespaces).flatMap(([modelNamespace, namespace]) =>
+    Object.entries(namespace.models).flatMap(([model, definition]) => {
+      const { storage } = definition;
+      if (!isSqlModelStorage(storage)) return [];
+      if (storage.namespaceId !== namespaceId || storage.table !== table) return [];
+      return [
+        {
+          coordinate: { namespaceId: asNamespaceId(modelNamespace), model },
+          isRoot: definition.base === undefined,
+          fields: storage.fields,
+        },
+      ];
+    }),
+  );
+}
+
 function subjectOf(target: SubjectTarget, context: SubjectContext): MigrationStatementSubject {
   const storage: MigrationStatementSubject = { kind: 'storage', name: target.storageName };
   const { fromContract } = context;
@@ -91,18 +121,15 @@ function subjectOf(target: SubjectTarget, context: SubjectContext): MigrationSta
   const withOrigin = { ...context, fromContract };
   const { namespaceId } = target.table;
   const table = originTable(withOrigin, namespaceId, target.table.table);
-  for (const [modelNamespace, namespace] of Object.entries(fromContract.domain.namespaces)) {
-    for (const [model, { storage: modelStorage }] of Object.entries(namespace.models)) {
-      if (!isSqlModelStorage(modelStorage)) continue;
-      if (modelStorage.namespaceId !== namespaceId || modelStorage.table !== table) continue;
-      const coordinate = { namespaceId: asNamespaceId(modelNamespace), model };
-      if (target.table.column === undefined) return { kind: 'model', ...coordinate };
-      const column = originColumn(withOrigin, namespaceId, table, target.table.column);
-      const field = Object.entries(modelStorage.fields).find(
-        ([, stored]) => stored.column === column,
-      )?.[0];
-      return field === undefined ? storage : { kind: 'field', ...coordinate, field };
-    }
+  const models = modelsStoring(fromContract, namespaceId, table);
+  if (target.table.column === undefined) {
+    const model = models.find(({ isRoot }) => isRoot) ?? models[0];
+    return model === undefined ? storage : { kind: 'model', ...model.coordinate };
+  }
+  const column = originColumn(withOrigin, namespaceId, table, target.table.column);
+  for (const model of [...models].sort((a, b) => Number(b.isRoot) - Number(a.isRoot))) {
+    const field = Object.entries(model.fields).find(([, stored]) => stored.column === column)?.[0];
+    if (field !== undefined) return { kind: 'field', ...model.coordinate, field };
   }
   return storage;
 }

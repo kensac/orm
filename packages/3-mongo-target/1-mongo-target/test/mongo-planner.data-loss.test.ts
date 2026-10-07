@@ -11,7 +11,11 @@ const ALL_CLASSES_POLICY: MigrationOperationPolicy = {
 };
 
 /** A contract whose models each store their documents in the named collection. */
-function contractWith(models: Readonly<Record<string, string>>, seed: string): MongoContract {
+function contractWith(
+  models: Readonly<Record<string, string>>,
+  seed: string,
+  bases: Readonly<Record<string, string>> = {},
+): MongoContract {
   return {
     target: 'mongo',
     targetFamily: 'mongo',
@@ -26,7 +30,14 @@ function contractWith(models: Readonly<Record<string, string>>, seed: string): M
           models: Object.fromEntries(
             Object.entries(models).map(([model, collection]) => [
               model,
-              { fields: {}, relations: {}, storage: { collection } },
+              {
+                fields: {},
+                relations: {},
+                storage: { collection },
+                ...(bases[model] === undefined
+                  ? {}
+                  : { base: { namespace: '__unbound__', model: bases[model] } }),
+              },
             ]),
           ),
         },
@@ -95,8 +106,35 @@ describe('MongoDB planner, data loss', () => {
   });
 
   it('names the collection by its name when the plan has no origin contract', () => {
-    expect(plan(null).dataLoss).toEqual([
-      { operationIndex: expect.any(Number), subject: { kind: 'storage', name: 'events' } },
+    const planned = plan(null);
+    expect(
+      planned.dataLoss.map(({ operationIndex, subject }) => ({
+        operation: planned.operations[operationIndex],
+        subject,
+      })),
+    ).toEqual([
+      { operation: 'Drop collection events', subject: { kind: 'storage', name: 'events' } },
+    ]);
+  });
+
+  it('names the root model when a variant shares the dropped collection', () => {
+    const fromContract = contractWith(
+      { Meeting: 'events', User: 'users', Event: 'events' },
+      'from',
+      { Meeting: 'Event' },
+    );
+    const planned = plan(fromContract);
+
+    expect(
+      planned.dataLoss.map(({ operationIndex, subject }) => ({
+        operation: planned.operations[operationIndex],
+        subject,
+      })),
+    ).toEqual([
+      {
+        operation: 'Drop collection events',
+        subject: { kind: 'model', namespaceId: asNamespaceId('__unbound__'), model: 'Event' },
+      },
     ]);
   });
 });
