@@ -212,7 +212,7 @@ describe('Postgres planner, field statements', () => {
         kind: 'statementRefused',
         refusedStatement: statement,
         why: expect.stringContaining(
-          'with ...this.renameTable({ table: "Profile", to: "User" }) in its own migration.ts',
+          'add ...this.renameTable({ table: "Profile", to: "User" }) to the operations of its migration.ts',
         ),
       }),
     ]);

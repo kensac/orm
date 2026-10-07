@@ -463,7 +463,7 @@ class StatementPlanner<TCall extends StatementCall> {
         statementRefused(
           statement,
           `Cannot rename column "${table}"."${effect.from}": the model's table changes from "${table}" to "${destinationTable.table}", and no statement renames the table`,
-          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Instead, rename the table by hand first, with ${this.#target.renderTableRename({ namespaceId: effect.table.namespaceId, from: table, to: destinationTable.table })} in its own migration.ts, then plan the field rename on top of it.`,
+          `The column would be renamed on a table the plan then drops and creates under the new name, and a migration that only changes the table name is planned the same way. Rename the table by hand in its own migration first. Change the contract so that only the table name changes, and run prisma contract emit. Run prisma migration new --name <name> --from <hash of the migration the database is at>, add ${this.#target.renderTableRename({ namespaceId: effect.table.namespaceId, from: table, to: destinationTable.table })} to the operations of its migration.ts, and run node on that migration.ts to write its ops.json. Then change the contract to its final form, emit it, and plan the field rename with --from that migration.`,
           { namespaceId: effect.table.namespaceId, table, column: effect.from },
         ),
       );

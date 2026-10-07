@@ -213,7 +213,7 @@ describe('planStatements, field renames', () => {
         'Cannot rename column "users"."name": the model\'s table changes from "users" to "app_users", and no statement renames the table',
     });
     expect(conflict.why).toContain(
-      'rename the table by hand first, with renameTable app.users -> app_users in its own migration.ts',
+      'Rename the table by hand in its own migration first. Change the contract so that only the table name changes, and run prisma contract emit. Run prisma migration new --name <name> --from <hash of the migration the database is at>, add renameTable app.users -> app_users to the operations of its migration.ts, and run node on that migration.ts to write its ops.json. Then change the contract to its final form, emit it, and plan the field rename with --from that migration.',
     );
   });
 
