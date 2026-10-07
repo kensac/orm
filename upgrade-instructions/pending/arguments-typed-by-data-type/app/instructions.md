@@ -55,6 +55,9 @@ Update an assertion on the span or range of one of these diagnostics to the writ
 | `embed pgvector.Vector(3) @default([1, "x", 3])` | `Field "N.embed" at element 2: pgvector/vector has no cast from pg/text; it casts from pg/int2, pg/int4, pg/int8, pg/numeric` | `Field "N.embed" at element 2: Expected a number` |
 | `active Int @default(true)` on SQLite | `Field "N.active": this target has no data type for a boolean value` | `Field "N.active": Expected a number; this target has no data type for a boolean value` |
 | ``v String @default(pg.sql`x`)`` | `Unknown literal tag "pg.sql". Known tags: sql, json.` | `Field "N.v": Unknown literal tag "pg.sql". Known tags: sql, json.` |
+| ``tags String[] @default([sql`'a'`])`` | `Field "Post.tags" at element 1: pg/text has no cast from sql/expression; it casts from nothing` | `Field "Post.tags" at element 1: Expected a quoted string` |
+| `enum P { @@type("pg/text@1") Low = 1 }` | `enum "P" member "Low": pg/text has no cast from pg/int2; it casts from nothing` | `enum "P" member "Low": Expected a quoted string` |
+| `enum P { Low = 3000000000 }`, an enum without `@@type` | `enum "P" member "Low": pg/int4 has no cast from pg/int8; it casts from pg/int2` | `enum "P" member "Low": Expected a number that pg/int4 can hold; got pg/int8` |
 
 Update an assertion on one of these messages to the new text.
 
