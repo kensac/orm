@@ -20,7 +20,7 @@ changes:
         - '\b(context|stack)\.dataTypeLookup\b'
   - id: print-path-carries-data-types
     summary: |
-      `SqlPslBuildContext` replaces `dataTypeLookup` and `authoringContributions.dataTypes` with `dataTypes: DataTypeSupport`. `DefaultMappingOptions` replaces `dataTypeEntries` and its lookup-only `dataTypes` with `dataTypes: DataTypeSupport`.
+      `SqlPslBuildContext` replaces `dataTypeLookup` and `authoringContributions.dataTypes` with `dataTypes: DataTypeSupport`. `DefaultMappingOptions` replaces `dataTypeEntries` and `dataTypeLookup` with `dataTypes: DataTypeSupport`.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -134,18 +134,18 @@ A test that passed a lookup without entries passes `{ entries: {}, lookup }`. Co
 
 ## The contract print path carries the data types as one pair
 
-`SqlPslBuildContext`, which a target's `buildPslContract` receives, carries `dataTypes: DataTypeSupport` from `stack.dataTypes` in place of `dataTypeLookup`, and its `authoringContributions` no longer includes `dataTypes`. `DefaultMappingOptions`, which `mapDefault` takes, had `dataTypeEntries` beside a `dataTypes` that was only the lookup; it now has one `dataTypes: DataTypeSupport`.
+`SqlPslBuildContext`, which a target's `buildPslContract` receives, carries `dataTypes: DataTypeSupport` from `stack.dataTypes` in place of `dataTypeLookup`, and its `authoringContributions` no longer includes `dataTypes`. `DefaultMappingOptions`, which `mapDefault` takes, had `dataTypeEntries` beside `dataTypeLookup`; it now has one `dataTypes: DataTypeSupport`.
 
 ```diff
   mapDefault(columnDefault, {
 -   dataTypeEntries: context.authoringContributions.dataTypes,
--   dataTypes: context.dataTypeLookup,
+-   dataTypeLookup: context.dataTypeLookup,
 +   dataTypes: context.dataTypes,
     columnCodec,
   });
 ```
 
-A hand-built `SqlPslBuildContext` or `DefaultMappingOptions` passes `dataTypes: { entries, lookup }`. Code that read `options.dataTypes.get(...)` reads `options.dataTypes.lookup.get(...)`.
+A hand-built `SqlPslBuildContext` or `DefaultMappingOptions` passes `dataTypes: { entries, lookup }`. Code that read `options.dataTypeLookup.get(...)` reads `options.dataTypes.lookup.get(...)`.
 
 ## `oneOf` returns the result of the alternative that claims the argument
 
@@ -169,7 +169,7 @@ The body is what is written between the quotes; the text is the canonical value.
 | --- | --- |
 | `TaggedLiteralCanonicalization` `{ ok: true, body }`, from `canonicalizeTaggedLiteralBody` | `{ ok: true, text }` |
 | `TaggedLiteralExprAst.body()` | `TaggedLiteralExprAst.text()` |
-| `parseJsonBody`, `printJsonBody` from `@internal/sql-relational-core/ast` | `parseJsonText`, `printJsonText` from `@internal/sql-contract/data-type-support` |
+| `parseJsonBody`, `printJsonBody` from `@internal/sql-contract/data-type-support` | `parseJsonText`, `printJsonText` from `@internal/sql-contract/data-type-support` |
 | `checkSqlDefaultBody`, `reservedSqlDefaultBody` from `@internal/sql-contract/validators` (and `checkSqlDefaultBody` from `@internal/family-sql/control`) | `checkSqlDefaultText`, `reservedSqlDefaultText` |
 
 An entry that registers the `json` tag changes its imports:
@@ -201,5 +201,8 @@ The list arm of `@default` no longer offers `sql` as an element, so its label is
 | `embed pgvector.Vector(3) @default([1, "x", 3])` | `Field "N.embed" at element 2: pgvector/vector has no cast from pg/text; it casts from pg/int2, pg/int4, pg/int8, pg/numeric` | `Field "N.embed" at element 2: Expected a number` |
 | `active Int @default(true)` on SQLite | `Field "N.active": this target has no data type for a boolean value` | `Field "N.active": Expected a number; this target has no data type for a boolean value` |
 | ``v String @default(pg.sql`x`)`` | `Unknown literal tag "pg.sql". Known tags: sql, json.` | `Field "N.v": Unknown literal tag "pg.sql". Known tags: sql, json.` |
+| ``tags String[] @default([sql`'a'`])`` | `Field "Post.tags" at element 1: pg/text has no cast from sql/expression; it casts from nothing` | `Field "Post.tags" at element 1: Expected a quoted string` |
+| `enum P { @@type("pg/text@1") Low = 1 }` | `enum "P" member "Low": pg/text has no cast from pg/int2; it casts from nothing` | `enum "P" member "Low": Expected a quoted string` |
+| `enum P { Low = 3000000000 }`, an enum without `@@type` | `enum "P" member "Low": pg/int4 has no cast from pg/int8; it casts from pg/int2` | `enum "P" member "Low": Expected a number that pg/int4 can hold; got pg/int8` |
 
 Update an assertion on one of these messages to the new text.
