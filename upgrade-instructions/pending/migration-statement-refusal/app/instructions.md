@@ -14,7 +14,7 @@ changes:
 
 ## `destructive-means-data-loss`
 
-The planner and the migration factories now class an operation as `destructive` only when it can lose rows or values. An operation that fails rather than losing a value is `widening`: `SET NOT NULL` fails on a NULL, and a MongoDB validator applies only to later writes. `prisma migration status` counts fewer destructive operations, and `prisma db update` asks for consent less often.
+The planner and the migration factories now class an operation as `destructive` only when it can lose rows or values. An operation that fails rather than losing a value is `widening`: `SET NOT NULL` fails on a NULL, and a MongoDB validator applies only to later writes. `prisma migration show` marks fewer operations with ⚠, `prisma migration plan` and `prisma db update` print the data-loss warning less often, and `prisma db update` asks for consent less often.
 
 A migration that is already applied needs nothing: `prisma db migrate` applies its `ops.json` as written, and the database ledger records the migration by its hash.
 
