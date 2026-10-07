@@ -1,13 +1,15 @@
-import {
+import postgresAdapterControl, {
   createPostgresBuiltinCodecLookup,
   PostgresControlAdapter,
 } from '@internal/adapter-postgres/control';
-import { postgresRenderDefault } from '@internal/target-postgres/control';
+import pgvector from '@internal/extension-pgvector/control';
+import sqlFamilyControl from '@internal/family-sql/control';
+import { createControlStack } from '@internal/framework-components/control';
+import postgresTargetControl, { postgresRenderDefault } from '@internal/target-postgres/control';
 import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import { CreateIndexCall } from '@internal/target-postgres/op-factory-call';
 import { contractToPostgresDatabaseSchemaNode } from '@internal/target-postgres/planner';
 import { blindCast } from '@internal/utils/casts';
-import { postgresTypeLookups } from '../postgres-type-lookups';
 
 /** An index of the fixture contract, as the migration planner sees it and creates it. */
 export interface PlannedIndex {
@@ -18,6 +20,14 @@ export interface PlannedIndex {
   /** The CREATE INDEX statement the planner's op factory renders for it. */
   readonly createSql: string;
 }
+
+/** The packs the fixture contract is built from, whose codecs and data types name its columns. */
+const fixtureStack = createControlStack({
+  family: sqlFamilyControl,
+  target: postgresTargetControl,
+  adapter: postgresAdapterControl,
+  extensions: [pgvector],
+});
 
 const controlAdapter = new PostgresControlAdapter(
   createPostgresBuiltinCodecLookup(),
@@ -34,7 +44,12 @@ export async function plannedExpressionIndexes(
       Parameters<typeof contractToPostgresDatabaseSchemaNode>[0],
       'the fixture contract is a Postgres contract'
     >(contract),
-    { annotationNamespace: 'pg', renderDefault: postgresRenderDefault, ...postgresTypeLookups },
+    {
+      annotationNamespace: 'pg',
+      renderDefault: postgresRenderDefault,
+      codecLookup: fixtureStack.codecLookup,
+      dataTypeLookup: fixtureStack.dataTypeLookup,
+    },
   );
   const indexes = root.namespaces['public']?.tables[table]?.indexes ?? [];
   return Promise.all(
