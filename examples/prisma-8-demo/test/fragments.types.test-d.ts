@@ -84,10 +84,11 @@ describe('db.orm.fragment', () => {
       rows.where((r) => r.title.eq('x')),
     );
     db.Post.with(titled);
-    // @ts-expect-error Post.title is not nullable
-    db.Post.with(
-      dbFacade.orm.fragment({ title: field.text().optional() }, (rows) => rows.limit(1)),
+    const nullableTitle = dbFacade.orm.fragment({ title: field.text().optional() }, (rows) =>
+      rows.limit(1),
     );
+    // @ts-expect-error Post.title is not nullable
+    db.Post.with(nullableTitle);
   });
 });
 
