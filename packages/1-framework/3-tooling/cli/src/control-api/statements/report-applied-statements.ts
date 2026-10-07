@@ -17,14 +17,19 @@ export interface AppliedStatementReport {
   readonly description: string;
 }
 
+/**
+ * `operationOffset` is the number of operations the result lists before the plan that applied the
+ * statements, so that each position indexes the result's `operations`.
+ */
 export function reportAppliedStatements(
   applied: readonly AppliedMigrationStatement[],
   fromContract: ContractWithDomain | null,
   contract: ContractWithDomain,
+  operationOffset: number,
 ): readonly AppliedStatementReport[] {
   return applied.map((entry) => ({
     statement: migrationStatementJson(entry.statement),
-    operationIndexes: entry.operationIndexes,
+    operationIndexes: entry.operationIndexes.map((index) => operationOffset + index),
     description: describeMigrationStatement(entry.statement, fromContract ?? contract, contract),
   }));
 }

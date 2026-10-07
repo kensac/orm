@@ -216,6 +216,7 @@ async function runPlannerLeg(
       plannerResult.appliedStatements,
       fromContract,
       contract,
+      0,
     ),
   });
 }

@@ -273,7 +273,12 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   const appPlan = appResolution.entry.plan;
   const appliedStatements =
     action === 'dbUpdate'
-      ? reportAppliedStatements(appResolution.entry.appliedStatements, fromContract, contract)
+      ? reportAppliedStatements(
+          appResolution.entry.appliedStatements,
+          fromContract,
+          contract,
+          operationsBefore(orderedResolutions, aggregate.app.spaceId),
+        )
       : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.
@@ -410,6 +415,17 @@ async function readAppOrigin(input: {
     const unreadable = error instanceof Error ? error.message : String(error);
     return { origin: { kind: 'missing', hash, snapshotDirectory, unreadable }, contract: null };
   }
+}
+
+/** How many operations the spaces applied before `spaceId` list ahead of it in `operations`. */
+function operationsBefore(
+  orderedResolutions: readonly OrderedResolution[],
+  spaceId: string,
+): number {
+  const position = orderedResolutions.findIndex((resolution) => resolution.spaceId === spaceId);
+  return orderedResolutions
+    .slice(0, position)
+    .reduce((count, resolution) => count + resolution.entry.displayOps.length, 0);
 }
 
 function aggregatePlannerWarnings(
