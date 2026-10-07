@@ -8,7 +8,6 @@ import stripAnsi from 'strip-ansi';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { fixtureAppDir } from '../utils/cli-test-helpers';
 import {
-  consentTokenFor,
   engineError,
   type JourneyContext,
   parseJsonOutput,
@@ -146,7 +145,7 @@ describe('Journey: Mongo db update asks for consent only to lose data', {
     expect(indexKeys).toEqual([{ _id: 1 }, { email: 1 }]);
   });
 
-  it('drops a collection once the database name is passed with --confirm', async () => {
+  it('drops a collection once --delete names its model', async () => {
     const dbName = 'mongo_consent_drop_collection';
     const connectionString = withDatabase(replSet.getUri(), dbName);
     const ctx = setupProject(connectionString);
@@ -162,15 +161,14 @@ describe('Journey: Mongo db update asks for consent only to lose data', {
 
     const unconfirmed = await runDbUpdate(ctx, ['--json', '--no-interactive']);
     expect(unconfirmed.exitCode).toBe(2);
-    expect(parseJsonOutput(unconfirmed)).toMatchObject({ code: 'CLI.CONSENT_REQUIRED' });
+    expect(parseJsonOutput(unconfirmed)).toMatchObject({
+      code: 'CLI.CONSENT_REQUIRED',
+      meta: { unanswered: [{ subject: 'Event', verbs: ['rename', 'delete'] }] },
+    });
     const kept = await client.db(dbName).listCollections({ name: 'events' }).toArray();
     expect(kept.map(({ name }) => name)).toEqual(['events']);
 
-    const destructive = await runDbUpdate(ctx, [
-      '--no-interactive',
-      '--confirm',
-      consentTokenFor(connectionString),
-    ]);
+    const destructive = await runDbUpdate(ctx, ['--no-interactive', '--delete', 'Event']);
 
     expect(destructive.exitCode, stripAnsi(destructive.stderr)).toBe(0);
     const collections = await client.db(dbName).listCollections({ name: 'events' }).toArray();
