@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import type { Contract, ContractMarkerRecord } from '@internal/contract/types';
 import type {
   ControlAdapterInstance,
@@ -8,7 +8,12 @@ import type {
   ResolvedStatement,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
-import { writeContractSnapshot } from '@internal/migration-tools/contract-snapshot-store';
+import {
+  contractSnapshotDir,
+  type SnapshotContentVerifier,
+  writeContractSnapshot,
+} from '@internal/migration-tools/contract-snapshot-store';
+import { MigrationToolsError } from '@internal/migration-tools/errors';
 import { ok } from '@internal/utils/result';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -150,6 +155,7 @@ function update(options: {
   readonly renames: readonly string[];
   readonly mode?: 'plan' | 'apply';
   readonly unreadableOrigin?: boolean;
+  readonly verifySnapshotContent?: SnapshotContentVerifier;
   readonly migrations: TargetMigrationsCapability<
     'sql',
     'postgres',
@@ -169,6 +175,9 @@ function update(options: {
     migrationsDir: options.migrationsDir,
     targetId: 'postgres',
     renames: options.renames,
+    ...(options.verifySnapshotContent === undefined
+      ? {}
+      : { verifySnapshotContent: options.verifySnapshotContent }),
   });
 }
 
@@ -231,6 +240,57 @@ describe('executeDbUpdate with statements', () => {
       why: expect.stringContaining('unknown contract format'),
     });
     expect(calls).toEqual([]);
+  });
+
+  it('says the snapshot cannot be read when its contract.json is not JSON, rather than that it is missing', async () => {
+    const { migrations, calls } = recordingMigrations();
+    const migrationsDir = await migrationsDirWithSnapshot(origin);
+    writeFileSync(
+      join(contractSnapshotDir(migrationsDir, ORIGIN_HASH), 'contract.json'),
+      '{ not json',
+    );
+    const refusal = await update({
+      migrationsDir,
+      marker: markerAt(ORIGIN_HASH),
+      renames: ['Profile:User'],
+      migrations,
+    }).catch((error: unknown) => error);
+    expect(refusal).toMatchObject({
+      code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      why: expect.stringMatching(
+        /^The contract snapshot for hash "a+" in .* could not be read: Failed to parse/,
+      ),
+      fix: expect.stringContaining('Restore migrations/snapshots/ from version control'),
+      meta: { unreadable: expect.stringContaining('Failed to parse') },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('says the snapshot cannot be read when its content does not match its hash', async () => {
+    const { migrations } = recordingMigrations();
+    const migrationsDir = await migrationsDirWithSnapshot(origin);
+    const refusal = await update({
+      migrationsDir,
+      marker: markerAt(ORIGIN_HASH),
+      renames: ['Profile:User'],
+      migrations,
+      verifySnapshotContent: {
+        assertSnapshotContentMatches: (_json, storageHash, jsonPath) => {
+          throw new MigrationToolsError(
+            'MIGRATION.CONTRACT_SNAPSHOT_CONTENT_MISMATCH',
+            'Contract snapshot content does not match its hash',
+            {
+              why: `The contract snapshot at "${jsonPath}" is addressed by storage hash ${storageHash}, but its content recomputes to ${'c'.repeat(64)}.`,
+            },
+          );
+        },
+      },
+    }).catch((error: unknown) => error);
+    expect(refusal).toMatchObject({
+      code: 'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      why: expect.stringContaining('could not be read: The contract snapshot at'),
+      meta: { unreadable: expect.stringContaining('its content recomputes to') },
+    });
   });
 
   it('reports the applied statements on an apply', async () => {

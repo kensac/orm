@@ -626,15 +626,31 @@ export function errorStatementOriginUnknown(origin: {
       },
     );
   }
-  const why =
-    origin.unreadable === undefined
-      ? `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`
-      : `The contract snapshot for hash "${origin.hash}" in ${origin.snapshotDirectory} could not be read: ${origin.unreadable}`;
+  const meta = {
+    hash: origin.hash,
+    snapshotDirectory: origin.snapshotDirectory,
+    ...ifDefined('unreadable', origin.unreadable),
+  };
+  if (origin.unreadable !== undefined) {
+    return new ActionableCliError(
+      'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
+      'Cannot resolve statements: the origin contract snapshot cannot be read',
+      {
+        why: `The contract snapshot for hash "${origin.hash}" in ${origin.snapshotDirectory} could not be read: ${origin.unreadable}`,
+        fix: 'The snapshot file is there but cannot be used. Restore migrations/snapshots/ from version control, or run the command without statements.',
+        nextActions: [
+          chooseAction('Restore migrations/snapshots/ from version control'),
+          chooseAction('Or run the command without statements'),
+        ],
+        meta,
+      },
+    );
+  }
   return new ActionableCliError(
     'MIGRATION.STATEMENT_ORIGIN_UNKNOWN',
     'Cannot resolve statements: the origin contract is unknown',
     {
-      why,
+      why: `No contract snapshot for hash "${origin.hash}" was found in ${origin.snapshotDirectory}.`,
       fix: [
         'Statements name things in the origin contract, so the command needs it. `db update` keeps a snapshot of the contract it applies when it advances a ref: the `db` ref by default, or with `--db <url>` only the ref named by `--advance-ref <name>`. Give the earlier `db update --db <url>` run `--advance-ref <name>` so its contract is kept for the next one.',
         'Or plan a migration with `{bin} migration plan --from <contract>`, or run the command without statements.',
@@ -644,11 +660,7 @@ export function errorStatementOriginUnknown(origin: {
         runCommandAction('Plan from an explicit origin', '{bin} migration plan --from <contract>'),
         chooseAction('Or run the command without statements'),
       ],
-      meta: {
-        hash: origin.hash,
-        snapshotDirectory: origin.snapshotDirectory,
-        ...ifDefined('unreadable', origin.unreadable),
-      },
+      meta,
     },
   );
 }

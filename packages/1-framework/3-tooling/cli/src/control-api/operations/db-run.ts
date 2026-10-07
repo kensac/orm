@@ -31,9 +31,10 @@ import {
 } from '@internal/migration-tools/aggregate';
 import {
   contractSnapshotDir,
-  readContractSnapshotJsonTolerant,
+  readContractSnapshotJson,
   type SnapshotContentVerifier,
 } from '@internal/migration-tools/contract-snapshot-store';
+import { MigrationToolsError } from '@internal/migration-tools/errors';
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
@@ -372,19 +373,20 @@ async function readAppOrigin(input: {
     return { origin, contract: null };
   }
   const hash = input.marker.storageHash;
-  const snapshotDirectory = isStorageHashHex(hash)
-    ? contractSnapshotDir(input.migrationsDir, hash)
-    : snapshotsDir;
-  const json = await readContractSnapshotJsonTolerant(
-    input.migrationsDir,
-    hash,
-    input.verifySnapshotContent,
-  );
-  if (json === undefined) {
+  if (!isStorageHashHex(hash)) {
     return {
-      origin: { kind: 'missing', hash, snapshotDirectory, unreadable: undefined },
+      origin: { kind: 'missing', hash, snapshotDirectory: snapshotsDir, unreadable: undefined },
       contract: null,
     };
+  }
+  const snapshotDirectory = contractSnapshotDir(input.migrationsDir, hash);
+  let json: unknown;
+  try {
+    json = await readContractSnapshotJson(input.migrationsDir, hash, input.verifySnapshotContent);
+  } catch (error) {
+    if (!MigrationToolsError.is(error)) throw error;
+    const unreadable = error.code === 'MIGRATION.CONTRACT_SNAPSHOT_MISSING' ? undefined : error.why;
+    return { origin: { kind: 'missing', hash, snapshotDirectory, unreadable }, contract: null };
   }
   try {
     const contract = input.deserializeContract(json);
