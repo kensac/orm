@@ -14,7 +14,7 @@ const ALL_CLASSES_POLICY: MigrationOperationPolicy = {
 
 const NAMESPACE = asNamespaceId('__unbound__');
 
-function contractWithCollections(collections: readonly string[]): MongoContract {
+function contractWithModel(model: string, collection: string): MongoContract {
   return {
     target: 'mongo',
     targetFamily: 'mongo',
@@ -23,18 +23,20 @@ function contractWithCollections(collections: readonly string[]): MongoContract 
     extensions: {},
     meta: {},
     roots: {},
-    models: {},
+    domain: {
+      namespaces: {
+        __unbound__: {
+          models: { [model]: { fields: {}, relations: {}, storage: { collection } } },
+        },
+      },
+    },
     storage: {
-      storageHash: `storage-${collections.join('-')}`,
+      storageHash: `storage-${collection}`,
       namespaces: {
         __unbound__: {
           id: '__unbound__',
           kind: 'mongo-namespace',
-          entries: {
-            collection: Object.fromEntries(
-              collections.map((name) => [name, new MongoCollection({})]),
-            ),
-          },
+          entries: { collection: { [collection]: new MongoCollection({}) } },
         },
       },
     },
@@ -57,10 +59,10 @@ const fieldRename: ResolvedStatement = {
 
 function plan(statements: readonly ResolvedStatement[]) {
   return new MongoMigrationPlanner().plan({
-    contract: contractWithCollections(['User']),
-    schema: new MongoSchemaIR([new MongoSchemaCollection({ name: 'Profile' })]),
+    contract: contractWithModel('User', 'users'),
+    schema: new MongoSchemaIR([new MongoSchemaCollection({ name: 'profiles' })]),
     policy: ALL_CLASSES_POLICY,
-    fromContract: contractWithCollections(['Profile']),
+    fromContract: contractWithModel('Profile', 'profiles'),
     statements,
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
@@ -74,13 +76,13 @@ describe('MongoMigrationPlanner with statements', () => {
     if (result.kind !== 'success') throw new Error('Expected success');
     const operations = await Promise.all(result.plan.operations);
     expect(operations.map((operation) => operation.id)).toEqual([
-      'collection.User.create',
-      'collection.Profile.drop',
+      'collection.users.create',
+      'collection.profiles.drop',
     ]);
     expect(result.appliedStatements).toEqual([]);
   });
 
-  it('refuses the first statement and plans nothing', () => {
+  it('refuses the first statement, plans nothing, and says how to keep the documents', () => {
     expect(plan([modelRename, fieldRename])).toEqual({
       kind: 'failure',
       conflicts: [
@@ -88,20 +90,21 @@ describe('MongoMigrationPlanner with statements', () => {
           kind: 'statementRejected',
           summary:
             'MongoDB does not apply rename statements in this release, so nothing was planned: rename model "Profile" to "User"',
-          why: 'The MongoDB planner cannot carry out a rename yet. Without the statement, the same change is planned as removing the old name and adding the new one.',
+          why: 'Without the statement, the plan drops collection "profiles" and its documents and creates collection "users". To keep the documents, rename the collection yourself, for example with db.profiles.renameCollection("users") in mongosh, then run the command again without --rename.',
           statement: modelRename,
         },
       ],
     });
   });
 
-  it('names a field through the model the destination contract names', () => {
+  it('names a field through the model the destination contract names, and says how to move its values', () => {
     const result = plan([fieldRename]);
     if (result.kind !== 'failure') throw new Error('Expected failure');
     expect(result.conflicts).toMatchObject([
       {
         kind: 'statementRejected',
         summary: expect.stringContaining('rename field "User.name" to "User.fullName"'),
+        why: 'Without the statement, existing documents in collection "profiles" keep the field "name" and nothing moves its values to "fullName". To keep them, move them yourself with an update that uses $rename, for example db.profiles.updateMany({}, { $rename: { name: "fullName" } }) in mongosh, then run the command again without --rename.',
         statement: fieldRename,
       },
     ]);

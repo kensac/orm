@@ -1,4 +1,4 @@
-import type { Contract } from '@internal/contract/types';
+import type { Contract, ContractWithDomain } from '@internal/contract/types';
 import { contractToMongoSchemaIR } from '@internal/family-mongo/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
@@ -9,6 +9,7 @@ import type {
   MigrationPlannerResult,
   MigrationPlanWithAuthoringSurface,
   MigrationScaffoldContext,
+  ModelCoordinate,
   ResolvedStatement,
 } from '@internal/framework-components/control';
 import type { MongoContract } from '@internal/mongo-contract';
@@ -220,11 +221,39 @@ function describeStatement(statement: ResolvedStatement): string {
   return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
 }
 
-function statementNotApplied(statement: ResolvedStatement): MigrationPlannerConflict {
+/** The collection a model stores its documents in; a model without `@@map` names it verbatim. */
+function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoordinate): string {
+  const collection =
+    contract?.domain.namespaces[coordinate.namespace]?.models[coordinate.model]?.storage[
+      'collection'
+    ];
+  return typeof collection === 'string' ? collection : coordinate.model;
+}
+
+function keepTheData(
+  statement: ResolvedStatement,
+  fromContract: ContractWithDomain | null,
+  contract: ContractWithDomain,
+): string {
+  const from = collectionOf(fromContract, statement.from);
+  if (statement.entity === 'model') {
+    const to = collectionOf(contract, statement.to);
+    return `Without the statement, the plan drops collection "${from}" and its documents and creates collection "${to}". To keep the documents, rename the collection yourself, for example with db.${from}.renameCollection("${to}") in mongosh, then run the command again without --rename.`;
+  }
+  const { field } = statement.from;
+  const newField = statement.to.field;
+  return `Without the statement, existing documents in collection "${from}" keep the field "${field}" and nothing moves its values to "${newField}". To keep them, move them yourself with an update that uses $rename, for example db.${from}.updateMany({}, { $rename: { ${field}: "${newField}" } }) in mongosh, then run the command again without --rename.`;
+}
+
+function statementNotApplied(
+  statement: ResolvedStatement,
+  fromContract: ContractWithDomain | null,
+  contract: ContractWithDomain,
+): MigrationPlannerConflict {
   return {
     kind: 'statementRejected',
     summary: `MongoDB does not apply rename statements in this release, so nothing was planned: ${describeStatement(statement)}`,
-    why: 'The MongoDB planner cannot carry out a rename yet. Without the statement, the same change is planned as removing the old name and adding the new one.',
+    why: keepTheData(statement, fromContract, contract),
     statement,
   };
 }
@@ -390,14 +419,17 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
      */
     readonly snapshotsImportPath: string;
   }): MigrationPlannerResult {
-    const [statement] = options.statements;
-    if (statement !== undefined) {
-      return { kind: 'failure', conflicts: [statementNotApplied(statement)] };
-    }
     const contract = blindCast<
       MongoContract,
       'framework planner passes the Mongo contract selected for the mongo target'
     >(options.contract);
+    const [statement] = options.statements;
+    if (statement !== undefined) {
+      return {
+        kind: 'failure',
+        conflicts: [statementNotApplied(statement, options.fromContract, contract)],
+      };
+    }
     const result = this.planCalls(options);
     if (result.kind === 'failure') return result;
     return {
