@@ -5,13 +5,16 @@ _Parent project: `projects/unexposed-storage/`. Linear: TML-3468. Outcome: a con
 ## At a glance
 
 ```ts
-// A TypeScript-authored contract (internal flag; no public authoring option in this slice)
-const User = model('User', {
-  id: field.int().id(),
-  email: field.text().unique(),
-}).withUnexposedColumns({ legacyKey: col.text().nullable() });   // name is the implementer's call
-
-const Ledger = unexposedTable('_prisma_migrations', { ... });     // a table no model maps
+// Lowering-level flags on the contract definition nodes; the fluent builder has no option yet
+buildSqlContractFromDefinition({
+  models: [
+    { modelName: 'User', tableName: 'user', fields: [
+        column('id', 'id', int4Column), column('email', 'email', textColumn),
+        column('legacyKey', 'legacy_key', textColumn, { nullable: true, unexposed: true }) ] },
+    { modelName: 'PrismaMigration', tableName: '_prisma_migrations', unexposed: true, fields: [ ... ] },
+  ],
+  ...
+});
 ```
 
 - `contract.json`: `storage.namespaces.public.tables.User.columns.legacyKey` exists; `domain.models.User.fields` has no `legacyKey`. `storage.namespaces.public.tables._prisma_migrations` exists; `domain.models` has no model for it.
@@ -24,7 +27,7 @@ const Ledger = unexposedTable('_prisma_migrations', { ... });     // a table no 
 
 - **Absence of a mapping domain object is the signal.** No new field on `StorageTable`, `StorageColumn` or the foreign-key entry. `validateModelStorageReferences` (`packages/2-sql/1-core/contract/src/validators.ts` ~678-734) already checks field → column only; confirm no validator requires the reverse, and add a test that a contract with an unmapped column and an unmodelled table validates.
 - **Builder.** `packages/2-sql/2-authoring/contract-ts/src/build-contract.ts` (~1213-1330 for models, ~1630-1640 for fields) gains an internal path that emits a storage column with no domain field, and a storage table with no domain model or root. Expose it through the TS authoring surface as a minimal internal option that the Prisma 7 source (slice 2) and `contract-psl` (slice 3) can target; no user-facing public API is added or documented in this slice.
-- **ORM projection** (`packages/3-extensions/sql-orm-client/src/`): `query-plan-meta.ts` (~18-35) and `query-plan-select.ts` (~94-113) project every storage column when no `select` is given; `query-plan-mutations.ts` (~32-49) does the same for `RETURNING`; `collection-runtime.ts` `mapColumnNames` (~74-83) passes unmapped columns through under their column name. All four project only columns a field maps. Writes never include an unmapped column, so its database default applies. Covers single-table and multi-table inheritance, `include`, `create`/`update`/`delete` with `RETURNING`.
+- **ORM projection** (`packages/3-extensions/sql-orm-client/src/`): `query-plan-meta.ts` (~18-35) and `query-plan-select.ts` (~94-113) project every storage column when no `select` is given; `query-plan-mutations.ts` (~32-49) does the same for `RETURNING`; `collection-runtime.ts` `mapColumnNames` passes unmapped columns through under their column name (unchanged: once nothing selects them, nothing reaches it). The projection sites, including `query-plan-source.ts` for MTI joins, project only the columns a model's fields map plus the columns inheritance requires (variant key columns, discriminator). Exposure is per model, derived with the ORM's polymorphism information, not per table. Writes never include an unmapped column, so its database default applies. Covers single-table and multi-table inheritance, `include`, `create`/`update`/`delete` with `RETURNING`. Every place that resolves a user-supplied field name to a column refuses a name that is not a field of the model, so the rule holds at runtime for untyped callers too.
 - **Emitter** (`packages/2-sql/3-tooling/emitter/src/index.ts`): the ORM-facing types in `contract.d.ts` omit unmodelled tables; the storage section keeps them (the project's open question; the default is kept in this slice: storage types still list them, ORM model types do not).
 - **Verify.** Strict verify today collects extra top-level entities not declared by any space (`packages/1-framework/3-tooling/migration/src/aggregate/verifier.ts` ~200-221, `declaresEntity`). An unmodelled storage table is declared, so it must not be unclaimed. Confirm by test; fix `declaresEntity` if it consults the domain.
 - **Hash.** `storage.storageHash` covers storage only (`hashing.ts` ~82-86); add a test that exposing or unexposing a column leaves it unchanged.
@@ -40,6 +43,7 @@ Out: any PSL surface (slice 3); the Prisma 7 source (slice 2); `contract print` 
 
 - Validator: a contract with an unmapped storage column and an unmodelled table validates; a field mapping a missing column still fails.
 - Builder: the internal option emits the shape above; `storageHash` equal between exposed and unexposed variants of the same storage.
+- Inheritance with an unexposed column has no TS-built fixture (definition nodes carry no inheritance), and the PSL polymorphism fixture cannot mark a column unexposed until slice 3. This slice pins inheritance projection on the PSL fixture (variant key columns, discriminator, variant with no own fields); slice 3 adds the unexposed-column inheritance leak test.
 - ORM leak test (red first): with the fixture contract on PGlite, insert a row through raw SQL that sets `legacyKey`; `findMany()` with no `select` returns no `legacyKey`; `create()` returns no `legacyKey` and leaves its default; `include` and inheritance paths likewise; `expectTypeOf` the row type has no `legacyKey` and `db.orm.public` has no `_prisma_migrations`.
 - Emitter: `contract.d.ts` snapshot for the fixture.
 - Verify: on PGlite, `db init` the fixture; `db verify --strict` reports no unclaimed elements; drop the unexposed column by raw SQL and strict verify reports it missing.

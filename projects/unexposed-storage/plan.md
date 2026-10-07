@@ -30,7 +30,7 @@ Interpreter: resolve ignored fields' types instead of returning at the `@ignore`
 
 ### 3 — `print-and-infer-unexposed-storage` (TML-3469)
 
-PSL attribute specs gain `@ignore` (field) and `@@ignore` (model); the interpreter lowers them to unexposed storage; the printer emits them, and prints a foreign key no relation travels as an `@ignore` relation field. The refusals `refuseUnmodelledTablesAndColumns` and `refuseUntravelledForeignKeys` are deleted. `psl-infer` prints an unmodelable table as an `@@ignore` model. Close-out: ADR, replace the slice-1 text in the Prisma 7 project that documents the omission, delete this folder.
+PSL attribute specs gain `@ignore` (field) and `@@ignore` (model); the interpreter lowers them to unexposed storage; the printer emits them, and prints a foreign key no relation travels as an `@ignore` relation field. The refusals `refuseUnmodelledTablesAndColumns` and `refuseUntravelledForeignKeys` are deleted. `psl-infer` prints an unmodelable table as an `@@ignore` model. Adds the inheritance leak test slice 1 could not write: an `@ignore` column on an STI base and on an MTI variant never reaches any row. The interpreter refuses `@@ignore` together with `@@base` or `@@discriminator`: definition nodes carry no inheritance, so the builder can refuse only an unexposed model that shares its base table. Close-out: ADR, replace the slice-1 text in the Prisma 7 project that documents the omission, delete this folder.
 
 ## Close-out obligations
 

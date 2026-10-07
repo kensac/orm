@@ -34,7 +34,7 @@ prisma db verify --strict   # exit 0, unclaimed: []
 ## Non-goals
 
 - Changing what `managed`, `tolerated`, `external` and `observed` mean (ADR 224). Unexposed storage is orthogonal to control policy: an unexposed table can carry any policy, and defaults to `managed`.
-- Exposing unexposed storage through the SQL query builder's contract types. Whether `contract.d.ts` lists these tables is decided in the slice that touches the emitter; the default is that it does not.
+- Removing unexposed storage from the SQL query builder's contract types. `contract.d.ts` keeps unexposed tables and columns in its storage types and leaves them out of the ORM model and row types (decided in slice 1: the query builder addresses storage, and a migration author or raw-SQL caller may need the names).
 - Supporting columns whose Postgres type has no Prisma 8 codec (`citext`, `money`, `Unsupported(...)`). They stay omitted with today's diagnostics until an opaque storage codec exists; that is a separate decision.
 - Removing `@ignore` from Prisma 7, or changing how Prisma 7 treats it.
 
@@ -47,7 +47,7 @@ prisma db verify --strict   # exit 0, unclaimed: []
 
 ## Cross-cutting requirements
 
-- **Storage is the truth for migrations; the domain is the truth for the ORM.** A storage table, column or foreign key may exist with no model, field or relation that maps to it. The contract validators allow this today; the builder and every source must be able to produce it, and the ORM must never read, write or type a column no field maps.
+- **Storage is the truth for migrations; the domain is the truth for the ORM.** A storage table, column or foreign key may exist with no model, field or relation that maps to it. The contract validators allow this today; the builder and every source must be able to produce it, and the ORM must never read, write or type a column no field maps. The guarantee holds at runtime, not only in the types: a field name that does not belong to the model is an ORM error, so an untyped caller cannot reach an unexposed column by its column name.
 - **The storage hash does not change when exposure changes.** Adding or removing a domain field or model over existing storage must leave `storage.storageHash` unchanged, so `migration plan` reports no changes and the marker still matches. This is what makes `@ignore` round trips free.
 - **`contract print` round-trips unexposed storage.** Prisma 8 PSL gains `@ignore` on fields and `@@ignore` on models with exactly the Prisma 7 meaning: the object is storage-managed and not exposed. A printed contract re-emits to the same storage hash. A foreign key with no relation prints as the `@ignore` relation field that implies it.
 - **Verify treats unexposed storage as declared.** Strict verify no longer reports it as unclaimed; lenient verify is unchanged.
@@ -62,7 +62,7 @@ prisma db verify --strict   # exit 0, unclaimed: []
 
 - `StorageTable`, `StorageColumn` and the foreign-key entry gain nothing: absence of a mapping domain object is the signal. The builder (`packages/2-sql/2-authoring/contract-ts/src/build-contract.ts`) gains the ability to emit a table or column with no domain counterpart, and the contract JSON schema is unchanged.
 - The emitter's `contract.d.ts` stops listing unexposed tables and columns in the ORM-facing types.
-- A validator is added: a storage column that a field maps must agree with that field, as today; a storage column no field maps is legal.
+- Validators: a storage column no field maps is legal (no validator needed to change); a new validator refuses a generated (execution) default on an unexposed column, because the ORM never writes such a column so the default could never run.
 
 ## Adapter impact
 
@@ -85,8 +85,12 @@ Inherits `drive/calibration/dod.md`. Project-specific:
 
 ## Open questions
 
-- Whether unexposed tables appear in the SQL query builder's types (`contract.d.ts` storage section). Default: no. Settled in the emitter slice.
 - The PSL form for a foreign key no relation travels (an `@ignore` relation field is the proposal). Settled in the print slice.
+
+## Notes for the ADR
+
+- A table no model maps is unexposed. A junction table reached only through a relation's `through` is exposed through that relation, so a source must either give every junction a model or the ADR must state that `through` exposes it; today every source gives junctions a model.
+- The ORM may touch an unexposed column inside a query it builds (the `distinct` row-number subquery reads every column of the table) but never returns it in a row, assigns it in a write, or accepts its name from a caller.
 
 ## References
 
