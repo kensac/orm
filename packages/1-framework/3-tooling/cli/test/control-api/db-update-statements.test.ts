@@ -281,6 +281,7 @@ describe('executeDbUpdate with statements', () => {
             'Contract snapshot content does not match its hash',
             {
               why: `The contract snapshot at "${jsonPath}" is addressed by storage hash ${storageHash}, but its content recomputes to ${'c'.repeat(64)}.`,
+              fix: 'Restore migrations/snapshots/ from version control.',
             },
           );
         },
