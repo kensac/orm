@@ -45,11 +45,13 @@ describe('query plan meta', () => {
         baseTable: resolveModelColumns(contract, 'public', 'Task', 'tasks'),
         variantTableFromBase: resolveModelColumns(contract, 'public', 'Task', 'features'),
         variantTableFromVariant: resolveModelColumns(contract, 'public', 'Feature', 'features'),
+        stiVariant: resolveModelColumns(contract, 'public', 'Bug', 'tasks'),
         otherModelsTable: resolveModelColumns(contract, 'public', 'Project', 'tasks'),
       }).toEqual({
         baseTable: ['id', 'title', 'type', 'severity', 'project_id', 'parent_id', 'assignee_id'],
         variantTableFromBase: ['id', 'priority', 'assignee_id'],
         variantTableFromVariant: ['id', 'priority', 'assignee_id'],
+        stiVariant: ['id', 'title', 'type', 'severity', 'project_id', 'parent_id', 'assignee_id'],
         otherModelsTable: [],
       });
     });

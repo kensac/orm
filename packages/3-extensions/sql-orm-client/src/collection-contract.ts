@@ -76,7 +76,6 @@ export function modelOf(
 }
 
 const fieldToColumnCache = new WeakMap<object, Map<string, Record<string, string>>>();
-const columnToFieldCache = new WeakMap<object, Map<string, Record<string, string>>>();
 const polymorphismCache = new WeakMap<object, Map<string, PolymorphismInfo | undefined>>();
 
 export function resolvePolymorphismInfo(
@@ -154,49 +153,70 @@ export function resolvePolymorphismInfo(
   return result;
 }
 
-const modelFieldColumnsCache = new WeakMap<object, Map<string, Record<string, string>>>();
-const collectionFieldColumnsCache = new WeakMap<object, Map<string, Record<string, string>>>();
+const modelFieldsCache = new WeakMap<object, Map<string, unknown>>();
 
-function cachedFor(
-  cache: WeakMap<object, Map<string, Record<string, string>>>,
-  contract: Contract<SqlStorage>,
-  key: string,
-  build: () => Record<string, string>,
-): Record<string, string> {
-  let perContract = cache.get(contract);
+function cachedFor<T>(contract: Contract<SqlStorage>, key: string, build: () => T): T {
+  let perContract = modelFieldsCache.get(contract);
   if (!perContract) {
     perContract = new Map();
-    cache.set(contract, perContract);
+    modelFieldsCache.set(contract, perContract);
   }
-  let cached = perContract.get(key);
-  if (!cached) {
-    cached = build();
-    perContract.set(key, cached);
+  if (perContract.has(key)) {
+    return blindCast<
+      T,
+      'each cache key is built by one function, which stores its own result type'
+    >(perContract.get(key));
   }
-  return cached;
+  const built = build();
+  perContract.set(key, built);
+  return built;
+}
+
+export interface ModelFieldColumn {
+  readonly table: string;
+  readonly column: string;
 }
 
 /**
- * The columns a model's fields map, keyed by field name: its own fields and the fields it inherits from its base model. A field with no storage entry maps a column of its own name; a column no field maps has no entry.
+ * A model's fields, keyed by field name, with the table and column each maps: its own fields on its own table (a field with no storage entry maps a column of its own name), and the fields it inherits from its base model on the base model's table. This is the one definition of a model's fields; name resolution and default projections both read it. A column no field maps has no entry.
+ */
+export function getModelFields(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  modelName: string,
+): Readonly<Record<string, ModelFieldColumn>> {
+  return cachedFor(contract, JSON.stringify(['fields', namespaceId, modelName]), () => {
+    const model = modelOf(contract, namespaceId, modelName);
+    const table = model?.storage?.table;
+    const own =
+      table === undefined
+        ? []
+        : Object.entries({
+            ...Object.fromEntries(Object.keys(model?.fields ?? {}).map((field) => [field, field])),
+            ...getFieldToColumnMap(contract, namespaceId, modelName),
+          }).map(([field, column]) => [field, { table, column }] as const);
+    const base = model?.base;
+    return {
+      ...(base === undefined ? {} : getModelFields(contract, base.namespace, base.model)),
+      ...Object.fromEntries(own),
+    };
+  });
+}
+
+/**
+ * The columns a model's fields map, keyed by field name: its own fields and the fields it inherits from its base model.
  */
 export function getModelFieldColumns(
   contract: Contract<SqlStorage>,
   namespaceId: string,
   modelName: string,
-): Record<string, string> {
-  return cachedFor(
-    modelFieldColumnsCache,
-    contract,
-    metadataCacheKey(namespaceId, modelName),
-    () => {
-      const model = modelOf(contract, namespaceId, modelName);
-      const base = model?.base;
-      return {
-        ...(base === undefined ? {} : getModelFieldColumns(contract, base.namespace, base.model)),
-        ...Object.fromEntries(Object.keys(model?.fields ?? {}).map((field) => [field, field])),
-        ...getFieldToColumnMap(contract, namespaceId, modelName),
-      };
-    },
+): Readonly<Record<string, string>> {
+  return cachedFor(contract, JSON.stringify(['columns', namespaceId, modelName]), () =>
+    Object.fromEntries(
+      Object.entries(getModelFields(contract, namespaceId, modelName)).map(
+        ([field, { column }]) => [field, column],
+      ),
+    ),
   );
 }
 
@@ -210,9 +230,8 @@ export function getCollectionFieldColumns(
   variantName: string | undefined,
 ): Record<string, string> {
   return cachedFor(
-    collectionFieldColumnsCache,
     contract,
-    JSON.stringify([namespaceId, modelName, variantName ?? null]),
+    JSON.stringify(['collection', namespaceId, modelName, variantName ?? null]),
     () => {
       const variants = resolvePolymorphismInfo(contract, namespaceId, modelName)?.variants;
       const variantNames =
@@ -341,27 +360,21 @@ export function getFieldToColumnMap(
   return cached;
 }
 
+/**
+ * The inverse of `getModelFieldColumns`: the field each of a model's columns maps, including the columns of the fields it inherits.
+ */
 export function getColumnToFieldMap(
   contract: Contract<SqlStorage>,
   namespaceId: string,
   modelName: string,
-): Record<string, string> {
-  let perContract = columnToFieldCache.get(contract);
-  if (!perContract) {
-    perContract = new Map();
-    columnToFieldCache.set(contract, perContract);
-  }
-  const cacheKey = metadataCacheKey(namespaceId, modelName);
-  let cached = perContract.get(cacheKey);
-  if (cached) return cached;
-
-  const storageFields = modelsOf(contract, namespaceId)[modelName]?.storage?.fields ?? {};
-  cached = {};
-  for (const [f, s] of Object.entries(storageFields)) {
-    if (s?.column) cached[s.column] = f;
-  }
-  perContract.set(cacheKey, cached);
-  return cached;
+): Readonly<Record<string, string>> {
+  return cachedFor(contract, JSON.stringify(['columnToField', namespaceId, modelName]), () =>
+    Object.fromEntries(
+      Object.entries(getModelFieldColumns(contract, namespaceId, modelName)).map(
+        ([field, column]) => [column, field],
+      ),
+    ),
+  );
 }
 
 const completeColumnToFieldCache = new WeakMap<object, Map<string, Record<string, string>>>();

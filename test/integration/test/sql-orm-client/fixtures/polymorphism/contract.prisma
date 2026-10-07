@@ -20,6 +20,7 @@
 //   Ticket   --owner(N:1)--> User
 //   Person   <--reporter(N:1)-- Task
 //   Person   <--assignee(N:1)-- Bug (STI) / Feature (MTI)
+//   Person   --bugs(1:N)--> Bug (a relation whose target is an STI variant)
 //   TaskComment <--comments(1:N)-- Task
 
 model Task {
@@ -121,6 +122,7 @@ model Person {
   name String
 
   tasks Task[]
+  bugs  Bug[]
 
   @@map("people")
 }

@@ -5,7 +5,7 @@ import { type AnyQueryAst, collectOrderedParamRefs } from '@internal/sql-relatio
 import type { SqlQueryPlan } from '@internal/sql-relational-core/plan';
 import { ifDefined } from '@internal/utils/defined';
 import {
-  getFieldToColumnMap,
+  getModelFields,
   modelOf,
   resolvePolymorphismInfo,
   resolvePrimaryKeyColumns,
@@ -71,9 +71,9 @@ function modelColumnsOf(
   if (cached !== undefined) return cached;
 
   const columns = new Set<string>();
-  const addColumnsOf = (name: string) => {
-    for (const column of Object.values(getFieldToColumnMap(contract, namespaceId, name))) {
-      columns.add(column);
+  const addFieldsOnTable = (name: string) => {
+    for (const field of Object.values(getModelFields(contract, namespaceId, name))) {
+      if (field.table === tableName) columns.add(field.column);
     }
   };
   const addInheritedKey = () => {
@@ -82,9 +82,12 @@ function modelColumnsOf(
     }
   };
 
-  if (domainModelTableInNamespace(contract, namespaceId, modelName) === tableName) {
-    addColumnsOf(modelName);
-    if (isMultiTableVariant(contract, namespaceId, modelName, tableName)) addInheritedKey();
+  addFieldsOnTable(modelName);
+  if (
+    domainModelTableInNamespace(contract, namespaceId, modelName) === tableName &&
+    isMultiTableVariant(contract, namespaceId, modelName, tableName)
+  ) {
+    addInheritedKey();
   }
   for (const variant of resolvePolymorphismInfo(
     contract,
@@ -92,7 +95,7 @@ function modelColumnsOf(
     modelName,
   )?.variants.values() ?? []) {
     if (variant.table !== tableName) continue;
-    addColumnsOf(variant.modelName);
+    addFieldsOnTable(variant.modelName);
     if (variant.strategy === 'mti') addInheritedKey();
   }
 
@@ -101,7 +104,7 @@ function modelColumnsOf(
 }
 
 /**
- * The columns of `tableName` that `modelName` exposes, in table order: the columns its fields map, its single-table variants' columns on its own table, and on a multi-table variant's table that variant's columns and the key it inherits. A row carries these when no `select` narrows it; any other column is storage the model does not expose, and the ORM never reads or returns it.
+ * The columns of `tableName` that `modelName` exposes, in table order: the rows of `tableName` as the hierarchy rooted at `modelName` sees them. These are the columns on `tableName` of the model's own and inherited fields (`getModelFields`), of its variants' fields, and, on a multi-table variant's table, the key that variant inherits. A collection narrowed to one single-table variant still reads its siblings' columns, and row mapping drops them. A row carries these columns when no `select` narrows it; any other column is storage the model does not expose, and the ORM never reads or returns it.
  */
 export function resolveModelColumns(
   contract: Contract<SqlStorage>,

@@ -500,8 +500,9 @@ export namespace Models {
   export type public_Person = {
     id: CodecTypes['pg/int4@1']['output'];
     name: CodecTypes['pg/text@1']['output'];
+    bugs: public_Bug[];
     tasks: public_AnyTask[];
-    readonly [RelationKeys]?: 'tasks';
+    readonly [RelationKeys]?: 'bugs' | 'tasks';
   };
   export type public_Project = {
     id: CodecTypes['pg/int4@1']['output'];
@@ -1194,6 +1195,14 @@ type ContractBase = Omit<
               };
             };
             readonly relations: {
+              readonly bugs: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'Bug' };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['assigneeId'];
+                };
+              };
               readonly tasks: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'Task' };
                 readonly cardinality: '1:N';
