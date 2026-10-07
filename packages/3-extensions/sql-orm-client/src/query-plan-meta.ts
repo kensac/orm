@@ -4,11 +4,11 @@ import type { SqlStorage } from '@internal/sql-contract/types';
 import { type AnyQueryAst, collectOrderedParamRefs } from '@internal/sql-relational-core/ast';
 import type { SqlQueryPlan } from '@internal/sql-relational-core/plan';
 import { ifDefined } from '@internal/utils/defined';
-import { getFieldToColumnMap } from './collection-contract';
+import { getFieldToColumnMap, modelOf, resolvePolymorphismInfo } from './collection-contract';
 import { ormError } from './orm-errors';
 import {
-  domainModelNamesInNamespace,
   domainModelTableInNamespace,
+  resolveTableForContract,
   storageTableForContract,
 } from './storage-resolution';
 
@@ -39,41 +39,84 @@ export function resolveTableColumns(
   }
 }
 
-const exposedColumnsCache = new WeakMap<object, Map<string, ReadonlySet<string>>>();
+const modelColumnsCache = new WeakMap<object, Map<string, ReadonlySet<string>>>();
 
-function exposedColumnsOf(
+function inheritedKeyColumns(
   contract: Contract<SqlStorage>,
   namespaceId: string,
   tableName: string,
+): readonly string[] {
+  return resolveTableForContract(contract, namespaceId, tableName)?.table.primaryKey?.columns ?? [];
+}
+
+function isMultiTableVariant(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  modelName: string,
+  tableName: string,
+): boolean {
+  const base = modelOf(contract, namespaceId, modelName)?.base;
+  return (
+    base !== undefined &&
+    domainModelTableInNamespace(contract, base.namespace, base.model) !== tableName
+  );
+}
+
+function modelColumnsOf(
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+  modelName: string,
+  tableName: string,
 ): ReadonlySet<string> {
-  let perContract = exposedColumnsCache.get(contract);
+  let perContract = modelColumnsCache.get(contract);
   if (perContract === undefined) {
     perContract = new Map();
-    exposedColumnsCache.set(contract, perContract);
+    modelColumnsCache.set(contract, perContract);
   }
-  const cacheKey = JSON.stringify([namespaceId, tableName]);
+  const cacheKey = JSON.stringify([namespaceId, modelName, tableName]);
   const cached = perContract.get(cacheKey);
   if (cached !== undefined) return cached;
-  const exposed = new Set<string>();
-  for (const modelName of domainModelNamesInNamespace(contract, namespaceId)) {
-    if (domainModelTableInNamespace(contract, namespaceId, modelName) !== tableName) continue;
-    for (const column of Object.values(getFieldToColumnMap(contract, namespaceId, modelName))) {
-      exposed.add(column);
+
+  const columns = new Set<string>();
+  const addColumnsOf = (name: string) => {
+    for (const column of Object.values(getFieldToColumnMap(contract, namespaceId, name))) {
+      columns.add(column);
     }
+  };
+  const addInheritedKey = () => {
+    for (const column of inheritedKeyColumns(contract, namespaceId, tableName)) {
+      columns.add(column);
+    }
+  };
+
+  if (domainModelTableInNamespace(contract, namespaceId, modelName) === tableName) {
+    addColumnsOf(modelName);
+    if (isMultiTableVariant(contract, namespaceId, modelName, tableName)) addInheritedKey();
   }
-  perContract.set(cacheKey, exposed);
-  return exposed;
+  for (const variant of resolvePolymorphismInfo(
+    contract,
+    namespaceId,
+    modelName,
+  )?.variants.values() ?? []) {
+    if (variant.table !== tableName) continue;
+    addColumnsOf(variant.modelName);
+    if (variant.strategy === 'mti') addInheritedKey();
+  }
+
+  perContract.set(cacheKey, columns);
+  return columns;
 }
 
 /**
- * The columns of `tableName` that a field of some model stored in it maps, in table order: the columns a row may carry when no `select` narrows it. A column no field maps is storage the domain does not expose, and the ORM never reads it.
+ * The columns of `tableName` that `modelName` exposes, in table order: the columns its fields map, its single-table variants' columns on its own table, and on a multi-table variant's table that variant's columns and the key it inherits. A row carries these when no `select` narrows it; any other column is storage the model does not expose, and the ORM never reads or returns it.
  */
-export function resolveExposedTableColumns(
+export function resolveModelColumns(
   contract: Contract<SqlStorage>,
   namespaceId: string,
+  modelName: string,
   tableName: string,
 ): string[] {
-  const exposed = exposedColumnsOf(contract, namespaceId, tableName);
+  const exposed = modelColumnsOf(contract, namespaceId, modelName, tableName);
   return resolveTableColumns(contract, namespaceId, tableName).filter((column) =>
     exposed.has(column),
   );

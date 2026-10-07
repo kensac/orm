@@ -1,0 +1,25 @@
+// use prisma-8
+
+// A Task hierarchy whose multi-table variant `Chore` has no field of its own:
+// its table `chores` holds only the key it inherits from `tasks`. `Bug` is a
+// single-table variant beside it.
+
+model Task {
+  id    Int    @id @default(autoincrement())
+  title String
+  type  String
+
+  @@discriminator(type)
+  @@map("tasks")
+}
+
+model Bug {
+  severity String
+
+  @@base(Task, "bug")
+}
+
+model Chore {
+  @@base(Task, "chore")
+  @@map("chores")
+}

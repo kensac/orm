@@ -368,6 +368,7 @@ async function updateFirstGraph(
     const compiled = compileUpdateReturning(
       contract,
       namespaceId,
+      modelName,
       tableName,
       mappedUpdateData,
       [identityWhere],
@@ -1184,6 +1185,7 @@ async function insertSingleRow(
   const compiled = compileInsertReturning(
     contract,
     namespaceId,
+    modelName,
     tableName,
     [mappedData],
     undefined,
@@ -1230,7 +1232,7 @@ async function findRowByCriterion(
     filters: [whereExpr],
     limit: 1,
   };
-  const compiled = compileSelect(contract, namespaceId, tableName, state);
+  const compiled = compileSelect(contract, namespaceId, tableName, state, modelName);
   const rows = await queryPlanRows<Record<string, unknown>>(scope, compiled).toArray();
 
   const firstRow = rows[0];
@@ -1254,7 +1256,7 @@ async function findFirstByFilters(
     filters,
     limit: 1,
   };
-  const compiled = compileSelect(contract, namespaceId, tableName, state);
+  const compiled = compileSelect(contract, namespaceId, tableName, state, modelName);
   const rows = await queryPlanRows<Record<string, unknown>>(scope, compiled).toArray();
 
   const firstRow = rows[0];

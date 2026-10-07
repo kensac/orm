@@ -43,7 +43,7 @@ import { ormError } from './orm-errors';
 import {
   buildOrmQueryPlan,
   deriveParamsFromAst,
-  resolveExposedTableColumns,
+  resolveModelColumns,
   resolveTableColumns,
 } from './query-plan-meta';
 import {
@@ -99,6 +99,7 @@ function jsonEntryProjection(
 function buildProjection(
   contract: Contract<SqlStorage>,
   namespaceId: string,
+  modelName: string,
   tableName: string,
   selectedFields: readonly string[] | undefined,
   tableRef = tableName,
@@ -106,7 +107,7 @@ function buildProjection(
   const columns =
     selectedFields !== undefined
       ? [...selectedFields]
-      : resolveExposedTableColumns(contract, namespaceId, tableName);
+      : resolveModelColumns(contract, namespaceId, modelName, tableName);
 
   return columns.map((column) =>
     ProjectionItem.of(
@@ -145,7 +146,7 @@ function resolvePolymorphicProjectionSelection(
   }
 
   const baseTableColumns = new Set(
-    resolveExposedTableColumns(contract, namespaceId, polyInfo.baseTable),
+    resolveModelColumns(contract, namespaceId, modelName, polyInfo.baseTable),
   );
   const baseFieldToColumn = getFieldToColumnMap(contract, namespaceId, modelName);
   const variantFieldMaps = Array.from(polyInfo.variants.values(), (variant) => ({
@@ -650,6 +651,7 @@ function buildIncludeChildRowsSelect(
   const scalarProjection = buildProjection(
     contract,
     include.relatedNamespaceId,
+    include.relatedModelName,
     include.relatedTableName,
     polyJoinsAndProjection.baseSelectedFields,
     childTableRef,
@@ -831,6 +833,7 @@ function buildDistinctNonLeafChildRowsSelect(options: {
   const innerScalarProjection = buildProjection(
     contract,
     include.relatedNamespaceId,
+    include.relatedModelName,
     include.relatedTableName,
     queryPolyProjection.baseSelectedFields,
     childTableRef,
@@ -901,6 +904,7 @@ function buildDistinctNonLeafChildRowsSelect(options: {
   const outerScalarProjection = buildProjection(
     contract,
     include.relatedNamespaceId,
+    include.relatedModelName,
     include.relatedTableName,
     visiblePolyProjection.baseSelectedFields,
     distinctAlias,
@@ -1385,6 +1389,7 @@ function buildCorrelatedIncludeProjection(
 
 function buildSelectAst(
   contract: Contract<SqlStorage>,
+  modelName: string,
   tableName: string,
   state: CollectionState,
   options: {
@@ -1402,6 +1407,7 @@ function buildSelectAst(
   const scalarProjection = buildProjection(
     contract,
     namespaceId,
+    modelName,
     tableName,
     state.selectedFields,
     tableName,
@@ -1455,19 +1461,16 @@ export function compileSelect(
   namespaceId: string,
   tableName: string,
   state: CollectionState,
-  modelName?: string,
+  modelName: string,
 ): SqlQueryPlan<Record<string, unknown>> {
   if (state.distinctOn !== undefined && state.distinctOn.length > 0) {
     assertDistinctOnCapability(contract, 'distinctOn');
   }
 
-  const polyInfo = modelName
-    ? resolvePolymorphismInfo(contract, namespaceId, modelName)
+  const polyInfo = resolvePolymorphismInfo(contract, namespaceId, modelName);
+  const selection = polyInfo
+    ? resolvePolymorphicProjectionSelection(contract, namespaceId, modelName, polyInfo, state)
     : undefined;
-  const selection =
-    polyInfo && modelName
-      ? resolvePolymorphicProjectionSelection(contract, namespaceId, modelName, polyInfo, state)
-      : undefined;
   const projectionState = selection
     ? { ...state, selectedFields: selection.baseSelectedFields }
     : state;
@@ -1494,6 +1497,7 @@ export function compileSelect(
 
   const ast = buildSelectAst(
     contract,
+    modelName,
     tableName,
     { ...projectionState, includes: [] },
     {
@@ -1513,19 +1517,16 @@ export function compileSelectWithIncludes(
   namespaceId: string,
   tableName: string,
   state: CollectionState,
-  modelName?: string,
+  modelName: string,
 ): SqlQueryPlan<Record<string, unknown>> {
   const includeJoins: JoinAst[] = [];
   const includeProjection: ProjectionItem[] = [];
   const topLevelWhere = buildStateWhere(contract, tableName, state, { namespaceId });
 
-  const polyInfo = modelName
-    ? resolvePolymorphismInfo(contract, namespaceId, modelName)
+  const polyInfo = resolvePolymorphismInfo(contract, namespaceId, modelName);
+  const selection = polyInfo
+    ? resolvePolymorphicProjectionSelection(contract, namespaceId, modelName, polyInfo, state)
     : undefined;
-  const selection =
-    polyInfo && modelName
-      ? resolvePolymorphicProjectionSelection(contract, namespaceId, modelName, polyInfo, state)
-      : undefined;
   const projectionState = selection
     ? { ...state, selectedFields: selection.baseSelectedFields }
     : state;
@@ -1564,6 +1565,7 @@ export function compileSelectWithIncludes(
 
   const ast = buildSelectAst(
     contract,
+    modelName,
     tableName,
     {
       ...projectionState,
