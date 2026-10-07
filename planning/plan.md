@@ -6,7 +6,7 @@ This page lists the projects in priority order, by stream. Work the streams in p
 
 **GA column:** **Must** means GA does not ship without it. **Aim** means wanted at GA, but it can ship just after. **Later** means after GA. **Not decided** means Will has not placed it yet.
 
-**Owner column:** who answers for the row. Everything not given to Serhii is Will's until he says otherwise.
+**Owner column:** who answers for the row. Streams 1, 2 and 5 are Will's and streams 3 and 4 are Serhii's, except where a row says otherwise (Will, 2026-10-07).
 
 **Progress column:** one symbol, then done/total where the row has countable units. ✅ done · 🟡 code done, waiting on review or docs · 🔄 in progress · ⏳ not started · ❓ needs a decision from Will. The units are the slices, pull requests, tickets or items the Status column names; a row with no units yet has no count.
 
@@ -48,9 +48,9 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 | # | Progress | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | ⏳ 0/4 | Emulator controls in the `prisma` CLI: start, stop, list, reset | Must, urgent | Will | Not started, no PR |  |
-| 2 | 🔄 2/4 | VS Code extension: formatter without the CLI, go-to-definition, multi-file PSL, emulator controls | Must | Will | Go-to-definition and multi-file PSL done. File watching in review. Formatter without the CLI unverified. Emulator controls wait on row 1 | Review the file-watching PR. Verify the formatter works without the CLI |
-| 3 | ⏳ | Make the extension's handling of local and remote Prisma Postgres match the CLI and its emulators | Must | Will | Not started |  |
-| 4 | ✅ 1/1 | Multi-file PSL | Must | Will | Done 2026-09-30 | |
+| 2 | 🔄 2/4 | VS Code extension: formatter without the CLI, go-to-definition, multi-file PSL, emulator controls | Must | Serhii | Go-to-definition and multi-file PSL done. File watching in review. Formatter without the CLI unverified. Emulator controls wait on row 1 | Review the file-watching PR. Verify the formatter works without the CLI |
+| 3 | ⏳ | Make the extension's handling of local and remote Prisma Postgres match the CLI and its emulators | Must | Serhii | Not started |  |
+| 4 | ✅ 1/1 | Multi-file PSL | Must | Serhii | Done 2026-09-30 | |
 
 ## Stream 4: Query features
 
@@ -58,13 +58,13 @@ Everything here is additive, so nothing here can block a breaking change.
 
 | # | Progress | Project | GA | Owner | Status | Next |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | ⏳ | Transaction options: isolation levels and timeouts | Must | Will | Not designed. A stale draft exists |  |
-| 1b | ⏳ | Nested transactions | Must | Will | Not designed |  |
-| 2 | ⏳ 0/5 | Nested writes on relations: `update`, `delete`, `upsert`, `set`, `connectOrCreate` | Aim | Will | Not started. Large |  |
-| 3 | ⏳ | Design the replacement for `omit` | Must (design only) | Will | Not started |  |
-| 4 | ⏳ | Expressions in updates (what `increment` and `decrement` did in Prisma 7) | When there is time | Will | Not designed | |
+| 1 | ⏳ | Transaction options: isolation levels and timeouts | Must | Serhii | Not designed. A stale draft exists |  |
+| 1b | ⏳ | Nested transactions | Must | Serhii | Not designed |  |
+| 2 | ⏳ 0/5 | Nested writes on relations: `update`, `delete`, `upsert`, `set`, `connectOrCreate` | Aim | Serhii | Not started. Large |  |
+| 3 | ✅ 1/1 | Design the replacement for `omit` | Must (design only) | Will | Design done (Will, 2026-10-07) |  |
+| 4 | ⏳ | Expressions in updates (what `increment` and `decrement` did in Prisma 7) | When there is time | Serhii | Not designed | |
 | 5 | ⏳ | A query that fails when nothing matches (what `firstOrThrow` did in Prisma 7) | When there is time | Serhii | Planned, not designed |  |
-| 6 | ⏳ | JSON filters and list filters | Later | Will | PR stalled since July | |
+| 6 | ⏳ | JSON filters and list filters | Later | Serhii | PR stalled since July | |
 
 In progress but not ranked here:
 
@@ -72,7 +72,7 @@ In progress but not ranked here:
 | --- | --- | --- | --- | --- |
 | 🔄 1/3 | Row locking on a select | Will | SQL builder merged. ORM client and ADR in review | Review the two open PRs |
 | 🔄 1/2 | Collection classes and scopes | Will | Collection classes merged. Scopes in review | Review the scopes PR |
-| ✅ 1/1 | `variant()` selects by discriminator value | Will | Merged 2026-10-06 | |
+| ✅ 1/1 | `variant()` selects by discriminator value | Serhii | Merged 2026-10-06 | |
 | ✅ 1/1 | The Postgres driver returns every column as text | Will | Merged 2026-10-06 | |
 | 🔄 3/4 | Cache middleware | Will | Invalidation, keys and the after-transaction stage merged. Invalidation after commit in backlog | TML-3400 |
 
