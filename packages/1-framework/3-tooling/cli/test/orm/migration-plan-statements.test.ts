@@ -281,4 +281,38 @@ describe('migration plan --rename', () => {
     );
     expect(labels).toEqual(expect.arrayContaining([ADDITIVE_OP.label, 'Statements applied']));
   });
+
+  it('reports the statements of an auto-baseline plan whose storage did not change, with no operations', async () => {
+    const project = await createOfflineProject({ storageHash: HASH_TO, models: ['User', 'Post'] });
+    await seedContractSnapshot({
+      migrationsDir: project.migrationsDir,
+      storageHash: HASH_TO,
+      models: ['Profile', 'Post'],
+    });
+    await seedDbRef({ appMigrationsDir: project.appMigrationsDir, storageHash: HASH_TO });
+    const run = await harness(project).run(['migration', 'plan', '--rename', 'Profile:User'], {
+      cwd: project.dir,
+      isTty: { stdout: true },
+    });
+
+    expect(run.exitCode).toBe(0);
+    expect(run.presented?.data).toMatchObject({
+      appliedStatements: [
+        {
+          statement: profileToUser,
+          description: 'rename model "Profile" to "User"',
+          operationIndexes: [],
+        },
+      ],
+    });
+    expect(run.presented?.presentation.human).toContainEqual({
+      kind: 'tree',
+      roots: [
+        {
+          label: 'Statements applied',
+          children: [{ label: 'rename model "Profile" to "User" (no operations)' }],
+        },
+      ],
+    });
+  });
 });

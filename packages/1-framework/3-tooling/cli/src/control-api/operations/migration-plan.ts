@@ -749,6 +749,12 @@ async function executeMigrationPlanCommandInner(
       );
 
       if (deltaLeg === undefined) {
+        const statementsWithoutOperations = reportAppliedStatements(
+          statements.map((statement) => ({ statement, operationIndexes: [] })),
+          fromContract,
+          aggregate.app.contract(),
+          0,
+        );
         const baselineOps = baselineLeg.value.hasPlaceholders ? [] : baselineLeg.value.plannedOps;
         if (baselineLeg.value.hasPlaceholders) {
           const baselineDir = relative(cwd, baselinePackageDir);
@@ -763,7 +769,7 @@ async function executeMigrationPlanCommandInner(
             emittedExtensionDirs,
             ...(warnings.length > 0 ? { warnings } : {}),
             pendingPlaceholders: true,
-            appliedStatements: [],
+            appliedStatements: statementsWithoutOperations,
             summary:
               'Planned baseline with placeholder(s) — edit migration.ts then run `node migration.ts` to self-emit',
             timings: { total: Date.now() - startTime },
@@ -788,7 +794,7 @@ async function executeMigrationPlanCommandInner(
           emittedExtensionDirs,
           ...(preview !== undefined ? { preview } : {}),
           ...(warnings.length > 0 ? { warnings } : {}),
-          appliedStatements: [],
+          appliedStatements: statementsWithoutOperations,
           summary: buildAutoBaselinePlanSummary(baselineOps.length, 0, emittedExtensionDirs.length),
           timings: { total: Date.now() - startTime },
         };
