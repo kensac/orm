@@ -6,6 +6,7 @@ import {
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage } from '@internal/sql-contract/types';
+import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { sqliteCreateNamespace } from '@internal/target-sqlite/control';
 import { CONTROL_TABLE_NAMES } from '@internal/target-sqlite/control-tables';
 import type { SqlitePlanTargetDetails } from '@internal/target-sqlite/planner-target-details';
@@ -144,7 +145,10 @@ describe('rename statements with hostile identifiers on SQLite', {
 
     const planned = sqliteTargetDescriptor.createPlanner(controlAdapter).plan({
       contract: destination,
-      schema: sqliteTargetDescriptor.migrations.contractToSchema(origin, frameworkComponents),
+      schema: sqliteTargetDescriptor.migrations.contractToSchema(
+        origin,
+        frameworkComponents,
+      ) as SqlSchemaIR,
       policy: ALL_CLASSES,
       fromContract: origin,
       statements,
