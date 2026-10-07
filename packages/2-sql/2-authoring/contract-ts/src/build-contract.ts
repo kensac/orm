@@ -1172,6 +1172,79 @@ function columnsProducingCheckPrefix(
   );
 }
 
+function assertExposureFitsModel(model: ModelNode): void {
+  if (model.unexposed !== true) return;
+  if (model.sharesBaseTable === true) {
+    throw contractError(
+      'CONTRACT.ARGUMENT_INVALID',
+      `Model "${model.modelName}" is not exposed to the ORM but shares its base model's table as a single-table variant; a variant is part of its base model's domain, so it cannot be unexposed alone.`,
+      { meta: { modelName: model.modelName, reason: 'unexposed-variant' } },
+    );
+  }
+  const [relation] = model.relations ?? [];
+  if (relation !== undefined) {
+    throw contractError(
+      'CONTRACT.RELATION_INVALID',
+      `Relation "${model.modelName}.${relation.fieldName}" is declared on a model that is not exposed to the ORM; an unexposed model has no domain model to carry it.`,
+      {
+        meta: {
+          modelName: model.modelName,
+          relationName: relation.fieldName,
+          reason: 'relation-on-unexposed-model',
+        },
+      },
+    );
+  }
+}
+
+function assertRelationTargetExposed(
+  model: ModelNode,
+  relation: RelationNode,
+  targetModel: ModelNode,
+): void {
+  if (targetModel.unexposed !== true) return;
+  throw contractError(
+    'CONTRACT.RELATION_INVALID',
+    `Relation "${model.modelName}.${relation.fieldName}" targets model "${targetModel.modelName}", which is not exposed to the ORM; a relation can only reach an exposed model.`,
+    {
+      meta: {
+        modelName: model.modelName,
+        relationName: relation.fieldName,
+        reason: 'relation-to-unexposed-model',
+      },
+    },
+  );
+}
+
+function assertRelationJoinsExposedFields(
+  model: ModelNode,
+  relation: RelationNode,
+  side: 'parentColumns' | 'childColumns',
+  sideModel: ModelNode,
+): void {
+  for (const columnName of relation.on[side]) {
+    const field = sideModel.fields.find(
+      (candidate) =>
+        candidate.columnName === columnName &&
+        !isValueObjectMember(candidate) &&
+        candidate.unexposed === true,
+    );
+    if (field === undefined) continue;
+    throw contractError(
+      'CONTRACT.RELATION_INVALID',
+      `Relation "${model.modelName}.${relation.fieldName}" joins on column "${columnName}" of model "${sideModel.modelName}", whose field "${field.fieldName}" is not exposed to the ORM; a relation can only join on exposed fields.`,
+      {
+        meta: {
+          modelName: model.modelName,
+          relationName: relation.fieldName,
+          fieldName: field.fieldName,
+          reason: 'relation-on-unexposed-field',
+        },
+      },
+    );
+  }
+}
+
 export function buildSqlContractFromDefinition(
   definition: ContractDefinition,
   codecLookup?: CodecLookupWithDescriptors,
@@ -1215,6 +1288,7 @@ export function buildSqlContractFromDefinition(
         ? semanticModel.namespaceId
         : defaultNamespaceId;
     modelNameToNamespaceId.set(semanticModel.modelName, namespaceId);
+    assertExposureFitsModel(semanticModel);
     // STI variants share the base table; the base model already owns this
     // table name and its root, so the variant contributes neither. An
     // unexposed model has a table but no root.
@@ -1583,6 +1657,7 @@ export function buildSqlContractFromDefinition(
     );
     const modelRelations: Record<string, ContractRelation> = {};
     for (const relation of semanticModel.relations ?? []) {
+      assertRelationJoinsExposedFields(semanticModel, relation, 'parentColumns', semanticModel);
       // Cross-space relations have `spaceId` set — the target model lives in
       // a different contract space, so skip local model lookup and validation.
       if (relation.spaceId !== undefined) {
@@ -1615,6 +1690,10 @@ export function buildSqlContractFromDefinition(
         `Relation "${semanticModel.modelName}.${relation.fieldName}" is local but carries no target table; only cross-space relations may leave it unset.`,
       );
       assertTargetTableMatches(semanticModel.modelName, targetModel, relation.toTable, 'Relation');
+      assertRelationTargetExposed(semanticModel, relation, targetModel);
+      if (relation.cardinality !== 'N:M') {
+        assertRelationJoinsExposedFields(semanticModel, relation, 'childColumns', targetModel);
+      }
 
       const targetColumnToField = new Map(
         targetModel.fields.map((f) => [f.columnName, f.fieldName]),

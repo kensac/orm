@@ -84,7 +84,7 @@ export interface FieldNode extends ScalarMemberNode {
    */
   readonly noCheck?: readonly CheckKind[];
   /**
-   * Internal, not a public authoring option: the column is in storage, managed by migrations, but no domain field exposes it, so the ORM never reads, writes or types it. Sources that keep a column the application must not see (a Prisma 7 `@ignore` field) set it.
+   * The node-level form of `@ignore` on a field: the column is in storage, managed by migrations, but no domain field exposes it, so the ORM never reads, writes or types it. It cannot carry a generated default, and no relation may join on it.
    */
   readonly unexposed?: boolean;
 }
@@ -289,7 +289,7 @@ export interface ModelNode {
    */
   readonly sharesBaseTable?: boolean;
   /**
-   * Internal, not a public authoring option: the table is in storage, managed by migrations, but no domain model exposes it, so the contract has no model and no root for it. Every field of an unexposed model is unexposed with it, and a relation cannot point at it. Sources that keep a table the application must not see (a Prisma 7 `@@ignore` model, `_prisma_migrations`) set it.
+   * The node-level form of `@@ignore` on a model: the table is in storage, managed by migrations, but no domain model exposes it, so the contract has no model and no root for it. Every field of an unexposed model is unexposed with it. The builder refuses it on a single-table variant, on a model that declares relations, and as the target of a relation.
    */
   readonly unexposed?: boolean;
 }

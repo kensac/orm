@@ -141,3 +141,207 @@ describe('storage the domain does not expose', () => {
     );
   });
 });
+
+describe('combinations the builder refuses for storage the domain does not expose', () => {
+  function buildModels(models: Parameters<typeof buildSqlContractFromDefinition>[0]['models']) {
+    return () =>
+      buildSqlContractFromDefinition({
+        warnings: undefined,
+        target: postgresTargetPack,
+        createNamespace: createTestSqlNamespace,
+        models,
+      });
+  }
+
+  const user = {
+    modelName: 'User',
+    tableName: 'user',
+    fields: [column('id', 'id', int4), column('email', 'email', text)],
+    id: { columns: ['id'] },
+  } as const;
+
+  const post = {
+    modelName: 'Post',
+    tableName: 'post',
+    fields: [
+      column('id', 'id', int4),
+      { ...column('reviewerId', 'reviewer_id', int4, true), unexposed: true },
+    ],
+    id: { columns: ['id'] },
+    foreignKeys: [
+      { columns: ['reviewer_id'], references: { model: 'User', table: 'user', columns: ['id'] } },
+    ],
+  } as const;
+
+  it('refuses an unexposed model that shares its base model table', () => {
+    expect(
+      buildModels([
+        user,
+        {
+          modelName: 'Admin',
+          tableName: 'user',
+          sharesBaseTable: true,
+          unexposed: true,
+          fields: [],
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.ARGUMENT_INVALID',
+        message:
+          'Model "Admin" is not exposed to the ORM but shares its base model\'s table as a single-table variant; a variant is part of its base model\'s domain, so it cannot be unexposed alone.',
+        meta: { modelName: 'Admin', reason: 'unexposed-variant' },
+      }),
+    );
+  });
+
+  it('refuses an unexposed model that declares a relation', () => {
+    expect(
+      buildModels([
+        user,
+        {
+          modelName: 'Ledger',
+          tableName: 'ledger',
+          unexposed: true,
+          fields: [column('id', 'id', int4), column('userId', 'user_id', int4)],
+          id: { columns: ['id'] },
+          relations: [
+            {
+              fieldName: 'user',
+              toModel: 'User',
+              toTable: 'user',
+              cardinality: 'N:1',
+              nullable: false,
+              on: {
+                parentTable: 'ledger',
+                parentColumns: ['user_id'],
+                childTable: 'user',
+                childColumns: ['id'],
+              },
+            },
+          ],
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.RELATION_INVALID',
+        message:
+          'Relation "Ledger.user" is declared on a model that is not exposed to the ORM; an unexposed model has no domain model to carry it.',
+        meta: { modelName: 'Ledger', relationName: 'user', reason: 'relation-on-unexposed-model' },
+      }),
+    );
+  });
+
+  it('refuses a relation to an unexposed model', () => {
+    expect(
+      buildModels([
+        {
+          ...user,
+          relations: [
+            {
+              fieldName: 'ledgers',
+              toModel: 'Ledger',
+              toTable: 'ledger',
+              cardinality: '1:N',
+              on: {
+                parentTable: 'user',
+                parentColumns: ['id'],
+                childTable: 'ledger',
+                childColumns: ['user_id'],
+              },
+            },
+          ],
+        },
+        {
+          modelName: 'Ledger',
+          tableName: 'ledger',
+          unexposed: true,
+          fields: [column('id', 'id', int4), column('userId', 'user_id', int4)],
+          id: { columns: ['id'] },
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.RELATION_INVALID',
+        message:
+          'Relation "User.ledgers" targets model "Ledger", which is not exposed to the ORM; a relation can only reach an exposed model.',
+        meta: { modelName: 'User', relationName: 'ledgers', reason: 'relation-to-unexposed-model' },
+      }),
+    );
+  });
+
+  it('refuses a relation whose own column belongs to an unexposed field', () => {
+    expect(
+      buildModels([
+        user,
+        {
+          ...post,
+          relations: [
+            {
+              fieldName: 'reviewer',
+              toModel: 'User',
+              toTable: 'user',
+              cardinality: 'N:1',
+              nullable: true,
+              on: {
+                parentTable: 'post',
+                parentColumns: ['reviewer_id'],
+                childTable: 'user',
+                childColumns: ['id'],
+              },
+            },
+          ],
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.RELATION_INVALID',
+        message:
+          'Relation "Post.reviewer" joins on column "reviewer_id" of model "Post", whose field "reviewerId" is not exposed to the ORM; a relation can only join on exposed fields.',
+        meta: {
+          modelName: 'Post',
+          relationName: 'reviewer',
+          fieldName: 'reviewerId',
+          reason: 'relation-on-unexposed-field',
+        },
+      }),
+    );
+  });
+
+  it('refuses a relation whose target column belongs to an unexposed field', () => {
+    expect(
+      buildModels([
+        {
+          ...user,
+          relations: [
+            {
+              fieldName: 'reviewedPosts',
+              toModel: 'Post',
+              toTable: 'post',
+              cardinality: '1:N',
+              on: {
+                parentTable: 'user',
+                parentColumns: ['id'],
+                childTable: 'post',
+                childColumns: ['reviewer_id'],
+              },
+            },
+          ],
+        },
+        post,
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.RELATION_INVALID',
+        message:
+          'Relation "User.reviewedPosts" joins on column "reviewer_id" of model "Post", whose field "reviewerId" is not exposed to the ORM; a relation can only join on exposed fields.',
+        meta: {
+          modelName: 'User',
+          relationName: 'reviewedPosts',
+          fieldName: 'reviewerId',
+          reason: 'relation-on-unexposed-field',
+        },
+      }),
+    );
+  });
+});
