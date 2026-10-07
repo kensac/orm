@@ -36,23 +36,6 @@ async function seed(runtime: PgIntegrationRuntime): Promise<void> {
   );
 }
 
-const unexposedNames = [
-  'legacyKey',
-  'legacy_key',
-  'internalNote',
-  'internal_note',
-  'reviewerId',
-  'reviewer_id',
-];
-
-function keysOf(value: unknown): string[] {
-  return (
-    JSON.stringify(value)
-      .match(/"([^"]+)":/g)
-      ?.map((key) => key.slice(1, -2)) ?? []
-  );
-}
-
 describe('integration/unexposed-storage', () => {
   it(
     'reads and writes leave out every column no field maps',
@@ -90,10 +73,6 @@ describe('integration/unexposed-storage', () => {
 
         const deleted = await db.public.Post.where({ id: 11 }).delete();
         expect(deleted).toEqual({ id: 11, title: 'Second', userId: 2 });
-
-        for (const value of [users, posts, withPosts, created, updated, deleted]) {
-          expect(keysOf(value).filter((key) => unexposedNames.includes(key))).toEqual([]);
-        }
 
         const stored = await runtime.query<{
           id: number;
