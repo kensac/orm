@@ -1,17 +1,27 @@
+import { int4Column, textColumn } from '@internal/adapter-postgres/column-types';
+import {
+  buildSqlContractFromDefinition,
+  type FieldNode,
+} from '@internal/sql-contract-ts/contract-builder';
 import {
   ColumnRef,
   ProjectionItem,
   SelectAst,
   TableSource,
 } from '@internal/sql-relational-core/ast';
+import { assemblePostgresCodecRegistryWithBuiltins } from '@internal/target-postgres/codecs';
+import postgresPack from '@internal/target-postgres/pack';
+import { postgresCreateNamespace } from '@internal/target-postgres/types';
 import { describe, expect, it } from 'vitest';
 import {
   buildOrmPlanMeta,
   buildOrmQueryPlan,
   deriveParamsFromAst,
+  resolveModelColumns,
   resolveTableColumns,
 } from '../src/query-plan-meta';
 import { baseContract } from './collection-fixtures';
+import { buildMixedPolyContract } from './helpers';
 import { unboundTables } from './unbound-tables';
 
 describe('query plan meta', () => {
@@ -22,6 +32,63 @@ describe('query plan meta', () => {
     expect(() => resolveTableColumns(baseContract, 'public', 'missing')).toThrow(
       'Unknown table "missing" in SQL ORM query planner',
     );
+  });
+
+  describe('resolveModelColumns', () => {
+    function column(
+      fieldName: string,
+      columnName: string,
+      descriptor: FieldNode['descriptor'],
+      unexposed = false,
+    ): FieldNode {
+      return { fieldName, columnName, descriptor, nullable: unexposed, many: false, unexposed };
+    }
+
+    const unexposedContract = buildSqlContractFromDefinition(
+      {
+        warnings: undefined,
+        target: postgresPack,
+        createNamespace: postgresCreateNamespace,
+        models: [
+          {
+            modelName: 'User',
+            tableName: 'user',
+            fields: [
+              column('id', 'id', int4Column),
+              column('legacyKey', 'legacy_key', textColumn, true),
+              column('email', 'email', textColumn),
+            ],
+            id: { columns: ['id'] },
+          },
+        ],
+      },
+      assemblePostgresCodecRegistryWithBuiltins([]),
+    );
+
+    it('leaves out a column no field maps, in table order', () => {
+      expect({
+        table: resolveTableColumns(unexposedContract, 'public', 'user'),
+        model: resolveModelColumns(unexposedContract, 'public', 'User', 'user'),
+      }).toEqual({
+        table: ['id', 'legacy_key', 'email'],
+        model: ['id', 'email'],
+      });
+    });
+
+    it("carries a base model's single-table variant columns and each multi-table variant's inherited key", () => {
+      const contract = buildMixedPolyContract();
+      expect({
+        baseTable: resolveModelColumns(contract, 'public', 'Task', 'tasks'),
+        variantTableFromBase: resolveModelColumns(contract, 'public', 'Task', 'features'),
+        variantTableFromVariant: resolveModelColumns(contract, 'public', 'Feature', 'features'),
+        otherModelsTable: resolveModelColumns(contract, 'public', 'Project', 'tasks'),
+      }).toEqual({
+        baseTable: ['id', 'title', 'type', 'severity', 'project_id', 'parent_id', 'assignee_id'],
+        variantTableFromBase: ['id', 'priority', 'assignee_id'],
+        variantTableFromVariant: ['id', 'priority', 'assignee_id'],
+        otherModelsTable: [],
+      });
+    });
   });
 
   it('includes profileHash in plan meta and carries no sidecars', () => {
