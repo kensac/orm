@@ -242,6 +242,11 @@ interface ActualSqlBlockModule {
   readonly sqlFamilyPslBlockDescriptors: AuthoringPslBlockDescriptorNamespace;
 }
 
+interface ActualPostgresBlockModule {
+  readonly postgresAuthoringEntityTypes: AuthoringEntityTypeNamespace;
+  readonly postgresAuthoringPslBlockDescriptors: AuthoringPslBlockDescriptorNamespace;
+}
+
 interface ActualPostgresDefaultsModule {
   createPostgresDefaultFunctionRegistry(): ControlMutationDefaultRegistry;
 }
@@ -343,6 +348,23 @@ async function actualSqlStack(): Promise<CompletionTestStack> {
     attributeSpecs: attributes.sqlAttributeSpecs,
     entityTypes: blocks.sqlFamilyEntityTypes,
     pslBlockDescriptors: blocks.sqlFamilyPslBlockDescriptors,
+  };
+}
+
+async function actualPostgresStack(): Promise<CompletionTestStack> {
+  const [sql, postgres] = await Promise.all([
+    actualSqlStack(),
+    importFromPackageRoot<ActualPostgresBlockModule>(
+      '../../../3-targets/3-targets/postgres/src/core/authoring.ts',
+    ),
+  ]);
+  return {
+    ...sql,
+    entityTypes: { ...sql.entityTypes, ...postgres.postgresAuthoringEntityTypes },
+    pslBlockDescriptors: {
+      ...sql.pslBlockDescriptors,
+      ...postgres.postgresAuthoringPslBlockDescriptors,
+    },
   };
 }
 
@@ -1095,6 +1117,34 @@ namespace app {
     expect(valuesAt('@@index([id], where: |)')).toEqual([sqlItem]);
     expect(valuesAt('@@index(expression: |, map: "post_idx")')).toEqual([sqlItem]);
     expect(valuesAt('@@check(expression: |, name: "post_check")')).toEqual([sqlItem]);
+  }, 5_000);
+
+  it("offers a sql literal for a policy block's using", async () => {
+    const stack = await actualPostgresStack();
+    const dataTypes = await sqlExpressionDataTypes();
+    const [entry] = Object.values(dataTypes);
+
+    const { items } = completeWithActualStack(
+      ['model Post {', '  id Int', '}', 'policy_select read_own {', '  using = |', '}'].join('\n'),
+      stack,
+      { clientSupportsSnippets: true, dataTypes },
+    );
+
+    expect(
+      items.map((item) => ({
+        label: item.label,
+        detail: item.detail,
+        newText: item.textEdit?.newText,
+        insertTextFormat: item.insertTextFormat,
+      })),
+    ).toEqual([
+      {
+        label: 'sql',
+        detail: entry?.documentation,
+        newText: 'sql`$1`',
+        insertTextFormat: InsertTextFormat.Snippet,
+      },
+    ]);
   }, 5_000);
 
   it('completes model and field attributes when the source has no data types', async () => {
