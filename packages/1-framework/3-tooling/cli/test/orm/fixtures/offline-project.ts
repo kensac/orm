@@ -40,9 +40,30 @@ export async function removeOfflineProjects(): Promise<void> {
  * An emitted contract. With `models`, it carries an application domain whose
  * one namespace `app` declares those models, so statements can resolve.
  */
+/** A model of a fixture contract: its name, or its name and the names of its scalar fields. */
+export type FixtureModel = string | { readonly name: string; readonly fields: readonly string[] };
+
+function modelEntry(model: FixtureModel): readonly [string, Record<string, unknown>] {
+  const name = typeof model === 'string' ? model : model.name;
+  const fields = typeof model === 'string' ? [] : model.fields;
+  return [
+    name,
+    {
+      fields: Object.fromEntries(
+        fields.map((field) => [
+          field,
+          { nullable: false, type: { kind: 'scalar', codecId: 'pg/text@1' } },
+        ]),
+      ),
+      relations: {},
+      storage: {},
+    },
+  ];
+}
+
 export function contractJson(
   storageHash: string,
-  models?: readonly string[],
+  models?: readonly FixtureModel[],
 ): Record<string, unknown> {
   return {
     storage: { storageHash, namespaces: {} },
@@ -56,9 +77,7 @@ export function contractJson(
           domain: {
             namespaces: {
               app: {
-                models: Object.fromEntries(
-                  models.map((model) => [model, { fields: {}, relations: {}, storage: {} }]),
-                ),
+                models: Object.fromEntries(models.map(modelEntry)),
               },
             },
           },
@@ -68,7 +87,7 @@ export function contractJson(
 
 export async function createOfflineProject(options: {
   readonly storageHash: string;
-  readonly models?: readonly string[];
+  readonly models?: readonly FixtureModel[];
 }): Promise<OfflineProject> {
   const dir = createTestProjectDir('orm-offline');
   created.push(dir);
@@ -143,7 +162,7 @@ export async function seedMigrationPackage(options: {
 export async function seedContractSnapshot(options: {
   readonly migrationsDir: string;
   readonly storageHash: string;
-  readonly models?: readonly string[];
+  readonly models?: readonly FixtureModel[];
 }): Promise<void> {
   await writeContractSnapshot(options.migrationsDir, options.storageHash, {
     contractJson: contractJson(options.storageHash, options.models),
@@ -186,6 +205,12 @@ export interface FakePlannerScript {
   readonly dataLossByPlan?: ReadonlyArray<readonly ScriptedDataLoss[]>;
   /** Reports `dataLoss` only from a `plan` call given no statements, as a rename removes a loss. */
   readonly statementsResolveDataLoss?: boolean;
+  /** Reports `dataLoss` only from a `plan` call given fewer statements than this. */
+  readonly statementsResolvingDataLoss?: number;
+  /** Where in the operations the placeholder that `throwOnOperations` rejects sits; last by default. */
+  readonly placeholderAt?: number;
+  /** Makes the plan's `operations` accessor throw this synchronously. */
+  readonly operationsAccessorThrows?: unknown;
 }
 
 /** A `dataLoss` entry of a scripted plan: the position of an operation and what it loses. */
@@ -212,7 +237,9 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
       }
       const operations = script.operationsByPlan?.[planCalls] ?? script.operations;
       const dataLoss =
-        script.statementsResolveDataLoss === true && options.statements.length > 0
+        (script.statementsResolveDataLoss === true && options.statements.length > 0) ||
+        options.statements.length >=
+          (script.statementsResolvingDataLoss ?? Number.POSITIVE_INFINITY)
           ? []
           : (script.dataLossByPlan?.[planCalls] ?? script.dataLoss ?? []);
       planCalls += 1;
@@ -233,13 +260,19 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
               operationIndexes: (operations ?? [ADDITIVE_OP]).map((_, index) => index),
             })),
             plan: {
-              operations:
-                script.throwOnOperations === undefined
-                  ? (operations ?? [ADDITIVE_OP]).map((op) => Promise.resolve(op))
-                  : [
-                      ...(operations ?? []).map((op) => Promise.resolve(op)),
-                      Promise.reject(script.throwOnOperations),
-                    ],
+              get operations() {
+                if (script.operationsAccessorThrows !== undefined) {
+                  throw script.operationsAccessorThrows;
+                }
+                if (script.throwOnOperations === undefined) {
+                  return (operations ?? [ADDITIVE_OP]).map((op) => Promise.resolve(op));
+                }
+                const resolved = (operations ?? []).map((op) => Promise.resolve(op));
+                const placeholder = Promise.reject(script.throwOnOperations);
+                placeholder.catch(() => undefined);
+                const at = script.placeholderAt ?? resolved.length;
+                return [...resolved.slice(0, at), placeholder, ...resolved.slice(at)];
+              },
               renderTypeScript: () => '// planned migration\n',
             },
           }

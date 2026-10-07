@@ -179,11 +179,12 @@ async function runPlannerLeg(
     });
   }
 
-  let plannedOps: readonly MigrationPlanOperation[] = [];
+  // The operation at each position of the plan, or `undefined` where it is an unfilled placeholder.
+  let resolved: readonly (MigrationPlanOperation | undefined)[] = [];
   let hasPlaceholders = false;
   try {
-    plannedOps = await Promise.all(plannerResult.plan.operations);
-    if (plannedOps.length === 0 && !noOperationsExpected) {
+    resolved = await Promise.all(plannerResult.plan.operations);
+    if (resolved.length === 0 && !noOperationsExpected) {
       return notOk({
         reason: 'noOperations',
         error: errorPlanProducedNoOperations(origin, destination),
@@ -192,37 +193,43 @@ async function runPlannerLeg(
   } catch (e) {
     if (CliStructuredError.is(e) && e.code === 'MIGRATION.UNFILLED_PLACEHOLDER') {
       hasPlaceholders = true;
-      // The operations that DID resolve still matter: the destructive-consent
-      // check must see them, or a placeholder would smuggle a destructive
-      // baseline past the prompt. Writers stay gated on hasPlaceholders. A
-      // planner whose `operations` accessor throws synchronously on an
-      // unfilled placeholder (rather than rejecting one op's promise) exposes
-      // no operations at all; the check then sees none.
+      // The operations that DID resolve still matter: the data-loss questions
+      // must see them, or a placeholder would smuggle a loss past them.
+      // Writers stay gated on hasPlaceholders. A planner whose `operations`
+      // accessor throws synchronously on an unfilled placeholder (rather than
+      // rejecting one op's promise) exposes no operations at all.
       try {
         const settled = await Promise.allSettled(plannerResult.plan.operations);
-        plannedOps = settled.flatMap((entry) =>
-          entry.status === 'fulfilled' ? [entry.value] : [],
-        );
+        resolved = settled.map((entry) => (entry.status === 'fulfilled' ? entry.value : undefined));
       } catch {
-        plannedOps = [];
+        resolved = [];
       }
     } else {
       throw e;
     }
   }
 
-  const labels = await operationLabels(plannerResult.plan.operations);
+  const plannedOps = resolved.filter((op): op is MigrationPlanOperation => op !== undefined);
+  const position = resolvedPositions(resolved);
   return ok({
     plannedOps,
     migrationTsContent: plannerResult.plan.renderTypeScript(resolveImportSpecifier),
     hasPlaceholders,
     dataLoss: plannerResult.dataLoss.map(({ operationIndex, subject }) => ({
-      operationIndex,
+      operationIndex: position(operationIndex),
       subject,
-      label: labels[operationIndex] ?? subjectText(subject, fromContract ?? EMPTY_ORIGIN),
+      label:
+        resolved[operationIndex]?.label ??
+        subjectText(subject, { origin: fromContract ?? EMPTY_ORIGIN, renames: [] }),
     })),
     appliedStatements: reportAppliedStatements(
-      plannerResult.appliedStatements,
+      plannerResult.appliedStatements.map((applied) => ({
+        ...applied,
+        operationIndexes: applied.operationIndexes.flatMap((index) => {
+          const at = position(index);
+          return at === undefined ? [] : [at];
+        }),
+      })),
       fromContract,
       contract,
       0,
@@ -230,12 +237,20 @@ async function runPlannerLeg(
   });
 }
 
-/** The label of each operation of a plan, or `undefined` where an operation is an unfilled placeholder. */
-async function operationLabels(
-  operations: readonly (MigrationPlanOperation | Promise<MigrationPlanOperation>)[],
-): Promise<readonly (string | undefined)[]> {
-  const settled = await Promise.allSettled(operations);
-  return settled.map((entry) => (entry.status === 'fulfilled' ? entry.value.label : undefined));
+/**
+ * Maps a position in the plan's operations to the position of that operation among those that
+ * resolved, which is what a result's `operations` lists: `undefined` for an unfilled placeholder.
+ */
+function resolvedPositions(
+  resolved: readonly (MigrationPlanOperation | undefined)[],
+): (planIndex: number) => number | undefined {
+  const positions: (number | undefined)[] = [];
+  let next = 0;
+  for (const op of resolved) {
+    positions.push(op === undefined ? undefined : next);
+    if (op !== undefined) next += 1;
+  }
+  return (planIndex) => positions[planIndex];
 }
 
 /**
@@ -296,29 +311,31 @@ async function answerPlannedDataLoss(input: {
   let delta = input.delta;
   let renames = input.renames;
   const consented = new Map<string, MigrationStatementSubject>();
-  const textOf = (loss: PlannedDataLoss) => subjectText(loss.subject, input.origin);
+  const keyOf = (loss: PlannedDataLoss) => JSON.stringify(loss.subject);
+  const contracts = () => ({
+    origin: input.origin,
+    destination: input.destination,
+    renames,
+  });
   // The first round asks even when nothing is lost, so a statement no question
   // consumed is refused before anything is written.
   for (let round = 0; ; round += 1) {
     const losses = [...(input.baseline?.dataLoss ?? []), ...(delta?.dataLoss ?? [])];
     const unanswered = [
       ...new Map(
-        losses
-          .filter((loss) => !consented.has(textOf(loss)))
-          .map((loss) => [textOf(loss), loss] as const),
+        losses.filter((loss) => !consented.has(keyOf(loss))).map((loss) => [keyOf(loss), loss]),
       ).values(),
     ];
     if (unanswered.length === 0 && round > 0) break;
-    const questions = unanswered.map((loss) =>
-      dataLossQuestion(loss, { origin: input.origin, destination: input.destination, renames }),
-    );
+    const asked = contracts();
+    const questions = unanswered.map((loss) => dataLossQuestion(loss, asked));
     const answers = await input.answer(questions);
-    const typedRenames: { readonly text: string; readonly subject: string }[] = [];
+    const typedRenames: { readonly text: string; readonly loss: PlannedDataLoss }[] = [];
     answers.forEach((answer, index) => {
       const loss = unanswered[index];
       if (loss === undefined) return;
-      if (answer.verb === 'delete') consented.set(textOf(loss), loss.subject);
-      else typedRenames.push({ text: answer.text, subject: textOf(loss) });
+      if (answer.verb === 'delete') consented.set(keyOf(loss), loss.subject);
+      else typedRenames.push({ text: answer.text, loss });
     });
     if (typedRenames.length === 0) {
       if (unanswered.length === 0) break;
@@ -328,23 +345,23 @@ async function answerPlannedDataLoss(input: {
     const replanned = await input.planDelta(renames);
     if (!replanned.ok) return replanned;
     delta = replanned.value;
-    const stillLost = new Set(delta.dataLoss.map(textOf));
-    const unresolved = typedRenames.find(({ subject }) => stillLost.has(subject));
+    const stillLost = new Set(delta.dataLoss.map(keyOf));
+    const unresolved = typedRenames.find(({ loss }) => stillLost.has(keyOf(loss)));
     if (unresolved !== undefined) {
       return notOk(
         errorStatementDidNotResolveLoss(
           { verb: 'rename', text: unresolved.text },
-          unresolved.subject,
+          subjectText(unresolved.loss.subject, asked),
         ),
       );
     }
   }
-  const deletes = [...consented].map(([text, subject]) =>
+  const deletes = [...consented].map(([key, subject]) =>
     reportDeleteStatement(
       subject,
       (delta?.dataLoss ?? [])
-        .filter((loss) => textOf(loss) === text)
-        .map(({ operationIndex }) => operationIndex),
+        .filter((loss) => keyOf(loss) === key)
+        .flatMap(({ operationIndex }) => (operationIndex === undefined ? [] : [operationIndex])),
       input.origin,
     ),
   );

@@ -685,7 +685,7 @@ describe('migration plan', () => {
         { cwd: project.dir },
       );
 
-      expect(run.exitCode).not.toBe(0);
+      expect(envelopeOf(run)).toMatchObject({ error: { code: 'CLI.CONSENT_REQUIRED' } });
       expect(await plannedDirs(project)).toEqual(['20260101T0000_initial']);
     });
 
@@ -710,20 +710,129 @@ describe('migration plan', () => {
       expect((await plannedDirs(project)).length).toBe(2);
     });
 
-    it('writes a placeholder plan once its loss is answered', async () => {
+    it('writes a placeholder plan once its loss is answered, positioning the loss among the listed operations', async () => {
       const project = await losingBaselineProject();
 
       const run = await harness(project, {
         script: {
           operations: [ADDITIVE_OP, DESTRUCTIVE_OP],
           throwOnOperations: errorUnfilledPlaceholder('backfill'),
-          dataLoss: [LEGACY_LOSS],
+          placeholderAt: 1,
+          dataLoss: [{ ...LEGACY_LOSS, operationIndex: 2 }],
         },
       }).run(['migration', 'plan', '--delete', 'Legacy', '--json'], { cwd: project.dir });
 
       expect(run.exitCode).toBe(0);
-      expect(run.presented?.data).toMatchObject({ pendingPlaceholders: true });
+      const data = run.presented?.data as {
+        readonly pendingPlaceholders: boolean;
+        readonly operations: readonly { readonly id: string }[];
+        readonly appliedStatements: readonly { readonly operationIndexes: readonly number[] }[];
+      };
+      expect(data.pendingPlaceholders).toBe(true);
+      expect(
+        data.appliedStatements.map(({ operationIndexes }) =>
+          operationIndexes.map((index) => data.operations[index]?.id),
+        ),
+      ).toEqual([[DESTRUCTIVE_OP.id]]);
       expect((await plannedDirs(project)).length).toBe(2);
+    });
+
+    it('still asks about a loss when the operations accessor throws on a placeholder', async () => {
+      const project = await losingProject();
+      const script: FakePlannerScript = {
+        operations: [ADDITIVE_OP, DESTRUCTIVE_OP],
+        operationsAccessorThrows: errorUnfilledPlaceholder('backfill'),
+        dataLoss: [LEGACY_LOSS],
+      };
+
+      const refused = await harness(project, { script }).run(['migration', 'plan', '--json'], {
+        cwd: project.dir,
+      });
+      expect(envelopeOf(refused)).toMatchObject({ error: { code: 'CLI.CONSENT_REQUIRED' } });
+
+      const answered = await harness(project, { script }).run(
+        ['migration', 'plan', '--delete', 'Legacy', '--json'],
+        { cwd: project.dir },
+      );
+      expect(answered.exitCode).toBe(0);
+      expect(answered.presented?.data).toMatchObject({ pendingPlaceholders: true });
+    });
+
+    it('asks a question a re-plan brings up in a second batch', async () => {
+      const project = await losingProject();
+
+      const run = await harness(project, {
+        script: {
+          operations: [ADDITIVE_OP, DESTRUCTIVE_OP, DROP_AUDIT_OP],
+          dataLossByPlan: [[LEGACY_LOSS], [AUDIT_LOSS]],
+        },
+      }).run(['migration', 'plan', '--json'], {
+        cwd: project.dir,
+        isTty: { stdin: true },
+        answers: ['rename Legacy:Archive', 'delete'],
+      });
+
+      expect(run.exitCode).toBe(0);
+      expect(run.presented?.data).toMatchObject({
+        appliedStatements: [
+          { verb: 'rename', description: 'rename model "Legacy" to "Archive"' },
+          { verb: 'delete', description: 'delete storage "audit_log"', operationIndexes: [2] },
+        ],
+      });
+    });
+
+    it('names a field of a renamed model through its new name, and takes a rename written that way', async () => {
+      const project = await createOfflineProject({
+        storageHash: HASH_TO,
+        models: [{ name: 'User', fields: ['id', 'handle'] }],
+      });
+      await seedMigrationPackage({
+        appMigrationsDir: project.appMigrationsDir,
+        dirName: '20260101T0000_initial',
+        from: null,
+        to: HASH_FROM,
+      });
+      await seedContractSnapshot({
+        migrationsDir: project.migrationsDir,
+        storageHash: HASH_FROM,
+        models: [{ name: 'Profile', fields: ['id', 'nickname'] }],
+      });
+      await seedDbRef({ appMigrationsDir: project.appMigrationsDir, storageHash: HASH_FROM });
+      const script: FakePlannerScript = {
+        operations: [ADDITIVE_OP, DESTRUCTIVE_OP],
+        dataLoss: [
+          {
+            operationIndex: 1,
+            subject: { kind: 'field', namespaceId: 'app', model: 'Profile', field: 'nickname' },
+          },
+        ],
+        statementsResolvingDataLoss: 2,
+      };
+
+      const refused = await harness(project, { script }).run(
+        ['migration', 'plan', '--rename', 'Profile:User', '--json'],
+        { cwd: project.dir },
+      );
+      const actions = JSON.stringify(
+        (envelopeOf(refused) as { readonly error: { readonly nextActions: unknown } }).error
+          .nextActions,
+      );
+      expect(actions).toContain('--delete User.nickname');
+      expect(actions).toContain('--rename User.nickname:<new name>');
+
+      const renamed = await harness(project, { script }).run(
+        [
+          'migration',
+          'plan',
+          '--rename',
+          'Profile:User',
+          '--rename',
+          'User.nickname:User.handle',
+          '--json',
+        ],
+        { cwd: project.dir },
+      );
+      expect(renamed.exitCode).toBe(0);
     });
   });
 
