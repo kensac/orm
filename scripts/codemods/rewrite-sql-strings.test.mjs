@@ -36,14 +36,14 @@ describe('rewriteSqlStrings', () => {
   it('keeps treating // comments as comments after an unclosed backtick', () => {
     const before = [
       '  @@index([a], where: sql`open',
-      '  // where: "commented out"',
+      '  // @@check(expression: "commented out", name: "c")',
       '  @@check(expression: "total > 0", name: "positive")',
     ].join('\n');
     strictEqual(
       rewriteSqlStrings(before),
       [
         '  @@index([a], where: sql`open',
-        '  // where: "commented out"',
+        '  // @@check(expression: "commented out", name: "c")',
         '  @@check(expression: sql`total > 0`, name: "positive")',
       ].join('\n'),
     );
