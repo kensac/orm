@@ -16,6 +16,7 @@ import {
 } from '@internal/framework-components/control';
 import {
   type AttributeSpecNamespace,
+  type BlockSpecContext,
   blockAttribute,
   buildSymbolTable,
   entityRef,
@@ -1461,8 +1462,9 @@ namespace app {
     expect(items.map((item) => item.label)).toEqual(['on', 'where', 'mode', 'using']);
   });
 
-  it('calls the spec factory with the symbol table only and never invokes rule parsing', () => {
-    const factoryContexts: unknown[] = [];
+  it('calls the spec factory with the spec context and never invokes rule parsing', () => {
+    const dataTypes: DataTypeSupport = { entries: {}, lookup: createDataTypeLookup([]) };
+    const factoryContexts: BlockSpecContext[] = [];
     const throwingRule = {
       kind: 'str' as const,
       label: 'string',
@@ -1479,7 +1481,7 @@ namespace app {
           keyword: 'guard',
           discriminator: 'fixture-guard',
           name: { required: true },
-          spec: (ctx: unknown) => {
+          spec: (ctx: BlockSpecContext) => {
             factoryContexts.push(ctx);
             return structBlock({
               parameters: {
@@ -1489,6 +1491,7 @@ namespace app {
           },
         },
       },
+      dataTypes,
     });
 
     expect(items.map((item) => item.label)).toEqual(['shield']);
@@ -1496,6 +1499,7 @@ namespace app {
     expect(factoryContexts).toHaveLength(2);
     for (const ctx of factoryContexts) {
       expect(ctx).toEqual({ symbols: expect.any(Object), dataTypes: expect.any(Object) });
+      expect(ctx.dataTypes).toBe(dataTypes);
     }
   });
 
