@@ -52,11 +52,14 @@ A command that has several questions asks them together: `ctx.prompt.statements(
 - Non-interactively, or under `--yes`, one `CLI.CONSENT_REQUIRED` is thrown that lists every question still unanswered, each with its flag forms in `nextActions`, and `meta.unanswered: [{ subject, verbs }]`.
 - Interactively, the unanswered questions are asked one after another, in order.
 - `statement(q)` is `statements([q])[0]`.
+- `statements(questions, { last: true })` says this is the run's final ask: when it has answered its questions and values are still unconsumed, it throws `CLI.CONSENT_UNUSED` there, before the command does anything with the answers. The end-of-run check stays for commands that never say `last`.
+- A verb's `arity` is the number of argv values each occurrence takes; a wrong count is `CLI.INVALID_ARGUMENTS`. Verbs are one lowercase word. A declaration carries a `brief` for help, because the product owns its help text. A `server-command` may not declare statements.
 
 ### Verb flags
 
-- Verb flags are shared flags, declared by the engine like `--confirm`: `kind: "parsed"`, variadic, optional, reserved names. A command cannot declare a flag with a verb's name, and handlers never see the values.
-- The set of verbs is registered at construction: `createCli({ ..., statementVerbs: ['rename', 'delete'] })` (or on the command family, whichever `RESERVED_FLAG_NAMES` is assembled from; the implementer chooses the smaller change and says so). A `statement()` call naming an unregistered verb is a construction error.
+- The engine knows no verbs. A command declares the statements it may ask for, with their arity: `defineCommand({ statements: { rename: { arity: 1 }, delete: { arity: 1 } }, ... })`. For that command only, the engine parses `--<verb>` followed by `arity` values, repeatable, keeps the values in argv order, and hands them out through `ctx.prompt.statement`. Handlers never see the values, as with `--confirm`. (Will's ruling, 2026-10-07: the verb is the ORM's, declared per command, not registered on the family or the CLI, so no other command parses it.)
+- A command cannot declare an ordinary flag with the same name as one of its statements, and a `statement()` call naming a verb the command did not declare is a construction error.
+- `arity` is 1 for every ORM verb today; it exists so the engine never assumes the shape of a statement.
 - Order across flags is kept: the engine records the position of every verb-flag value in argv, so a product that needs `--rename A:B --delete C` in the order written can read it. This slice only needs to consume values; it exposes the ordered list on the run state so the ORM's statement list can be built from it later.
 - At the end of a run that settled successfully, an unconsumed verb-flag value fails the run with a new `CLI.CONSENT_UNUSED`: "`--delete Legacy` was given but nothing in this run asked about `Legacy`". A run that failed for another reason reports that reason only. `--confirm` keeps its current silent behaviour; changing it is not this slice.
 
