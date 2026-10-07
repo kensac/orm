@@ -13,6 +13,7 @@ import type { orm } from '../src/orm';
 import type { CodecField, CodecListField, ModelAccessor } from '../src/types';
 import type { Contract as FragmentNamespaceContract } from './fixtures/fragment-namespace/generated/contract';
 import type { Contract as PolyContract } from './fixtures/polymorphism/generated/contract';
+import type { Contract as ScopeNamespaceContract } from './fixtures/scope-namespace/generated/contract';
 import {
   createFragmentsOrm,
   type SoftDeleteContract,
@@ -49,6 +50,7 @@ declare const anyModel: Collection<Contract, string>;
 declare const flag: boolean;
 declare const polyClient: ReturnType<typeof orm<PolyContract>>;
 declare const fragmentNamespaceClient: ReturnType<typeof orm<FragmentNamespaceContract>>;
+declare const scopeNamespaceClient: ReturnType<typeof orm<ScopeNamespaceContract>>;
 
 class LivePostCollection extends Collection<Contract, 'Post'> {
   live() {
@@ -246,6 +248,17 @@ describe('client.fragment', () => {
     );
   });
 
+  test('a contract with a namespace named scope keeps the fragment method', () => {
+    expectTypeOf(scopeNamespaceClient.scope).toHaveProperty('Audit');
+    const titled = scopeNamespaceClient.fragment(
+      { title: { codecId: 'pg/text@1', nullable: false } },
+      (rows) => rows.where((r) => r.title.eq('x')),
+    );
+    expectTypeOf(scopeNamespaceClient.public.Post.with(titled)).toEqualTypeOf<
+      Filtered<typeof scopeNamespaceClient.public.Post>
+    >();
+  });
+
   test('a receiver whose model cannot be read from its type is refused for that reason', () => {
     type Fields = { readonly deletedAt: DeclaredField<'pg/timestamptz-temporal@1', true> };
     expectTypeOf<
@@ -256,8 +269,8 @@ describe('client.fragment', () => {
     >().toEqualTypeOf<'the model has no field that matches the declaration in the fragment'>();
     // @ts-expect-error call cannot infer the fragment's type parameters, so the model cannot be read
     notDeleted.call(undefined, plain.Post);
-    // @ts-expect-error with cannot infer the fragment's type parameters, so the model cannot be read
-    notDeleted.with(undefined, [plain.Post]);
+    // @ts-expect-error apply cannot infer the fragment's type parameters, so the model cannot be read
+    notDeleted.apply(undefined, [plain.Post]);
     // @ts-expect-error the type of the collection names no single model
     anyModel.with(notDeleted);
     expectTypeOf(notDeleted.bind(undefined)(plain.Post)).toEqualTypeOf<

@@ -12,6 +12,10 @@ import type { Contract as PolyContract } from './fixtures/polymorphism/generated
 import polyContractJson from './fixtures/polymorphism/generated/contract.json' with {
   type: 'json',
 };
+import type { Contract as ScopeNamespaceContract } from './fixtures/scope-namespace/generated/contract';
+import scopeNamespaceJson from './fixtures/scope-namespace/generated/contract.json' with {
+  type: 'json',
+};
 import { createFragmentsOrm } from './fragments-fixture';
 import { buildTestContextFromContract, createMockRuntime } from './helpers';
 
@@ -349,9 +353,28 @@ describe('a contract with a namespace named fragment', () => {
     context: buildTestContextFromContract(contract),
   });
 
-  it('keeps the namespace under the name, and the client has no fragment method', () => {
+  it('keeps the namespace under the name fragment, in place of the client method', () => {
+    expect(typeof client.fragment).toBe('object');
     expect(client.fragment.Audit.modelName).toBe('Audit');
     expect(typeof client.fragment.Audit.fragment).toBe('function');
     expect(client.public.Post.modelName).toBe('Post');
+  });
+});
+
+describe('a contract with a namespace named scope', () => {
+  const contract = new PostgresContractSerializer().deserializeContract<ScopeNamespaceContract>(
+    scopeNamespaceJson,
+  );
+  const client = orm({
+    runtime: createMockRuntime(),
+    context: buildTestContextFromContract(contract),
+  });
+
+  it('keeps both the namespace and the fragment method', () => {
+    expect(client.scope.Audit.modelName).toBe('Audit');
+    const titled = client.fragment({ title: field.column(textColumn) }, (rows) =>
+      rows.where((r) => r.title.eq('x')),
+    );
+    expect(client.public.Post.with(titled).state.filters).toHaveLength(1);
   });
 });

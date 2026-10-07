@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, test } from 'vitest';
-import type { Collection } from '../src/collection';
+import { Collection } from '../src/collection';
 import type {
   CollectionRowOf,
   CollectionTypeStateOf,
@@ -148,6 +148,18 @@ describe('with', () => {
     const named = (users: ReturnType<typeof createChainingOrm>['db']['User']) => users.named('x');
     // @ts-expect-error the fragment takes a UserCollection, the receiver is a PostCollection
     Post.with(named);
+  });
+});
+
+describe('fragment is a member of every collection', () => {
+  test('a class cannot declare fragment with another signature', () => {
+    class ShadowingPostCollection extends Collection<TestContract, 'Post'> {
+      // @ts-expect-error fragment is a member of every collection
+      override fragment(title: string) {
+        return this.where({ title });
+      }
+    }
+    expectTypeOf<ShadowingPostCollection>().not.toBeAny();
   });
 });
 
