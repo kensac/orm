@@ -74,7 +74,7 @@ Update every record that contradicts the code. Known so far: the non-portable an
 | Views | After GA. They are a preview feature in Prisma 7. |
 | Native types with no codec: `citext`, `bit`, `varbit`, `xml`, `oid` | Add codecs (TML-3270). |
 | `money` | Can get a codec. Low priority: the PostgreSQL `money` type is considered bad practice. |
-| `Unsupported("...")` columns | Reopened 2026-09-30 after a discussion with Serhii: Prisma 7 contracts need a way to state such columns, and legacy columns need a way to be managed outside Prisma 8. Proposal: `@control(external)` on the column, with an `unknown` type when no codec fits. Not decided. The earlier decision follows. Never. A column the contract cannot describe cannot be verified. TML-3271 is canceled. A column type Prisma 8 cannot describe needs a codec. |
+| `Unsupported("...")` columns | Reopened 2026-09-30 after a discussion with Serhii: Prisma 7 contracts need a way to state such columns, and legacy columns need a way to be managed outside Prisma 8. Proposal: `@control(external)` on the column, with an `unknown` type when no codec fits. Decided in part on 2026-10-07: a column no field maps is declared as storage and carries a control policy, so a legacy column managed outside Prisma 8 is covered by ADR 267 (stream 2, row 3). The `unknown` type for a column with no codec is still not decided (row 6). The earlier decision follows. Never. A column the contract cannot describe cannot be verified. TML-3271 is canceled. A column type Prisma 8 cannot describe needs a codec. |
 | `relationMode = "prisma"` | Never. Prisma 8 will not imitate foreign keys in the client. The upgrade guide tells those users to add foreign keys. |
 | Referential actions on MongoDB | After GA. |
 
@@ -87,6 +87,13 @@ Stopping point for the open upgrade issues: every urgent and high issue is close
 ## Emulator controls in the `prisma` CLI: start now
 
 Will, 2026-09-30: the emulator controls (start, stop, list, reset) are now urgent and start immediately. They were already required for GA; what changed is the order. They move to the top of the editor and tools stream. The VS Code extension work that depends on them (items 2 and 3 of that stream) waits on them. Background from 2026-09-28: several emulators of each type can run, so status is a list; the eval found that stopping `prisma dev` leaves the emulator processes running and no stop or cleanup command exists.
+
+## Changes of 2026-10-07
+
+- Storage a model does not map (stream 2, row 3) is designed and started. Will and the agent settled it in discussion: a model maps to a table that may hold columns the model does not map, and a table may have no model; such storage is declared in storage terms, with `columns` in a model's `.sql({ ... })` and a `table(...)` declaration beside models, and Prisma 8 PSL gets `sql { }` and `table` blocks as parity twins later. The one lowering, `buildSqlContractFromDefinition`, splits into derive and assemble, and storage declared as storage enters at assemble. The ORM projects per model and refuses any name that is not a field. Recorded as ADR 267 in design PR prisma/orm#30641. The earlier "unexposed storage" design, which put a hidden flag on field and model nodes, is withdrawn; its implementation PR is closed and the parts that survive (the ORM projection, the non-field refusal, the validators, the `{}` typing) are reused in slice 1.
+- Row 6 narrows to the `unknown` type. The column-level control policy it proposed is part of row 3.
+- The Prisma 7 path needs no Prisma 8 PSL syntax: the Prisma 7 reader lowers `@ignore` and `@@ignore` into storage directly. The PSL blocks and the TypeScript `columns` and `table(...)` surfaces follow, under the parity rule of ADR 096.
+- Compiling the PSL interpreter to the TypeScript DSL's input, as WhyAsh's spike did for the IDB family, is a good future direction and not part of this project. The derive-and-assemble split is a step toward it.
 
 ## Changes of 2026-10-05
 

@@ -34,10 +34,10 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 | --- | --- | --- | --- | --- | --- |
 | 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | TML-3267 next: `@updatedAt` with `@default(now())`. Close TML-3250 |
 | 2 | Prisma 8 owns migrations in a Prisma 7 project that still reads `schema.prisma` | Must | Will | 🟡 Proven. Follow-ups: 1 PR in review, 5 gaps open | Review the PR, then the two high planner gaps |
-| 3 | Unexposed storage: tables and columns migrations manage but the ORM never sees | Not decided | Will | ⏳ Planned, 2 slices |  |
+| 3 | Storage a model does not map: a table may hold columns its model does not map, and a table may have no model | Must | Will | 🔄 Design settled 2026-10-07, ADR 267 in a design PR | Approve the design PR, then slice 1: split the lowering into derive and assemble, and the ORM projects per model |
 | 4 | Upgrade guide rewrite | Must | Will | ⏳ Not tracked. One known error in the guide |  |
 | 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog |  |
-| 6 | Design: columns Prisma 8 does not manage, including unknown types | Must | Will | ⏳ Proposed, not designed |  |
+| 6 | Columns whose type has no codec (`unknown`) | Must | Will | ⏳ Not designed. The control-policy half moved into row 3 |  |
 | 7 | Adopt a Prisma 7 database without changing it: the enum membership check | Must | Will | ⏳ Not designed |  |
 | 8 | Medium and low upgrade issues | Later | Will | ⏳ Backlog | |
 | 9 | `money` codec | Later | Will | ⏳ Backlog | |
