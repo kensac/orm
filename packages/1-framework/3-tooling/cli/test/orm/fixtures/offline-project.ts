@@ -176,6 +176,8 @@ export interface FakePlannerScript {
   readonly throwOnPlan?: unknown;
   /** Receives the statements of every `plan` call, in call order. */
   readonly statementsReceived?: unknown[][];
+  /** Fails every `plan` call that is given statements, as a planner that refuses them does. */
+  readonly refuseStatements?: boolean;
 }
 
 function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
@@ -184,6 +186,13 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
       script.statementsReceived?.push([...options.statements]);
       if (script.throwOnPlan !== undefined) {
         throw script.throwOnPlan;
+      }
+      const [refused] = script.refuseStatements === true ? options.statements : [];
+      if (refused !== undefined) {
+        return {
+          kind: 'failure',
+          conflicts: [{ kind: 'statementRefused', summary: 'Refused', refusedStatement: refused }],
+        };
       }
       return script.conflicts === undefined
         ? {

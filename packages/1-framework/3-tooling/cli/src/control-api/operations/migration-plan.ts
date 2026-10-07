@@ -710,6 +710,27 @@ async function executeMigrationPlanCommandInner(
         return notOk(consentFailure);
       }
 
+      // Every leg is planned before any package is written, so a refused delta leaves nothing behind.
+      const deltaLeg =
+        fromHash === toStorageHash
+          ? undefined
+          : await runPlannerLeg(
+              planner,
+              migrations,
+              frameworkComponents,
+              aggregate.app.contract(),
+              fromContract,
+              statements,
+              false,
+              aggregate.app.spaceId,
+              aggregate,
+              snapshotsImportPathFrom(deltaPackageDir, migrationsDir),
+              resolveImportSpecifier,
+            );
+      if (deltaLeg !== undefined && !deltaLeg.ok) {
+        return notOk(deltaLeg.failure);
+      }
+
       await writePlannedMigrationPackage(
         baselinePackageDir,
         null,
@@ -718,7 +739,7 @@ async function executeMigrationPlanCommandInner(
         baselineLeg.value,
       );
 
-      if (fromHash === toStorageHash) {
+      if (deltaLeg === undefined) {
         const baselineOps = baselineLeg.value.hasPlaceholders ? [] : baselineLeg.value.plannedOps;
         if (baselineLeg.value.hasPlaceholders) {
           const baselineDir = relative(cwd, baselinePackageDir);
@@ -763,23 +784,6 @@ async function executeMigrationPlanCommandInner(
           timings: { total: Date.now() - startTime },
         };
         return ok(result);
-      }
-
-      const deltaLeg = await runPlannerLeg(
-        planner,
-        migrations,
-        frameworkComponents,
-        aggregate.app.contract(),
-        fromContract,
-        statements,
-        false,
-        aggregate.app.spaceId,
-        aggregate,
-        snapshotsImportPathFrom(deltaPackageDir, migrationsDir),
-        resolveImportSpecifier,
-      );
-      if (!deltaLeg.ok) {
-        return notOk(deltaLeg.failure);
       }
 
       await writePlannedMigrationPackage(

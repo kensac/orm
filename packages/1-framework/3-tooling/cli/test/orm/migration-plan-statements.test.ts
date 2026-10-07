@@ -237,4 +237,19 @@ describe('migration plan --rename', () => {
       appliedStatements: [{ statement: profileToUser }],
     });
   });
+
+  it('writes no package, not even the auto-baseline, when the delta refuses a statement', async () => {
+    const project = await renamingProject({ history: false });
+    const run = await harness(project, { refuseStatements: true }).run(
+      ['migration', 'plan', '--name', 'delta', '--rename', 'Profile:User', '--json'],
+      { cwd: project.dir },
+    );
+
+    expect(run.exitCode).not.toBe(0);
+    expect(run.json.at(-1)).toMatchObject({
+      kind: 'result',
+      envelope: { ok: false, error: { code: 'MIGRATION.PLANNING_FAILED' } },
+    });
+    expect(await plannedDirs(project)).toEqual([]);
+  });
 });
