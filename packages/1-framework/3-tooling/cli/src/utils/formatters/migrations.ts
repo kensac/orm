@@ -1,5 +1,6 @@
 import type {
   MigrationPlannerConflict,
+  MigrationStatementSubjectJson,
   OperationPreview,
 } from '@internal/framework-components/control';
 import type { AppliedStatementReport } from '../../control-api/statements/report-applied-statements';
@@ -45,6 +46,12 @@ export function previewBlockHeader(preview: OperationPreview): string {
 /**
  * Shared CLI output type for migration commands (db init, db update).
  */
+/** An operation of a plan, by its position in `plan.operations`, and its subject. */
+export interface PlannedSubjectJson {
+  readonly operationIndex: number;
+  readonly subject: MigrationStatementSubjectJson;
+}
+
 export interface MigrationCommandResult {
   readonly ok: true;
   readonly mode: 'plan' | 'apply';
@@ -82,8 +89,12 @@ export interface MigrationCommandResult {
    * into a single ambiguous list. See {@link PerSpaceExecutionEntry}.
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
-  /** `db update` only: the `--rename` statements the plan applied, in order; empty when none were given. */
+  /** `db update` only: the statements the plan applied, in order; empty when none were given. */
   readonly appliedStatements?: readonly AppliedStatementReport[];
+  /** `db update --dry-run` only: the operations an apply would ask about because they lose data. */
+  readonly dataLoss?: readonly PlannedSubjectJson[];
+  /** `db update --dry-run` only: the operations an apply would ask about because they widen access. */
+  readonly accessWidening?: readonly PlannedSubjectJson[];
   readonly advancedRef?: { readonly name: string; readonly hash: string } | null;
   readonly plannedAdvanceRef?: { readonly name: string; readonly hash: string } | null;
   readonly summary: string;

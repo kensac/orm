@@ -199,6 +199,7 @@ describe('executeDbUpdate statement positions', () => {
       migrationsDir: await migrationsDirWithPendingExtension(),
       targetId: 'postgres',
       extensions: [auditExtension],
+      answerQuestions: async () => [],
       statements: renameStatements(['Profile:User']),
     });
 

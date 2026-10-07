@@ -9,7 +9,6 @@ import { createControlClient } from '../../control-api/client';
 import type { ContractSpaceSeedPhaseRecord } from '../../control-api/operations/contract-space-seed-phase';
 import type { MigrationPlanResult } from '../../control-api/operations/migration-plan';
 import { executeMigrationPlanCommand } from '../../control-api/operations/migration-plan';
-import type { PlanAnswer, PlanQuestion } from '../../control-api/statements/data-loss-questions';
 import type { CreateControlClient } from '../../control-api/types';
 import {
   RECORDED_CONTRACT_REF_FORMS,
@@ -19,6 +18,7 @@ import { previewBlockHeader } from '../../utils/formatters/migrations';
 import { runCommandAction } from '../../utils/next-actions';
 import { defineOrmCommand } from '../define-command';
 import { normalizeError } from '../normalize-error';
+import { promptPlanQuestions } from '../plan-question-prompt';
 import { appliedStatementBlocks } from '../statement-blocks';
 import {
   appMigrationsDirFor,
@@ -317,22 +317,6 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
           data: { newHash: record.newHash, newMigrationDirs: record.newMigrationDirs },
         });
       };
-      const answerQuestions = async (
-        questions: readonly PlanQuestion[],
-      ): Promise<readonly PlanAnswer[]> => {
-        const answers = await ctx.prompt.statements(
-          questions.map((question) => ({
-            question: question.question,
-            subject: question.subject,
-            verbs: question.verbs,
-            forms: question.forms,
-            validate: question.validate,
-          })),
-          { last: true },
-        );
-        return answers.map(({ verb, text }) => ({ verb, text }));
-      };
-
       const planned = await executeMigrationPlanCommand(
         {
           config: ctx.config,
@@ -344,7 +328,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
           statements: ctx.statements
             .take('rename')
             .map(({ text }) => ({ verb: 'rename' as const, text })),
-          answerQuestions,
+          answerQuestions: promptPlanQuestions(ctx.prompt),
           client: createClient({
             family: ctx.config.family,
             target: ctx.config.target,

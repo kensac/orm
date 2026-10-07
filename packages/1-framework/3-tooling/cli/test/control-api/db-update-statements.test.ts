@@ -177,6 +177,7 @@ function update(options: {
     migrations: options.migrations,
     frameworkComponents: [],
     migrationsDir: options.migrationsDir,
+    answerQuestions: async () => [],
     targetId: 'postgres',
     statements: renameStatements(options.renames),
     ...(options.verifySnapshotContent === undefined

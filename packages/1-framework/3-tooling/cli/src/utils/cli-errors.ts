@@ -33,9 +33,6 @@ import type { MigrateFailure } from '../control-api/types';
 import { chooseAction, runCommandAction } from './next-actions';
 
 export {
-  ERROR_CODE_DESTRUCTIVE_CHANGES,
-  errorConsentPlanMismatch,
-  errorDestructiveChanges,
   errorHashMismatch,
   errorMarkerMissing,
   errorMarkerRequired,

@@ -32,7 +32,10 @@ export interface PlanAnswer {
   readonly text: string;
 }
 
-/** Asks every question at once and returns the answers in question order. */
+/**
+ * Asks every question at once and returns one answer per question, in question order, with a verb
+ * and text the question accepts. To refuse, throw.
+ */
 export type AnswerPlanQuestions = (
   questions: readonly PlanQuestion[],
 ) => Promise<readonly PlanAnswer[]>;
@@ -208,6 +211,28 @@ export interface ConsentedSubject {
 
 const keyOf = (planned: PlannedSubject) => JSON.stringify(planned.subject);
 
+function checkAnswers(questions: readonly PlanQuestion[], answers: readonly PlanAnswer[]): void {
+  if (answers.length !== questions.length) {
+    const noun = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+    throw new Error(
+      `answerQuestions gave ${noun(answers.length, 'answer')} for ${noun(questions.length, 'question')}; answer each question in order, or throw to refuse.`,
+    );
+  }
+  questions.forEach((question, index) => {
+    const answer = answers[index];
+    if (answer === undefined) return;
+    if (!question.verbs.includes(answer.verb)) {
+      throw new Error(
+        `answerQuestions answered "${question.question}" with ${answer.verb}, which it does not accept; it accepts ${question.verbs.join(' or ')}.`,
+      );
+    }
+    const rejected = question.validate(answer.verb, answer.text);
+    if (rejected !== undefined) {
+      throw new Error(`answerQuestions answered "${question.question}" wrongly: ${rejected}`);
+    }
+  });
+}
+
 /**
  * Asks about every operation of a plan that would lose data and, when `askAccess`, every one that
  * would widen access, until each is answered. A `delete` or `allow` text in `preAnswers`, or
@@ -216,7 +241,7 @@ const keyOf = (planned: PlannedSubject) => JSON.stringify(planned.subject);
  * The first round asks even when nothing is in question, so a statement no question consumed is
  * refused before anything is done.
  */
-export async function answerPlanQuestions<TPlan extends PlannedQuestions>(input: {
+export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailure>(input: {
   readonly plan: TPlan;
   readonly askAccess: boolean;
   readonly renames: readonly StatementText[];
@@ -225,9 +250,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions>(input:
   readonly origin: ContractWithDomain;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
-  readonly replan: (
-    renames: readonly StatementText[],
-  ) => Promise<Result<TPlan, CliStructuredError>>;
+  readonly replan: (renames: readonly StatementText[]) => Promise<Result<TPlan, TFailure>>;
 }): Promise<
   Result<
     {
@@ -235,7 +258,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions>(input:
       readonly renames: readonly StatementText[];
       readonly consented: readonly ConsentedSubject[];
     },
-    CliStructuredError
+    TFailure | CliStructuredError
   >
 > {
   let plan = input.plan;
@@ -275,6 +298,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions>(input:
       ...widenings.map((widening) => accessWideningQuestion(widening, contracts)),
     ];
     const answers = await input.answer(questions);
+    checkAnswers(questions, answers);
     const typedRenames: { readonly text: string; readonly loss: PlannedSubject }[] = [];
     answers.forEach((answer, index) => {
       const entry = [...losses, ...widenings][index];

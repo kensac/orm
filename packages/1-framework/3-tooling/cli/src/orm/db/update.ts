@@ -1,4 +1,8 @@
 import { ormConfigSection } from '@internal/config-loader';
+import {
+  type MigrationOperationSubject,
+  migrationStatementSubjectJson,
+} from '@internal/framework-components/control';
 import { ifDefined } from '@internal/utils/defined';
 import { isStructuredError } from '@internal/utils/structured-error';
 import type { Block, Presentations } from '@prisma/cli-engine';
@@ -22,8 +26,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
-import { renameStatements } from '../../control-api/statements/statement-text';
-import type { CreateControlClient, DbUpdateResult, DbUpdateSuccess } from '../../control-api/types';
+import type { CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
 import { closeQuietly } from '../../utils/command-helpers';
 import { RECORDED_CONTRACT_REF_FORMS } from '../../utils/contract-ref-forms';
@@ -33,12 +36,8 @@ import { defineOrmCommand } from '../define-command';
 import { dbFlag } from '../flags';
 import { baseDirFor, migrationsDirFor } from '../migration/paths';
 import { normalizeError } from '../normalize-error';
+import { promptPlanQuestions } from '../plan-question-prompt';
 import { controlProgressReporter } from '../progress';
-import {
-  destructiveConsentQuestion,
-  errorConsentOperationsMissing,
-  errorConsentTokenUnresolved,
-} from './consent';
 import { migrationResultBlocks, migrationResultNextActions } from './migration-blocks';
 import { prepareMigrationRun } from './prepare';
 
@@ -67,6 +66,13 @@ function updatePresentations(inputs: {
     ],
     json: () => document,
     next: () => migrationResultNextActions(document, '{bin} db update'),
+  };
+}
+
+function subjectEntryJson(entry: MigrationOperationSubject) {
+  return {
+    operationIndex: entry.operationIndex,
+    subject: migrationStatementSubjectJson(entry.subject),
   };
 }
 
@@ -112,6 +118,12 @@ function updateDocument(inputs: {
         }),
     ...ifDefined('perSpace', value.perSpace),
     appliedStatements: value.appliedStatements,
+    ...(value.mode === 'plan'
+      ? {
+          dataLoss: value.dataLoss.map(subjectEntryJson),
+          accessWidening: value.accessWidening.map(subjectEntryJson),
+        }
+      : {}),
     ...ifDefined('warnings', value.warnings),
     advancedRef: inputs.advancedRef,
     plannedAdvanceRef: inputs.plannedAdvanceRef,
@@ -127,14 +139,16 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
       description:
         'Compares the database to the emitted contract and applies the changes that\n' +
         'close the gap, whether or not the database was bootstrapped with `db init`.\n' +
-        'An operation that would destroy data is applied only with your consent: the\n' +
-        'command asks you to type the database name. A run with nobody to ask — a CI\n' +
-        'job, or `--no-interactive` — takes it from `--confirm <database>` instead.\n' +
-        'Use --dry-run to see the operations without applying them.',
+        'Before it applies an operation that would lose data, it asks what the\n' +
+        'operation means: --rename keeps the data under a new name, --delete lets it\n' +
+        'go. Before it widens who can read or write rows, it asks for --allow. Where\n' +
+        'nobody can answer, it refuses and lists every question. Use --dry-run to see\n' +
+        'the operations and the questions without applying anything.',
       examples: [
         'db update',
         'db update --dry-run',
-        'db update --no-interactive --confirm appdb',
+        'db update --delete Legacy',
+        'db update --rename Profile:User --allow User',
         'db update --to production',
       ],
     },
@@ -150,16 +164,30 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
           brief: 'Advance the named ref to the post-command contract hash',
           placeholder: 'name',
         }),
-        rename: flag.repeated({
-          brief:
-            'Rename a model or field: Model, namespace.Model, Model.field or namespace.Model.field on each side; repeat for several, applied in order',
-          placeholder: 'old:new',
-        }),
+      },
+    },
+    statements: {
+      rename: {
+        arity: 1,
+        brief:
+          'Rename a model or field instead of dropping it: old:new, each side Model, namespace.Model, Model.field or namespace.Model.field; repeat for several, applied in order',
+      },
+      delete: {
+        arity: 1,
+        brief:
+          'Let the update lose the data of a model, field or storage name the refusal lists: --delete Model',
+      },
+      allow: {
+        arity: 1,
+        brief: 'Let the update widen who can read or write the rows of a model: --allow Model',
       },
     },
     needs: { config: ormConfigSection },
     handler: async (args, ctx) => {
       const startedAt = Date.now();
+      const renames = ctx.statements
+        .take('rename')
+        .map(({ text }) => ({ verb: 'rename' as const, text }));
       let destination: ResolveContractRefToSnapshotSuccess | undefined;
       if (args.flags.to !== undefined) {
         const resolved = await resolveContractRefToSnapshot({
@@ -181,13 +209,20 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
         db: args.flags.db,
         commandName: 'db update',
         createClient,
-        retryCommand: retryCommandFor({
-          commandName: args.flags.dryRun ? 'db update --dry-run' : 'db update',
-          to: args.flags.to,
-          advanceRef: args.flags.advanceRef,
-          renames: args.flags.rename,
-          canRunOffline: false,
-        }),
+        // Only a failed preparation suggests a retry. The engine keeps the delete and allow
+        // values for the questions, so they are taken here, where no question will be asked.
+        retryCommand: () =>
+          retryCommandFor({
+            commandName: args.flags.dryRun ? 'db update --dry-run' : 'db update',
+            to: args.flags.to,
+            advanceRef: args.flags.advanceRef,
+            statements: [
+              ...renames,
+              ...ctx.statements.take('delete'),
+              ...ctx.statements.take('allow'),
+            ],
+            canRunOffline: false,
+          }),
       });
       if (!prepared.ok) {
         return notOk(prepared.failure);
@@ -220,56 +255,23 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
       try {
         await client.connect(dbConnection);
 
-        const update = (consent?: { readonly planHash: string }): Promise<DbUpdateResult> =>
-          client.dbUpdate({
-            contract: contractJson,
-            mode,
-            migrationsDir,
-            statements: renameStatements(args.flags.rename),
-            ...(consent === undefined ? {} : { consent }),
-            onProgress: controlProgressReporter(ctx.report),
-          });
-
-        // A successful run shows the planner's warnings in its blocks. A refused
-        // or failed one has no result to carry them, and an errored envelope
-        // renders no meta, so they are reported as events to reach both channels.
-        // The refusal's warnings matter most of all: they are what the user is
-        // told just before consenting.
-        const reported = new Set<string>();
+        // A refused or failed run has no result to carry the planner's warnings,
+        // and an errored envelope renders no meta, so they are reported as events
+        // to reach both channels.
         const reportPlannerWarnings = (warnings: readonly { readonly summary: string }[]): void => {
           for (const warning of warnings) {
-            if (!reported.has(warning.summary)) {
-              reported.add(warning.summary);
-              ctx.report({ kind: 'message', severity: 'warn', text: warning.summary });
-            }
+            ctx.report({ kind: 'message', severity: 'warn', text: warning.summary });
           }
         };
 
-        let result = await update();
-        // The destructive verdict is the planner's, so it arrives only after the
-        // connection is open. Consent is asked for on that same connection and
-        // the apply is re-run carrying the refused plan's hash — the control API
-        // refuses if the plan it is about to apply is no longer that plan. Only
-        // an apply can ask: a dry run has nothing to authorise.
-        if (mode === 'apply' && !result.ok && result.failure.code === 'DESTRUCTIVE_CHANGES') {
-          reportPlannerWarnings(result.failure.warnings ?? []);
-          const refusal = result.failure.destructiveChanges;
-          if (refusal === undefined || refusal.destructiveOperations.length === 0) {
-            return notOk(normalizeError(errorConsentOperationsMissing()));
-          }
-          const token = refusal.databaseName ?? '';
-          if (token.trim().length === 0) {
-            return notOk(normalizeError(errorConsentTokenUnresolved(ctx.config.target.targetId)));
-          }
-          const granted = await ctx.prompt.consent(
-            destructiveConsentQuestion(refusal.destructiveOperations, token),
-            { token },
-          );
-          if (!granted) {
-            return notOk(normalizeError(mapDbUpdateFailure(result.failure)));
-          }
-          result = await update({ planHash: refusal.planHash });
-        }
+        const result = await client.dbUpdate({
+          contract: contractJson,
+          mode,
+          migrationsDir,
+          statements: renames,
+          answerQuestions: promptPlanQuestions(ctx.prompt),
+          onProgress: controlProgressReporter(ctx.report),
+        });
         if (!result.ok) {
           reportPlannerWarnings(result.failure.warnings ?? []);
           return notOk(normalizeError(mapDbUpdateFailure(result.failure)));
@@ -302,7 +304,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
           startedAt,
         });
       } catch (error) {
-        // A refused, mistyped or cancelled consent is the engine's own error, and
+        // A refused, mistyped or cancelled answer is the engine's own error, and
         // the engine settles it: cancellation exits 3, everything else 2. Catching
         // it here would restate it as this command's failure and lose that.
         if (error instanceof EngineStructuredError) {

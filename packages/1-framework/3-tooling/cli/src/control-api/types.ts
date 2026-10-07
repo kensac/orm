@@ -25,6 +25,7 @@ import type { Result } from '@internal/utils/result';
 import type { ExecuteDbSignResult } from './operations/db-sign';
 import type { ExecuteDbVerifyResult } from './operations/db-verify';
 import type { RenderContractDtsOptions, RenderContractDtsResult } from './render-contract-dts';
+import type { AnswerPlanQuestions } from './statements/data-loss-questions';
 import type { AppliedStatementReport } from './statements/report-applied-statements';
 import type { StatementText } from './statements/statement-text';
 
@@ -211,22 +212,8 @@ export interface DbUpdateOptions {
    * The type is driver-specific (e.g., string URL for Postgres).
    */
   readonly connection?: unknown;
-  /**
-   * When true, allows applying plans that contain destructive operations
-   * (e.g., DROP TABLE, DROP COLUMN, ALTER TYPE).
-   * When false (default), the operation returns a failure if the plan
-   * includes destructive operations, which `db update` turns into its consent
-   * prompt: the user types the database name, or passes `--confirm <database>`
-   * where there is nobody to ask.
-   */
+  /** Consents to every operation that would lose data or widen access, without asking. */
   readonly acceptDataLoss?: boolean;
-  /**
-   * Consent to the destructive plan a prior `DESTRUCTIVE_CHANGES` refusal
-   * named, identified by that refusal's `planHash`. The apply recomputes its
-   * plan and refuses with `CONSENT_PLAN_MISMATCH` when the fresh plan is not
-   * the one that was consented to.
-   */
-  readonly consent?: { readonly planHash: string };
   /**
    * On-disk migrations directory. Always required — every `db update`
    * routes through the per-space flow, which reads on-disk
@@ -235,11 +222,19 @@ export interface DbUpdateOptions {
    */
   readonly migrationsDir: string;
   /**
-   * The statements as the user wrote them, in the order given. They resolve
-   * against the contract the database marker names, read from the snapshot
-   * store, and the destination contract.
+   * The statements as the user wrote them, in the order given. A `rename`
+   * resolves against the contract the database marker names, read from the
+   * snapshot store, and the destination contract; a `delete` or `allow`
+   * answers the question about the subject it names.
    */
   readonly statements?: readonly StatementText[];
+  /**
+   * Asks, before an apply, what each operation that would lose data means and
+   * whether each that would widen who can read or write rows may run, for the
+   * questions no statement answered. The `db update` command asks through its
+   * prompt.
+   */
+  readonly answerQuestions: AnswerPlanQuestions;
   /** Optional progress callback for observing operation progress */
   readonly onProgress?: OnControlProgress;
 }
@@ -507,40 +502,7 @@ export interface DbUpdateSuccess {
 /**
  * Failure codes for dbUpdate operation.
  */
-export type DbUpdateFailureCode =
-  | 'PLANNING_FAILED'
-  | 'RUNNER_FAILED'
-  | 'DESTRUCTIVE_CHANGES'
-  | 'CONSENT_PLAN_MISMATCH';
-
-/** One planned operation whose class is destructive, as the refusal names it. */
-export interface DestructivePlanOperation {
-  readonly id: string;
-  readonly label: string;
-}
-
-/**
- * The verdict a `DESTRUCTIVE_CHANGES` refusal carries: what the plan would
- * destroy, the database it would destroy it in, and the identity of the plan
- * that was refused. Consent is granted against `planHash` — the caller passes
- * it back as `DbUpdateOptions.consent`.
- */
-export interface DestructiveChangesVerdict {
-  readonly destructiveOperations: ReadonlyArray<DestructivePlanOperation>;
-  /** The connected database's name, when the driver can name it. */
-  readonly databaseName: string | undefined;
-  /** Content hash of the refused plan. */
-  readonly planHash: string;
-}
-
-/**
- * Why an apply carrying consent was refused: the plan recomputed for the
- * apply is not the plan that was consented to.
- */
-export interface ConsentPlanMismatchVerdict {
-  readonly consentedPlanHash: string;
-  readonly planHash: string;
-}
+export type DbUpdateFailureCode = 'PLANNING_FAILED' | 'RUNNER_FAILED';
 
 /**
  * Failure details for dbUpdate operation.
@@ -552,10 +514,6 @@ export interface DbUpdateFailure {
   readonly conflicts: ReadonlyArray<MigrationPlannerConflict> | undefined;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
   readonly meta: Record<string, unknown> | undefined;
-  /** Present exactly when `code` is `'DESTRUCTIVE_CHANGES'`. */
-  readonly destructiveChanges?: DestructiveChangesVerdict;
-  /** Present exactly when `code` is `'CONSENT_PLAN_MISMATCH'`. */
-  readonly consentPlanMismatch?: ConsentPlanMismatchVerdict;
   /** Underlying failure or error for diagnostics; never serialized into envelopes. */
   readonly cause?: unknown;
 }

@@ -97,6 +97,8 @@ function applySuccess(): Record<string, unknown> {
   return {
     mode: 'apply',
     appliedStatements: [],
+    dataLoss: [],
+    accessWidening: [],
     destination: { storageHash: DEST_HASH },
     plan: {
       operations: [
@@ -125,6 +127,8 @@ function planSuccess(): Record<string, unknown> {
   return {
     mode: 'plan',
     appliedStatements: [],
+    dataLoss: [],
+    accessWidening: [],
     destination: { storageHash: DEST_HASH },
     plan: {
       operations: [{ id: 'op-2', label: 'drop relation legacy', operationClass: 'destructive' }],
@@ -204,6 +208,32 @@ describe('db update --rename', () => {
       ],
     });
     expect(run.presented?.data).toMatchObject({ appliedStatements: [PROFILE_TO_USER] });
+  });
+
+  it('lists what an apply would ask about on a dry run, in its output and its JSON', async () => {
+    const legacy = { kind: 'model', namespaceId: 'app', model: 'Legacy' } as const;
+    mocks.dbUpdate.mockResolvedValue(
+      ok({ ...planSuccess(), dataLoss: [{ operationIndex: 0, subject: legacy }] }),
+    );
+    const human = await harness().run(['db', 'update', '--dry-run'], {
+      cwd: projectDir,
+      isTty: { stdout: true },
+    });
+    const json = await harness().run(['db', 'update', '--dry-run', '--json'], { cwd: projectDir });
+
+    expect(human.presented?.presentation.human).toContainEqual({
+      kind: 'tree',
+      roots: [
+        {
+          label: 'An apply asks about',
+          children: [{ label: 'drop relation legacy: --delete app.Legacy' }],
+        },
+      ],
+    });
+    expect(json.presented?.data).toMatchObject({
+      dataLoss: [{ operationIndex: 0, subject: legacy }],
+      accessWidening: [],
+    });
   });
 
   it('lists the applied statements on a dry run', async () => {
