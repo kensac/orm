@@ -449,14 +449,14 @@ For each of the six places, in this order: a plain string, a number, `true`, an 
 
 | Case | Expected |
 | --- | --- |
-| Plain string | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``sql/expression has no cast from pg/text; write it as sql`<the same text>` `` |
-| `42` | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``sql/expression has no cast from pg/int2; write sql`...` `` |
-| `true` | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``sql/expression has no cast from pg/bool; write sql`...` `` |
-| `archived` | `PSL_INVALID_ATTRIBUTE_SYNTAX`, ``Expected sql`...`, got an identifier`` |
+| Plain string | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``Expected sql`...`; write sql`<the same text>` `` |
+| `42` | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``Expected sql`...` `` |
+| `true` | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``Expected sql`...` `` |
+| `archived` | `PSL_INVALID_ATTRIBUTE_SYNTAX`, ``Expected sql`...`; got an identifier`` |
 | `` pg.sql`x` `` | `PSL_UNKNOWN_LITERAL_TAG`, `Unknown literal tag "pg.sql". Known tags: sql, json.` |
-| Multi-line `sql` literal | `ok`; the stored text has the common indentation and the blank first and last lines removed |
+| Multi-line `sql` literal | `ok`; the stored text has the common indentation and the blank lines at the start and end removed |
 | 25, `` @@check(expression: sql``) `` | `PSL_CHECK_EXPRESSION_EMPTY`, at the attribute |
-| 38, a plain string with leading spaces | `PSL_VALUE_TYPE_INCOMPATIBLE`, ending `write it as a sql literal`, because the exact rewrite would read back without the spaces |
+| 38, a plain string with leading spaces | `PSL_VALUE_TYPE_INCOMPATIBLE`, ``Expected sql`...` `` with no rewrite, because the exact rewrite would read back without the spaces |
 
 ### Run on 2026-09-30
 

@@ -2,17 +2,18 @@
 
 Read this first when you resume the project. It records where the work stands and the context that is not in the spec, design or plan. Update it at the end of every slice.
 
-## State on 2026-09-30
+## State on 2026-10-07
 
-- Slice 2b (TML-3288) is on branch `tml-3288-sql-expression-places`, stacked on the 2t branch. Pull request: https://github.com/prisma/orm/pull/30550 (opened 2026-09-30, base `tml-3367-data-type-value`; retarget to `main` once #30539 merges). Two review rounds done, every finding fixed. Next: slice 3 (TML-3289); its "Carried over" list in plan.md holds the deferred items.
+- Merged: slice 2a (#30534), slice 1 (#30546), slice 4 (#30554) and slice 2t (#30539, squash `b35bcd7d10`, shipped in 8.0.0-rc.16).
+- Slice 2b (TML-3288) is pull request https://github.com/prisma/orm/pull/30550 on branch `tml-3288-sql-expression-places`, base `main`. Review round 3 covered the merges of 2t and `main` and the branch's commits since round 2; its findings are fixed (see "Slice 2b review, round 3" below). Next: hand it to Will.
+- Slice 3 (TML-3289) is https://github.com/prisma/orm/pull/30558, based on the 2b branch and in conflict with it. It waits for 2b. Its branch still names the ADR `ADR 260 - Raw SQL is a value of the data type sql-expression.md`; the decision is ADR 268 now.
+- Slice 5 (stretch, TML-3297) is not started. Ask Will before starting it.
+- The decision's ADR is ADR 268, because #30641 claims 267.
+- The three publish-shell tarball tests (`all-shells-tarball`, `module-identity`, `cross-shell-tarball`) fail on this machine because `pnpm install` in the scratch project refuses `@vercel/detect-agent` as a "high-risk trust downgrade". That is the registry, not the branch. Check them in CI.
 
-- Slice 2t (TML-3367) is on branch `tml-3367-data-type-value`, stacked on the 2a branch. Pull request: https://github.com/prisma/orm/pull/30539 (opened 2026-09-30, base `main` since #30534 merged; approved for merge by Will, auto-merge on). Two review rounds done, every finding fixed. Next: slice 2b (TML-3288) once 2a merges; its "Carried over" list in plan.md holds the deferred items from both 2t reviews.
+## Known limits
 
-- Planning is finished. Slice 2a merged on 2026-09-30.
-- PR #30349 (the binder) merged on 2026-09-25 and PR #30381 (block specs) on 2026-09-28. Nothing outside the project blocks it.
-- Slice 2a (TML-3296) is implemented on branch `tml-3296-sql-expression-data-type`, which also carries these project files. Two review rounds are done and every finding is fixed. Pull request https://github.com/prisma/orm/pull/30534 merged to `main` on 2026-09-30 as `d0ec42633f`. [handover.md](handover.md) is the earlier handover and is superseded by this file.
-- Slice 2a changed nothing in `examples/` or `packages/3-extensions/`, so `check:upgrade-coverage` required no declaration; the two fragments under `upgrade-instructions/pending/sql-is-a-data-type/` are the ones design section 20 names.
-- The three publish-shell tarball tests (`all-shells-tarball`, `module-identity`, `cross-shell-tarball`) fail on this machine because `pnpm install` in the scratch project refuses `@vercel/detect-agent@1.2.5` as a "high-risk trust downgrade". That is the registry, not this branch. Check them in CI.
+- On SQLite, `Json`, `String` and `DateTime` columns all have the data type `sqlite/text`, and the target registers the `json` tag under the key `tag:json`. So a refused default on a SQLite `Json` column says `Expected a quoted string`, not ``Expected json`...` ``. Decided on 2026-10-07 to keep it: a quoted JSON string works on such a column, and offering ``json`...` `` would also show on `String` and `DateTime` columns.
 
 ## Slice 2a review, 2026-09-30
 
@@ -257,17 +258,27 @@ Review fixes (brief `dispatches/2t-wording-fixes-brief.md`, reviews in `slice-re
 
 Round two (`slice-reviews/2t-wording-round-2/code-review.md`) confirmed every finding fixed and raised four small ones (H01 to H04), fixed the same day: ADR 231 names the "receiving type takes it" condition and the no-written-form internal error; the `dataTypeValue` label uses `tagForm`; `printedTaggedLiteralReadsBack` is no longer exported; the extension fragment lists `WrittenForm`, `RefusalGuidance` and `tagForm`. The deferred items in that review (codec check of a rewrite, newlines in a multi-line rewrite, one tag per type) are accepted costs. `main` (`45c3b5b076`) was merged in the same day.
 
+## Slice 2b review, round 3, 2026-10-07
+
+hammurabi-31 took over from marconi-29. Brief: `dispatches/2b-round-3-review-brief.md`. Reviews: `slice-reviews/2b-round-3/` (C01 to C08, D01 to D09). Code fixes brief: `dispatches/2b-round-3-fixes-brief.md`.
+
+- `main` merged again (`7fa9184840`); no conflicts, no released fragment touched. The ADR moved from 267 to 268 (`20f0af8117`), because #30641 claims 267.
+- No merge dropped behaviour. The findings were text the merges left behind, two untested paths, one test that could not fail, and one file outside the slice.
+- **Code and tests** (implementer): block value completion and block keyword snippets are tested to receive the source's data types, and `using = |` in a `policy_select` block offers `sql` on the real Postgres stack (D03, C04); the block spec factory test is named for what it checks and asserts the data types by identity (D04); the Postgres tests build block spec contexts with `blockSpecContext` (D05); the codemod's unclosed-backtick test fails without its fix (D06); the print refusal says "blank lines at the start or end" (C05). Every new test was shown to fail with its defect planted; logs in `wip/2b-round-3-fixes/`.
+- **Docs** (orchestrator): ADR 268 no longer says a line comment renames anything or that the line-comment rule is unbuilt (C01, D01); ADR 129 and the ADR index say only exact-named objects are skipped (C07, D01); the extension fragment's `BlockSpecContext` is `{ symbols, dataTypes }`, its stale supersede sentence is gone and its change id is `block-spec-context-carries-data-types` (C02, C03, D02); the error reference (C05); the editor tooling brief says a policy's `using` completes `sql` (C04, D03); the Supabase skill reference states the escapes (D08); the spec and the manual QA table quote the current messages (C06, D09); the Data Contract subsystem doc's tagged-literal section matches ADR 129; this file.
+- **Not changed:** the Bash hook in `.claude/scripts/enforce-tools.mjs` (C08, D07). Will asked for it, round 1 (F08) kept it in this pull request, and the description names it as unrelated.
+
 ## Slice order and tickets
 
 | Order | Plan slice | Ticket | State |
 | --- | --- | --- | --- |
 | 1 | 2a: `sql` is the data type `sql/expression` | TML-3296 | Merged 2026-09-30 (#30534) |
-| 2 | 2t: an argument declares the data type it receives | TML-3367 | PR #30539 open against the 2a branch; two review rounds done, all findings fixed |
-| 3 | 2b: the six places take `sql` literals | TML-3288 | PR #30550 open against the 2t branch (2026-09-30); two review rounds done, all findings fixed; retarget to `main` when #30539 merges |
-| 4 | 3: the TypeScript builder takes `sql` values | TML-3289 | Waiting for 2b |
-| On the side | 1: line comments in raw SQL | TML-3287 | PR #30546 open against `main` (2026-09-30); two review rounds done, all findings fixed; awaits Will's approval |
-| Last | 4: migration files write template literals | TML-3290 | Waiting for 1 |
-| Stretch | 5: migration files write `sql` values | TML-3297 | Waiting for 3 and 4 |
+| 2 | 2t: an argument declares the data type it receives | TML-3367 | Merged 2026-10-07 (#30539), shipped in rc.16 |
+| 3 | 2b: the six places take `sql` literals | TML-3288 | #30550 open against `main`; three review rounds done, all findings fixed |
+| 4 | 3: the TypeScript builder takes `sql` values | TML-3289 | #30558 open against the 2b branch; waits for 2b |
+| On the side | 1: line comments in raw SQL | TML-3287 | Merged (#30546) |
+| Last | 4: migration files write template literals | TML-3290 | Merged (#30554) |
+| Stretch | 5: migration files write `sql` values | TML-3297 | Not started; ask Will |
 
 TML-3282 was the decision ticket and is done.
 

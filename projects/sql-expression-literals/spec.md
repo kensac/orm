@@ -30,7 +30,7 @@ check({ expression: sql`char_length("userId") > 0`, name: 'profile_user_id_prese
 policyUpdate(Profile, { name: 'profile_owner_write', roles: [authenticated], using: owner, withCheck: sql`${owner} AND "archivedAt" IS NULL` });
 ```
 
-A `` sql`...` `` literal is a value of the data type `sql/expression` (ADR 254). Each place that takes raw SQL declares that it receives that type. `where: "(archived_at IS NULL)"` is refused because a quoted string is a `pg/text` value and `sql/expression` casts from nothing; the message ends with the rewrite, ``write it as sql`(archived_at IS NULL)` ``. In TypeScript a plain string in those fields does not compile.
+A `` sql`...` `` literal is a value of the data type `sql/expression` (ADR 254). Each place that takes raw SQL declares that it receives that type. `where: "(archived_at IS NULL)"` is refused because a quoted string is a `pg/text` value and `sql/expression` casts from nothing; the message is ``Expected sql`...`; write sql`(archived_at IS NULL)` ``. In TypeScript a plain string in those fields does not compile.
 
 The places are `@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)`, a policy's `using` and `withCheck`, and `@default`, which already takes `sql` literals and stores one as a default expression.
 
@@ -39,7 +39,6 @@ The decisions and their reasons are in [design-notes.md](design-notes.md). Every
 ## Non-goals
 
 - Editor support inside a `sql` literal: SQL highlighting and hover. They stay as described in [the editor tooling brief](../../docs/reference/psl-editor-tooling-tagged-literals.md).
-- Completion at a block parameter value such as `using = |`; the language server offers none there today.
 - Typing function arguments, such as the `8` in `nanoid(8)`. This project builds the building block and uses it only for raw SQL.
 - The rest of ADR 254's follow-up work: DDL names, parameters, deriving `nativeType`, type constructors naming a type and a codec.
 - Any check on the content of SQL outside `@default`. Prisma does not parse SQL; the database reports errors.
@@ -67,7 +66,7 @@ The complete list is in [design.md](design.md) section 21.
 2. **Admission by type.** Every place that takes raw SQL declares that it receives `sql/expression`, and the ordinary cast rule decides what is admitted, when the argument is parsed. Refusals use the same codes in `@default` and the six places. A refusal of a plain string ends with the exact rewrite.
 3. **Checks on SQL text belong to the consumer.** `sql/expression` accepts any text the canonicalization accepts. `@default` keeps its refusals of `now()`, `autoincrement()`, `;`, comments, `$$` and `SELECT`, in PSL and in TypeScript. The other places add none.
 4. **Same contract from PSL and TypeScript.** Every TypeScript `sql/expression` value is canonicalized as a PSL `sql` literal is, whether it comes from the `sql` tag, from interpolating other `sql` values, or from the constructor. The same SQL written in either language emits a byte-identical contract.
-5. **Names and stored text.** For a body without `--`, the wire name of an index, check or policy does not change. The stored text changes only for a body that canonicalization changes (every line indented, a blank first or last line, a carriage return, a whitespace-only inner line), which changes the contract's storage hash once. A body that has both `--` and a line break gets a new wire name once. The upgrade instructions say what to do in both cases.
+5. **Names and stored text.** The wire name of an index, check or policy does not change, because its hash ignores everything canonicalization removes. The stored text changes only for a body that canonicalization changes (every line indented, blank lines at the start or end, a carriage return, a whitespace-only inner line), which changes the contract's storage hash once. The upgrade instructions say what to do. (The one-time new wire name for a body with both `--` and a line break came with slice 1, in rc.15.)
 6. **Tools know the form.** The language server completes and documents `sql` in every attribute argument that takes it and colours `sql` literals. `contract infer` prints every place as a `sql` literal, and skips, with a note, an object whose SQL would not read back unchanged.
 7. **Line comments in raw SQL are safe.** Every site that places contract SQL inside a statement renders it through one function, so a body whose last line ends in a `--` comment produces valid DDL.
 8. **Migration files avoid escaped quotes.** A newly generated `migration.ts` writes a single-line SQL text holding both quote kinds as an untagged template literal. Migration files already committed keep loading and applying unchanged. `sql` values in migration files are a stretch goal.
