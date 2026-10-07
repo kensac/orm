@@ -108,7 +108,7 @@ describe('MongoMigrationPlanner with statements', () => {
       {
         kind: 'statementRefused',
         summary: expect.stringContaining('rename field "User.name" to "User.fullName"'),
-        why: 'MongoDB cannot carry out rename statements in this release. Without the statement, the documents in collection "profiles" keep their values under "name", and nothing moves them to "fullName". To move them, update the documents by hand on each database, for example with db.getCollection("profiles").updateMany({}, { $rename: { "name": "fullName" } }) in mongosh, using the field names as they are stored.',
+        why: 'MongoDB cannot carry out rename statements in this release. Without the statement, the documents in collection "profiles" keep their values under "name", and nothing moves them to "fullName". To move them, run these in mongosh on each database before a plan made without the statement is applied there, using the field names as they are stored. First turn off the collection\'s validator, which still requires "name": db.runCommand({ collMod: "profiles", validationLevel: "off" }). Then drop each unique index that includes "name", or the move fails once two documents have lost it, for example db.getCollection("profiles").dropIndex("name_1"). Then move the values: db.getCollection("profiles").updateMany({}, { $rename: { "name": "fullName" } }). Applying the plan then creates the indexes on "fullName" and turns the validator back on.',
         refusedStatement: fieldRename,
       },
     ]);

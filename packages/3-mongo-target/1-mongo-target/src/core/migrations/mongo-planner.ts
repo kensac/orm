@@ -245,7 +245,8 @@ function keepTheData(
   if (statement.entity === 'field') {
     const { field } = statement.from;
     const newField = statement.to.field;
-    return `${NOT_IN_THIS_RELEASE} Without the statement, the documents in collection "${from}" keep their values under "${field}", and nothing moves them to "${newField}". To move them, update the documents by hand on each database, for example with db.getCollection(${shellString(from)}).updateMany({}, { $rename: { ${shellString(field)}: ${shellString(newField)} } }) in mongosh, using the field names as they are stored.`;
+    const collection = `db.getCollection(${shellString(from)})`;
+    return `${NOT_IN_THIS_RELEASE} Without the statement, the documents in collection "${from}" keep their values under "${field}", and nothing moves them to "${newField}". To move them, run these in mongosh on each database before a plan made without the statement is applied there, using the field names as they are stored. First turn off the collection's validator, which still requires "${field}": db.runCommand({ collMod: ${shellString(from)}, validationLevel: "off" }). Then drop each unique index that includes "${field}", or the move fails once two documents have lost it, for example ${collection}.dropIndex(${shellString(`${field}_1`)}). Then move the values: ${collection}.updateMany({}, { $rename: { ${shellString(field)}: ${shellString(newField)} } }). Applying the plan then creates the indexes on "${newField}" and turns the validator back on.`;
   }
   const to = collectionOf(contract, statement.to);
   if (from === to) {
