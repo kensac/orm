@@ -16,11 +16,11 @@ A user keeps `model User` and changes `@@map("users")` to `@@map("app_users")`. 
 
 **Found:** slice 1, dispatch 3 (2026-10-06). Resolves but is refused with `statementRejected`; needs a `set schema` operation with its working-schema step and companion names. Scheduled for slice 3 with the namespace renames (recorded in `plan.md`).
 
-## A codec's `onFieldEvent` hook sees different events under `db update` with and without statements
+## A codec's `onFieldEvent` hook sees different events under `db update` with and without a snapshot
 
-**Found:** slice 1, dispatch 5 review (2026-10-06).
+**Found:** slice 1, dispatch 5 review (2026-10-06). Changed by slice 2, dispatch 4 (2026-10-08).
 
-`db update` passes the origin contract to the planner only when `--rename` is given. Without statements, field-event planning has no prior contract and reports every column as added, as before this slice; with statements it reports only real changes. No codec in the repository implements `onFieldEvent` today, so nothing observable differs. If a codec starts relying on the hook under `db update`, decide whether `db update` should always supply the origin contract (which needs the runner's origin handling kept separate, as slice 1 did with `origin: null`).
+Since slice 2, `db update` reads the origin contract from the snapshot store on every run and passes it to the planner whenever the snapshot exists, with or without statements. So field-event planning sees the prior contract and reports only real changes on every run with a snapshot; on a run without one (no marker, a marker whose hash has no snapshot, or an unreadable snapshot) it has no prior contract and reports every column as added. No codec in the repository implements `onFieldEvent` today, so nothing observable differs. If a codec starts relying on the hook under `db update`, decide what it should see when the snapshot is missing.
 
 ## Which field name a MongoDB statement uses
 

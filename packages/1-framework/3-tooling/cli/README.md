@@ -943,18 +943,27 @@ Update your database schema to match the currently emitted contract.
 - Allows `additive`, `widening`, and `destructive` operation classes where supported by planner/runner
 - Disables per-operation runner execution checks by default (precheck/postcheck/idempotency)
 - In `--dry-run` mode for SQL targets, prints a DDL preview derived from planned operations
-- In interactive mode, destructive plans require confirmation before apply
-- In non-interactive mode, destructive plans fail unless `--confirm <database>` is provided
+- Before an apply, asks what each operation that would lose data means and whether each that would widen access may run (see **Questions before an apply** below)
 
 **Command:**
 ```bash
-prisma db update [--db <url>] [--to <contract>] [--advance-ref <name>] [--config <path>] [--dry-run] [--rename <old:new>]... [--confirm <database>] [--interactive|--no-interactive] [--json] [-v] [-q] [--color/--no-color]
+prisma db update [--db <url>] [--to <contract>] [--advance-ref <name>] [--config <path>] [--dry-run] [--rename <old:new>]... [--delete <subject>]... [--allow <subject>]... [--interactive|--no-interactive] [--json] [-v] [-q] [--color/--no-color]
 ```
 
-**Rename statements (`--rename <old>:<new>`, repeatable):** tell `db update` that a model or field was renamed, so it renames the table or column instead of dropping and creating it. The statements work exactly as they do for `migration plan` (see below), and produce the same operations. The origin contract they resolve against is the contract the database's marker names, read from the local snapshot store (`migrations/snapshots/<hash>/`). The snapshot is read only when statements are given; without them `db update` plans and applies exactly as it does without this flag. Either way the plan applies from whatever state the database is in, as `db update` always has. `db update` keeps a snapshot of the contract it applies whenever it advances a ref: the `db` ref by default, or with `--db <url>` only the ref you name with `--advance-ref <name>`. So to use renames against a database you update with `--db <url>`, give that earlier run `--advance-ref <name>`. Without a readable snapshot, a run with statements fails with `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`, naming the hash and the directory it looked in, and gives the steps that store the missing snapshot: emit the contract the database is at, run `db update --advance-ref <name> --dry-run` against it and check that it plans no operations, then run it without `--dry-run`, which changes nothing in the database and stores the snapshot, then emit the new contract and run the rename. A database with no marker has nothing to rename, and fails the same way. Running the same statements a second time fails with `MIGRATION.STATEMENT_UNRESOLVED`, because the database is now at a contract that no longer has the old names. The statements the plan applied are listed under `Statements applied` after the operations (dry run and apply), and as `appliedStatements` in `--json` output, each with its `description` and `operationIndexes`, the positions in `operations` of the operations it accounts for.
+**Rename statements (`--rename <old>:<new>`, repeatable):** tell `db update` that a model or field was renamed, so it renames the table or column instead of dropping and creating it. The statements work exactly as they do for `migration plan` (see below), and produce the same operations. The origin contract they resolve against is the contract the database's marker names, read from the local snapshot store (`migrations/snapshots/<hash>/`). The snapshot is read on every run, so the planner sees the prior contract whenever one is stored; a missing or unreadable snapshot fails only a run with `--rename`. Either way the plan applies from whatever state the database is in, as `db update` always has. `db update` keeps a snapshot of the contract it applies whenever it advances a ref: the `db` ref by default, or with `--db <url>` only the ref you name with `--advance-ref <name>`. So to use renames against a database you update with `--db <url>`, give that earlier run `--advance-ref <name>`. Without a readable snapshot, a run with statements fails with `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`, naming the hash and the directory it looked in, and gives the steps that store the missing snapshot: emit the contract the database is at, run `db update --advance-ref <name> --dry-run` against it and check that it plans no operations, then run it without `--dry-run`, which changes nothing in the database and stores the snapshot, then emit the new contract and run the rename. A database with no marker has nothing to rename, and fails the same way. Running the same statements a second time fails with `MIGRATION.STATEMENT_UNRESOLVED`, because the database is now at a contract that no longer has the old names. The statements the plan applied are listed under `Statements applied` after the operations (dry run and apply), and as `appliedStatements` in `--json` output, each with its `description` and `operationIndexes`, the positions in `operations` of the operations it accounts for.
+
+**Questions before an apply:** an apply asks one question per model, field or storage name whose data an operation would lose (dropping a table or a column, or a type change that can change values), and one per model whose rows an operation would let more people read or write (disabling row-level security, for example). It asks before it applies anything. Subjects are named through the origin contract read from the snapshot store, as `migration plan` names them; without a readable snapshot each subject is its storage name, which can only be deleted or allowed, and the question says the origin contract is unknown. Recorded migrations of extension spaces are asked about for the data they would lose, never for widened access. Each question is answered with a statement:
+
+- `--delete <subject>` lets the update lose that data, for example `--delete Legacy` or `--delete User.nickname`. A field of a model the update renames is named through the model's new name.
+- `--rename <subject>:<new name>` keeps the data of a model or field under a new name instead.
+- `--allow <subject>` lets the update widen who can read or write that model's rows, for example `--allow User`.
+
+Where nobody can answer (the run is not interactive, or `--yes` is set), the command fails with `CLI.CONSENT_REQUIRED` and lists every unanswered question with the flags that answer it. In a terminal it asks each question in turn; a typed rename is planned again, and when the plan still loses the subject's data the command fails with `MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS`. A `--delete` or `--allow` that answers no question fails with `CLI.CONSENT_UNUSED` before anything is applied. `--confirm` no longer consents to anything here. A dry run asks nothing: it lists the questions an apply would ask under `An apply asks about`, and as `dataLoss` and `accessWidening` in `--json` output, and a `--delete` or `--allow` given to a dry run fails with `CLI.CONSENT_UNUSED`. The answers are listed under `Statements applied` after the renames, for example `delete field "User.nickname" (1 operation)`, and as `appliedStatements` entries with `verb` `delete` or `allow`. Programmatic callers of `dbUpdate` pass `answerQuestions`, which answers every question in order or throws to refuse; `delete` and `allow` statements in `statements` answer their questions without asking, and `acceptDataLoss: true` answers all of them.
 
 **Error codes (additional to shared CLI/runtime codes):**
 - `RUNNER_FAILED`: runner rejected apply (origin mismatch, failed checks, policy failures, or execution errors)
+- `CLI.CONSENT_REQUIRED`, `CLI.CONSENT_UNUSED`: a question nobody answered, or a `--delete` or `--allow` that answered no question
+- `MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS`: a rename typed at the prompt did not stop the loss it answered
 - `MIGRATION.STATEMENT_INVALID`, `MIGRATION.STATEMENT_UNRESOLVED`, `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`: a `--rename` statement is malformed, does not resolve in the contracts, or has no origin contract to resolve against
 
 **Config File (`prisma.config.ts`):**
@@ -1446,7 +1455,16 @@ try {
   // Run operations
   const verifyResult = await client.verify({ contract });
   const initResult = await client.dbInit({ contract, mode: 'apply' });
-  const updateResult = await client.dbUpdate({ contract, mode: 'apply' });
+  const updateResult = await client.dbUpdate({
+    contract,
+    mode: 'apply',
+    // Asked before an apply about each operation that would lose data or widen access.
+    // Answer each question in order, as `{ verb, text }`, or throw to refuse.
+    answerQuestions: async (questions) => {
+      if (questions.length > 0) throw new Error('db update would lose data or widen access');
+      return [];
+    },
+  });
   const introspectResult = await client.introspect();
 } finally {
   // Clean up

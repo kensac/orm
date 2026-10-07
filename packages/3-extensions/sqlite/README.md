@@ -71,7 +71,13 @@ import { createSqliteControlClient } from '@internal/sqlite/control';
 const control = createSqliteControlClient({
   connection: 'path/to/app.db',
 });
-await control.dbUpdate({ migrations: { dir: 'migrations/app' } });
+await control.dbUpdate({
+  migrations: { dir: 'migrations/app' },
+  answerQuestions: async (questions) => {
+    if (questions.length > 0) throw new Error('db update would lose data or widen access');
+    return [];
+  },
+});
 ```
 
 ### `@internal/sqlite/migration`
