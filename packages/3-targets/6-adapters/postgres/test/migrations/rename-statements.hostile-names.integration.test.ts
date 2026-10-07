@@ -5,6 +5,7 @@ import {
   type ResolvedStatement,
 } from '@internal/framework-components/control';
 import { SqlStorage } from '@internal/sql-contract/types';
+import type { SqlSchemaIRNode } from '@internal/sql-schema-ir/types';
 import type { PostgresPlanTargetDetails } from '@internal/target-postgres/planner-target-details';
 import { postgresCreateNamespace } from '@internal/target-postgres/types';
 import { applicationDomainOf } from '@repo/test-utils';
@@ -162,7 +163,10 @@ describe('rename statements with hostile identifiers on Postgres', { concurrent:
 
     const planned = postgresTargetDescriptor.createPlanner(controlAdapter).plan({
       contract: destination,
-      schema: postgresTargetDescriptor.migrations.contractToSchema(origin, frameworkComponents),
+      schema: postgresTargetDescriptor.migrations.contractToSchema(
+        origin,
+        frameworkComponents,
+      ) as SqlSchemaIRNode,
       policy: ALL_CLASSES,
       fromContract: origin,
       statements: input.statements,
