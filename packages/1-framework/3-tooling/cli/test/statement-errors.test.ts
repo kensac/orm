@@ -4,11 +4,9 @@ import { errorStatementOriginUnknown } from '../src/utils/cli-errors';
 const HASH = 'sha256:abc';
 const DIR = 'migrations/snapshots/sha256:abc';
 
-function adviceOf(error: ReturnType<typeof errorStatementOriginUnknown>): string {
+function adviceOf(error: ReturnType<typeof errorStatementOriginUnknown>): readonly string[] {
   const envelope = error.toEnvelope();
-  return [envelope.fix ?? '', ...(envelope.nextActions ?? []).map((action) => action.label)].join(
-    '\n',
-  );
+  return [envelope.fix ?? '', ...(envelope.nextActions ?? []).map((action) => action.label)];
 }
 
 describe('errorStatementOriginUnknown', () => {
@@ -33,9 +31,12 @@ describe('errorStatementOriginUnknown', () => {
   it.each(Object.entries(variants))(
     'advises no plan without statements unless it says the plan drops data (%s)',
     (_, error) => {
-      const advice = adviceOf(error);
-      if (/without (the )?statements|leave out the statements/i.test(advice)) {
-        expect(advice).toContain('drops the storage of each renamed model or field with its data');
+      for (const advice of adviceOf(error)) {
+        if (/without (the )?statements|leave out the statements/i.test(advice)) {
+          expect(advice).toContain(
+            'drops the storage of each renamed model or field with its data',
+          );
+        }
       }
     },
   );

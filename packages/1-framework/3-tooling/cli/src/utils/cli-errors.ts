@@ -642,7 +642,9 @@ export function errorStatementOriginUnknown(origin: {
         why: 'The database has no marker: Prisma has never initialised or updated it, so there is no earlier contract whose names a statement could rename.',
         fix: `Leave out the statements. If the database already holds data under the old names, preview the plan with --dry-run first. ${WITHOUT_STATEMENTS_DROPS}`,
         nextActions: [
-          chooseAction('Leave out the statements, and preview the plan with --dry-run first'),
+          chooseAction(
+            `Leave out the statements, and preview the plan with --dry-run first. ${WITHOUT_STATEMENTS_DROPS}`,
+          ),
         ],
         meta: { hash: null, snapshotDirectory: origin.snapshotDirectory },
       },
