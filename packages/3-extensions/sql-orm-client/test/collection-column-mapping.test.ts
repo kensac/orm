@@ -23,6 +23,12 @@ describe('collection-column-mapping', () => {
     );
   });
 
+  it('resolveFieldToColumn() refuses any name on a model the contract does not declare', () => {
+    expect(() => resolveFieldToColumn(contract, 'public', 'UnknownModel', 'id')).toThrow(
+      unknownField('UnknownModel', 'id'),
+    );
+  });
+
   it('resolveFieldToColumn() resolves a field a variant inherits from its base model', () => {
     expect(resolveFieldToColumn(buildMixedPolyContract(), 'public', 'Feature', 'title')).toBe(
       'title',

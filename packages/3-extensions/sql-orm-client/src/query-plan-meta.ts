@@ -4,13 +4,14 @@ import type { SqlStorage } from '@internal/sql-contract/types';
 import { type AnyQueryAst, collectOrderedParamRefs } from '@internal/sql-relational-core/ast';
 import type { SqlQueryPlan } from '@internal/sql-relational-core/plan';
 import { ifDefined } from '@internal/utils/defined';
-import { getFieldToColumnMap, modelOf, resolvePolymorphismInfo } from './collection-contract';
-import { ormError } from './orm-errors';
 import {
-  domainModelTableInNamespace,
-  resolveTableForContract,
-  storageTableForContract,
-} from './storage-resolution';
+  getFieldToColumnMap,
+  modelOf,
+  resolvePolymorphismInfo,
+  resolvePrimaryKeyColumns,
+} from './collection-contract';
+import { ormError } from './orm-errors';
+import { domainModelTableInNamespace, storageTableForContract } from './storage-resolution';
 
 export function deriveParamsFromAst(ast: AnyQueryAst): {
   params: unknown[];
@@ -40,14 +41,6 @@ export function resolveTableColumns(
 }
 
 const modelColumnsCache = new WeakMap<object, Map<string, ReadonlySet<string>>>();
-
-function inheritedKeyColumns(
-  contract: Contract<SqlStorage>,
-  namespaceId: string,
-  tableName: string,
-): readonly string[] {
-  return resolveTableForContract(contract, namespaceId, tableName)?.table.primaryKey?.columns ?? [];
-}
 
 function isMultiTableVariant(
   contract: Contract<SqlStorage>,
@@ -84,7 +77,7 @@ function modelColumnsOf(
     }
   };
   const addInheritedKey = () => {
-    for (const column of inheritedKeyColumns(contract, namespaceId, tableName)) {
+    for (const column of resolvePrimaryKeyColumns(contract, namespaceId, tableName)) {
       columns.add(column);
     }
   };
