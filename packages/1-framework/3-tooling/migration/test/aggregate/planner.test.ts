@@ -164,6 +164,51 @@ describe('planMigration', () => {
     expect(result.assertOk().perSpace.get('app')?.appliedStatements).toEqual([applied]);
   });
 
+  it('gives the origin contract and statements to the app space only, and none to an extension space planned from the diff', async () => {
+    const aggregate = makeAggregate({
+      app: makeSpace({ spaceId: 'app' }),
+      extensions: [makeSpace({ spaceId: 'cipherstash' })],
+    });
+    const origin = aggregate.app.contract();
+    const statement = {
+      kind: 'rename',
+      entity: 'model',
+      from: { namespace: 'app', model: 'Profile' },
+      to: { namespace: 'app', model: 'User' },
+    } as unknown as ResolvedStatement;
+    const received: { spaceId: string; fromContract: unknown; statements: unknown }[] = [];
+    const planner: MigrationPlanner<'sql', 'postgres'> = {
+      plan: (options) => {
+        received.push({
+          spaceId: options.spaceId,
+          fromContract: options.fromContract,
+          statements: options.statements,
+        });
+        return { kind: 'success', plan: makeSyntheticPlan('postgres'), appliedStatements: [] };
+      },
+      emptyMigration: () => {
+        throw new Error('not used');
+      },
+    };
+
+    const result = await planMigration({
+      aggregate,
+      currentDBState: { markersBySpaceId: new Map(), schemaIntrospection: { tables: {} } },
+      adapter: STUB_ADAPTER,
+      migrations: makeStubMigrations(planner),
+      frameworkComponents: [],
+      callerPolicy: { ignoreGraphFor: new Set(['app', 'cipherstash']) },
+      operationPolicy: POLICY,
+      appSpace: { fromContract: origin, statements: [statement] },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(received).toEqual([
+      { spaceId: 'cipherstash', fromContract: null, statements: [] },
+      { spaceId: 'app', fromContract: origin, statements: [statement] },
+    ]);
+  });
+
   it('resolves the recorded path for an extension space with a non-empty graph reaching its head ref', async () => {
     const headHash = 'cipher-head';
     const cipherPkg = createAttestedPackage('20260101T0000_init', { from: null, to: headHash });
