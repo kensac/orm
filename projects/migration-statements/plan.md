@@ -26,7 +26,9 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Builds on.** Slice 1. Two things slice 1 leaves for it: the missing-origin check in the CLI statement resolver runs over the whole input and must move inside the per-statement loop so that `--delete` works without an origin contract; and the `@@map`-only rename gap in `deferred.md` must be decided before the refusal text is written. Decided 2026-10-07 on prisma/orm#30638: dropping a row-level-security policy and disabling row-level security stay `widening` (they lose no data), and slice 2 adds a separate consent question before `db update` applies an operation that widens who can read or write rows, answered per operation like the data-loss consent and refused in a non-interactive run unless consented.
 
-**Hands to.** The refusal shape every later verb hooks its statements into; the per-operation consent model; `--confirm` gone.
+**Design settled 2026-10-07 (Will).** Consent is a statement the user answers with, not a token copied back: the CLI engine gains `ctx.prompt.statement`/`statements`, answered on the command line by verb flags (`--delete Legacy`, `--rename Legacy:Archive`, `--allow User`) and interactively by typing the statement when a human runs the command. The engine change is its own slice, built in prisma/prisma-cli first: [`slices/engine-statement-prompt/spec.md`](./slices/engine-statement-prompt/spec.md). Slice 2's spec is [`slices/refusal/spec.md`](./slices/refusal/spec.md). The `@@map`-only gap gets no statement (see `deferred.md`). Operations that lose no data (`SET NOT NULL`, safe type widenings, MongoDB validator and index changes) stop being destructive.
+
+**Hands to.** The refusal shape every later verb hooks its statements into; the per-operation consent model; `--confirm` no longer consents to data loss.
 
 ### Slice 3 — Convert and backfill scaffold the placeholder migration, and the remaining nouns
 

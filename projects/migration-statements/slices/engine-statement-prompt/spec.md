@@ -1,0 +1,101 @@
+# Slice spec — The CLI engine asks for a statement, and a verb flag answers it
+
+**Project:** [`projects/migration-statements/`](../../spec.md) · **Engine slice, built in prisma/prisma-cli** (`packages/cli-engine`) · **Linear:** TML-3476 (slice 2 depends on it) · **Branch (prisma-cli):** `engine-statement-prompts`
+
+## At a glance
+
+An ORM command finds that applying its plan would drop the `Legacy` table. It asks the engine:
+
+```ts
+const answer = await ctx.prompt.statement(
+  'Table "Legacy" would be dropped and its rows lost. What do you mean?',
+  {
+    subject: 'Legacy',
+    verbs: ['rename', 'delete'],
+    validate: (verb, text) => resolve(verb, text),   // ok or an error message
+  },
+);
+// answer: { verb: 'delete', text: 'Legacy' } or { verb: 'rename', text: 'Legacy:Archive' }
+```
+
+Run by a script or an agent with no answer on the command line, the command fails before it changes anything:
+
+```text
+✖ [CLI.CONSENT_REQUIRED] "Legacy" needs a statement, and the session is not interactive.
+→ Pass --delete Legacy, or --rename Legacy:<new name>
+```
+
+Run with `--delete Legacy`, the question is answered before anything renders and no prompt is shown. Run by a human in a terminal, the question is asked and the human types `delete` or `rename Legacy:Archive`; a wrong answer is explained and asked again. `--yes` never answers it. `--delete Legacy` given to a run that never asks about `Legacy` is an error, not silence.
+
+## Chosen design
+
+### The primitive
+
+`PromptSurface` gains `statement(question, { subject, verbs, validate })`, beside `consent`. It is a consent: structurally undefaultable, never satisfied by `--yes`, never satisfied by Enter.
+
+- `subject` is the string the answer is about, in the command's own vocabulary (for the ORM: a model or field coordinate such as `Legacy` or `User.name`).
+- `verbs` lists the verb flags that may answer it, in the order the refusal should print them.
+- `validate(verb, text)` returns `undefined` to accept, or a message string to reject. The engine never interprets the text; the command does.
+- It returns `{ verb, text }`.
+
+### How it is answered
+
+1. **Command line first.** For each verb in `verbs`, the engine looks through the run's unconsumed values of that verb flag for one that *names the subject*. The subject check is `text === subject` or `text.startsWith(subject + ':')`. The first match is validated; if `validate` accepts it, it is consumed and returned without rendering anything. If `validate` rejects it, the run fails with `CLI.PROMPT_INVALID` carrying the message, because a wrong flag cannot be corrected by re-prompting.
+2. **Non-interactive, or `--yes`:** throw `CLI.CONSENT_REQUIRED`. The message names the subject; `nextActions` carries one `user-choice` per verb, written as the flag to pass (`--delete Legacy`, `--rename Legacy:<new name>`); `meta` carries `{ subject, verbs }`.
+3. **Interactive:** render the question and read a line. The answer is `<verb> <text>` or just `<verb>` (then `text` is the subject). An unknown verb, or a `validate` rejection, re-prompts under clack with the message; under the line renderer it fails with `CLI.PROMPT_INVALID`, as `consent` does today.
+
+### The batch form
+
+A command that has several questions asks them together: `ctx.prompt.statements([q1, q2, ...])`, each entry the same shape as a `statement` call, returning the answers in order. It exists because a refusal must name every unanswered question at once (project requirement 4), and a command cannot tell whether the session is interactive (the engine owns that).
+
+- Every question is first answered from the command line as above.
+- Non-interactively, or under `--yes`, one `CLI.CONSENT_REQUIRED` is thrown that lists every question still unanswered, each with its flag forms in `nextActions`, and `meta.unanswered: [{ subject, verbs }]`.
+- Interactively, the unanswered questions are asked one after another, in order.
+- `statement(q)` is `statements([q])[0]`.
+
+### Verb flags
+
+- Verb flags are shared flags, declared by the engine like `--confirm`: `kind: "parsed"`, variadic, optional, reserved names. A command cannot declare a flag with a verb's name, and handlers never see the values.
+- The set of verbs is registered at construction: `createCli({ ..., statementVerbs: ['rename', 'delete'] })` (or on the command family, whichever `RESERVED_FLAG_NAMES` is assembled from; the implementer chooses the smaller change and says so). A `statement()` call naming an unregistered verb is a construction error.
+- Order across flags is kept: the engine records the position of every verb-flag value in argv, so a product that needs `--rename A:B --delete C` in the order written can read it. This slice only needs to consume values; it exposes the ordered list on the run state so the ORM's statement list can be built from it later.
+- At the end of a run that settled successfully, an unconsumed verb-flag value fails the run with a new `CLI.CONSENT_UNUSED`: "`--delete Legacy` was given but nothing in this run asked about `Legacy`". A run that failed for another reason reports that reason only. `--confirm` keeps its current silent behaviour; changing it is not this slice.
+
+### What stays
+
+`consent(question, { token })` and `--confirm` are unchanged. The other products keep using them.
+
+## Coherence rationale
+
+One primitive, its flags and its error codes ship together because a prompt without its flag-driven equivalent breaks the engine's own rule, and a flag that can be given but never consumed is the silent-typo bug the ORM project refuses to ship. Order-keeping is in because it costs one array at parse time now and would cost a second parse of argv later.
+
+## Scope
+
+**In:** `statement` on `PromptSurface` and both renderers (clack, line); verb-flag registration and reservation; consumption and `CLI.CONSENT_UNUSED`; `CLI.CONSENT_REQUIRED` for a statement; tests in `packages/cli-engine/tests/prompts.test.ts` style, with scripted `answers`; the engine `README`, `docs/product/cli-style-guide.md` (consent section: a statement is the second consent form) and `docs/reference/error-reference.md`; `pnpm bump-cli-engine-version minor`.
+
+**Out:** any ORM command; `--confirm` leftovers; `select`-style menus; help text for the ORM's verbs (the ORM owns its briefs).
+
+## Pre-investigated edge cases
+
+| Case | Disposition |
+| --- | --- |
+| Two questions about the same subject | Two flag values needed; each `statement` call consumes one. Same as `consent`. |
+| A subject that contains `:` | The subject check uses the subject string as given; the command picks subjects without `:`. Documented on the option. |
+| `--delete Legacy --json` in a TTY | Format never decides interactivity (engine ruling). Flag answers; nothing is rendered. |
+| A verb flag value given twice | Both kept; the second is unconsumed and reported by `CLI.CONSENT_UNUSED`. |
+| `validate` throws | Treated as a bug: the engine does not catch it. |
+
+## Slice done conditions
+
+- `pnpm --filter @prisma/cli-engine test`, `typecheck` and `lint` green; the conformance suite (`pnpm check:conformance`) green.
+- A probe command in the tests is driven four ways: flag answer, non-interactive refusal naming both verbs, interactive scripted answer `delete`, interactive scripted answer `rename Legacy:Archive`, plus the unused-flag failure and the rejected-flag failure.
+- The engine version bumped minor; the published package is what the ORM's slice 2 pins.
+
+## Open questions
+
+None. Will decided on 2026-10-07: consents carry a verb; the answer is a free-text statement the command validates; a human in a terminal is asked interactively.
+
+## References
+
+- Project spec [`../../spec.md`](../../spec.md) decisions 2 and 6, requirement 12; [`../../plan.md`](../../plan.md) § Stretch goal.
+- prisma-cli: `packages/cli-engine/src/execution/prompts.ts`, `shared-flags.ts`, `clack-renderer.ts`, `src/context.ts`; `docs/product/cli-style-guide.md` § consent; ADR 0004 (engine version pinning).
+- `wip/slice-2-consent-options.md`: the option evaluation Will chose from.
