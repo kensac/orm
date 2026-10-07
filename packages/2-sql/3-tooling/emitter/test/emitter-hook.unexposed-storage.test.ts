@@ -87,7 +87,10 @@ describe('storage the domain does not expose', () => {
     expect(models).not.toContain('legacyKey');
     expect(models).not.toContain('_prisma_migrations');
     for (const types of ['FieldOutputTypes', 'FieldInputTypes']) {
-      expect(section(dts, `export type ${types} =`, '\n')).not.toContain('legacy');
+      const fieldTypes = section(dts, `export type ${types} =`, '\n');
+      expect(fieldTypes).toContain('readonly email:');
+      expect(fieldTypes).not.toContain('legacy');
+      expect(fieldTypes).not.toContain('_prisma_migrations');
     }
   });
 
