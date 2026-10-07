@@ -36,7 +36,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@prisma/cli-engine": "0.6.3",
+    "@prisma/cli-engine": "0.7.0",
     "typescript": ">=5.9"
   },
   "peerDependenciesMeta": {
