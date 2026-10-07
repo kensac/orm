@@ -8,6 +8,7 @@ import type { AuthoringPslBlockDescriptor } from '@internal/framework-components
 import {
   type AttributeSpec,
   type BlockAttributeSpecFactory,
+  blockSpecContext,
   blockSpecFactoryOf,
   buildSymbolTable,
   type InspectableArgType,
@@ -25,14 +26,13 @@ import {
 import { postgresDataTypeSupport } from './fixtures/postgres-data-type-support';
 
 const { document, sources } = parse(
-  'model Post {\n  id Int @id\n}\npolicy_all p {\n}\n',
+  'model Post {\n  id Int @id\n}\n',
   'sql-expression-places.test.psl',
 );
 const { symbolTable } = buildSymbolTable({ documents: [document], sources });
 const model = symbolTable.topLevel.models['Post'];
 const field = model?.fields['id'];
-const block = symbolTable.topLevel.blocks['p'];
-if (model === undefined || field === undefined || block === undefined) {
+if (model === undefined || field === undefined) {
   throw new Error('expected the probe declarations');
 }
 
@@ -43,7 +43,7 @@ const modelContext = {
   dataTypes: postgresDataTypeSupport,
 };
 const fieldContext = { ...modelContext, field, typeResolution: undefined };
-const blockContext = { symbols: symbolTable, block, dataTypes: postgresDataTypeSupport };
+const blockContext = blockSpecContext({ symbols: symbolTable, dataTypes: postgresDataTypeSupport });
 
 type Parameters = Readonly<Record<string, { readonly type: InspectableArgType<never> }>>;
 
