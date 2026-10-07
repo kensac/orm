@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mapCursorValuesToColumns, mapFieldsToColumns } from '../src/collection-column-mapping';
+import {
+  mapCursorValuesToColumns,
+  mapFieldsToColumns,
+  mapSelectedFieldsToColumns,
+} from '../src/collection-column-mapping';
 import { resolveFieldToColumn } from '../src/collection-contract';
 import { buildMixedPolyContract, getTestContract } from './helpers';
 
@@ -36,28 +40,33 @@ describe('collection-column-mapping', () => {
   });
 
   it('mapFieldsToColumns() maps field names to columns and refuses a column name', () => {
-    expect(
-      mapFieldsToColumns(contract, 'public', 'Post', undefined, ['id', 'userId', 'views']),
-    ).toEqual(['id', 'user_id', 'views']);
-    expect(() =>
-      mapFieldsToColumns(contract, 'public', 'Post', undefined, ['id', 'user_id']),
-    ).toThrow(unknownField('Post', 'user_id'));
+    expect(mapFieldsToColumns(contract, 'public', 'Post', ['id', 'userId', 'views'])).toEqual([
+      'id',
+      'user_id',
+      'views',
+    ]);
+    expect(() => mapFieldsToColumns(contract, 'public', 'Post', ['id', 'user_id'])).toThrow(
+      unknownField('Post', 'user_id'),
+    );
   });
 
-  it("mapFieldsToColumns() accepts a narrowed variant's fields, or every variant's when not narrowed", () => {
+  it("mapSelectedFieldsToColumns() accepts a narrowed variant's fields, or every variant's when not narrowed", () => {
     const poly = buildMixedPolyContract();
     expect({
-      narrowed: mapFieldsToColumns(poly, 'public', 'Task', 'Bug', ['id', 'assigneeId']),
-      unnarrowed: mapFieldsToColumns(poly, 'public', 'Task', undefined, ['severity', 'priority']),
+      narrowed: mapSelectedFieldsToColumns(poly, 'public', 'Task', 'Bug', ['id', 'assigneeId']),
+      unnarrowed: mapSelectedFieldsToColumns(poly, 'public', 'Task', undefined, [
+        'severity',
+        'priority',
+      ]),
     }).toEqual({ narrowed: ['id', 'assignee_id'], unnarrowed: ['severity', 'priority'] });
-    expect(() => mapFieldsToColumns(poly, 'public', 'Task', 'Bug', ['priority'])).toThrow(
+    expect(() => mapSelectedFieldsToColumns(poly, 'public', 'Task', 'Bug', ['priority'])).toThrow(
       unknownField('Task', 'priority'),
     );
   });
 
   it('mapCursorValuesToColumns() skips undefined values and maps field names to columns', () => {
     expect(
-      mapCursorValuesToColumns(contract, 'public', 'Post', undefined, {
+      mapCursorValuesToColumns(contract, 'public', 'Post', {
         id: 1,
         userId: 2,
         views: undefined,
@@ -69,8 +78,8 @@ describe('collection-column-mapping', () => {
   });
 
   it('mapCursorValuesToColumns() refuses a name that is not a field', () => {
-    expect(() =>
-      mapCursorValuesToColumns(contract, 'public', 'Post', undefined, { user_id: 2 }),
-    ).toThrow(unknownField('Post', 'user_id'));
+    expect(() => mapCursorValuesToColumns(contract, 'public', 'Post', { user_id: 2 })).toThrow(
+      unknownField('Post', 'user_id'),
+    );
   });
 });

@@ -28,7 +28,11 @@ import { createAggregateBuilder, isAggregateSelector } from './aggregate-builder
 import { resolveAggregate } from './aggregate-codecs';
 import { emptyAggregateResult } from './aggregate-empty-result';
 import { aggregateOperationNames } from './aggregate-operations';
-import { mapCursorValuesToColumns, mapFieldsToColumns } from './collection-column-mapping';
+import {
+  mapCursorValuesToColumns,
+  mapFieldsToColumns,
+  mapSelectedFieldsToColumns,
+} from './collection-column-mapping';
 import {
   assertDistinctOnCapability,
   assertInsertConflictSkipCapability,
@@ -960,7 +964,7 @@ export class CollectionBase<
     >,
     State
   > {
-    const selectedFields = mapFieldsToColumns(
+    const selectedFields = mapSelectedFieldsToColumns(
       this.contract,
       this.namespaceId,
       this.modelName,
@@ -1076,7 +1080,6 @@ export class CollectionBase<
       this.contract,
       this.namespaceId,
       this.modelName,
-      this.state.variantName,
       fields,
     );
 
@@ -1193,7 +1196,6 @@ export class CollectionBase<
       this.contract,
       this.namespaceId,
       this.modelName,
-      this.state.variantName,
       cursorValues,
     );
 
@@ -1231,7 +1233,6 @@ export class CollectionBase<
       this.contract,
       this.namespaceId,
       this.modelName,
-      this.state.variantName,
       fields,
     );
 
@@ -1281,7 +1282,6 @@ export class CollectionBase<
       this.contract,
       this.namespaceId,
       this.modelName,
-      this.state.variantName,
       fields,
     );
 
