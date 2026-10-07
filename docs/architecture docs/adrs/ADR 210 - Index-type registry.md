@@ -91,7 +91,7 @@ type IndexTypeEntry<TOptions> = {
 };
 ```
 
-The contract build checks `columnTraits` through the contract's codec lookup, beside the options, and refuses an index over a column whose codec lacks one with `CONTRACT.INDEX_INVALID`. A codec the lookup does not know is refused too, because nothing shows it carries the traits; a build without a codec lookup checks nothing. Postgres's `fullText` type requires `textual`, so a full-text index written through the general index API cannot cover a number column.
+The contract build checks `columnTraits` through the contract's codec lookup, beside the options, and refuses an index over a column whose codec lacks one with `CONTRACT.INDEX_INVALID`. A column whose codec the contract's codec lookup does not know never reaches this check: the build refuses it earlier, with `CONTRACT.CODEC_DESCRIPTOR_MISSING`. Postgres's `fullText` type requires `textual`, so a full-text index written through the general index API cannot cover a number column.
 
 ### Access methods and the types a target converts
 
