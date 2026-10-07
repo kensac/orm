@@ -8,7 +8,7 @@
  *
  * - `toOp()` — converts the IR node to a runtime
  *   `SqlMigrationPlanOperation` by delegating to the matching pure factory
- *   under `operations/`. `DataTransformCall.toOp()` always throws
+ *   under `operations/`. `DataTransformCall.toOp()` always rejects with
  *   `MIGRATION.UNFILLED_PLACEHOLDER` because a planner-generated data transform is an
  *   unfilled authoring stub by construction.
  * - `renderTypeScript()` / `importRequirements()` — inherited from
@@ -20,7 +20,7 @@
  * `PostgresOpFactoryCall` union.
  */
 
-import { errorUnfilledPlaceholder } from '@internal/errors/migration';
+import { unfilledPlaceholderOperation } from '@internal/errors/migration';
 import type { SqlMigrationPlanOperation } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer, Lowerer } from '@internal/family-sql/control-adapter';
 import type {
@@ -1893,7 +1893,7 @@ export class AddNativeEnumValueCall extends PostgresOpFactoryCallNode {
 /**
  * A planner-generated data-transform stub. `checkSlot` and `runSlot` name
  * the unfilled authoring slots that the rendered `migration.ts` will expose
- * to the user via `placeholder("…")` calls. `toOp()` always throws
+ * to the user via `placeholder("…")` calls. `toOp()` always rejects with
  * `MIGRATION.UNFILLED_PLACEHOLDER`: the planner cannot lower a stubbed transform to a runtime
  * op — the user must fill the rendered `migration.ts` and re-emit.
  */
@@ -1918,8 +1918,8 @@ export class DataTransformCall extends PostgresOpFactoryCallNode {
     this.freeze();
   }
 
-  toOp(): Op {
-    throw errorUnfilledPlaceholder(this.label);
+  toOp(): Promise<Op> {
+    return unfilledPlaceholderOperation(this.label);
   }
 
   renderTypeScript(): string {

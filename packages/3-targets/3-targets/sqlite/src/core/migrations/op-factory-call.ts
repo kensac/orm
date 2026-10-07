@@ -10,7 +10,7 @@
  */
 
 import type { ColumnDefault } from '@internal/contract/types';
-import { errorUnfilledPlaceholder } from '@internal/errors/migration';
+import { unfilledPlaceholderOperation } from '@internal/errors/migration';
 import type {
   MigrationOperationClass,
   SqlMigrationPlanOperation,
@@ -819,7 +819,7 @@ export class DropIndexCall extends SqliteOpFactoryCallNode {
  * any future strategy that needs a placeholder data step can construct one
  * with its own id/label.
  *
- * `toOp()` always throws `MIGRATION.UNFILLED_PLACEHOLDER`: the planner cannot lower a stubbed
+ * `toOp()` always rejects with `MIGRATION.UNFILLED_PLACEHOLDER`: the planner cannot lower a stubbed
  * transform to a runtime op — the user must edit the rendered
  * `migration.ts` and re-emit.
  */
@@ -840,8 +840,8 @@ export class DataTransformCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
-  toOp(_lowerer?: Lowerer): Op {
-    throw errorUnfilledPlaceholder(this.label);
+  toOp(_lowerer?: Lowerer): Promise<Op> {
+    return unfilledPlaceholderOperation(this.label);
   }
 
   renderTypeScript(): string {

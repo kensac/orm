@@ -625,8 +625,10 @@ describe('DataTransformCall', () => {
       'email',
     );
 
-  it('toOp() throws MIGRATION.UNFILLED_PLACEHOLDER (unfilled placeholder)', () => {
-    expect(() => makeCall().toOp()).toThrowError(/MIGRATION.UNFILLED_PLACEHOLDER|unfilled/i);
+  it('toOp() rejects with MIGRATION.UNFILLED_PLACEHOLDER (unfilled placeholder)', async () => {
+    await expect(makeCall().toOp()).rejects.toThrowError(
+      /MIGRATION.UNFILLED_PLACEHOLDER|unfilled/i,
+    );
   });
 
   it('renderTypeScript() emits a dataTransform({...}) call with a placeholder run slot', () => {

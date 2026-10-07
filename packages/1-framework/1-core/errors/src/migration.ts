@@ -27,6 +27,17 @@ export function errorUnfilledPlaceholder(slot: string): CliStructuredError {
 }
 
 /**
+ * The operation of a planner-stubbed data transform: a promise that rejects with
+ * `MIGRATION.UNFILLED_PLACEHOLDER`. A plan's other operations stay readable beside it, and the
+ * rejection is marked handled so a plan nobody awaits does not raise an unhandled rejection.
+ */
+export function unfilledPlaceholderOperation(slot: string): Promise<never> {
+  const operation = Promise.reject(errorUnfilledPlaceholder(slot));
+  operation.catch(() => undefined);
+  return operation;
+}
+
+/**
  * Scaffolded `migration.ts` files call this wherever the scaffolder couldn't
  * emit a real query and the author is expected to fill one in. Always throws
  * a structured migration error (`MIGRATION.UNFILLED_PLACEHOLDER`).

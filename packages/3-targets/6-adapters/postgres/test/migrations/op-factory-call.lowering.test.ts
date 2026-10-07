@@ -5,8 +5,8 @@ import { type as arktype } from 'arktype';
  * - `renderOps` lowers each variant via its pure factory and pins the
  *   id/operationClass/target.details shape exposed to runners.
  * - `RawSqlCall` is returned verbatim by `renderOps`.
- * - `DataTransformCall` always throws MIGRATION.UNFILLED_PLACEHOLDER from `renderOps` because
- *   the planner can only emit unfilled stubs.
+ * - `DataTransformCall` lowers to an operation that rejects with MIGRATION.UNFILLED_PLACEHOLDER,
+ *   because the planner can only emit unfilled stubs; the other operations still lower.
  * - `TypeScriptRenderablePostgresMigration` routes `operations` through
  *   `renderOps` and `renderTypeScript()` through `renderCallsToTypeScript`.
  * - `AddNotNullColumnWithTempDefaultCall` pins the exact `ADD COLUMN` SQL
@@ -245,10 +245,14 @@ describe('renderOps', () => {
     expect(rendered).toBe(op);
   });
 
-  it('throws MIGRATION.UNFILLED_PLACEHOLDER on DataTransformCall (always an unfilled stub at plan time)', () => {
-    const call = new DataTransformCall('Backfill', 'check', 'run');
+  it('lowers a DataTransformCall to an operation that rejects with MIGRATION.UNFILLED_PLACEHOLDER, beside the others', async () => {
+    const [dropped, stub] = renderOps(
+      [new DropTableCall('public', 'stale'), new DataTransformCall('Backfill', 'check', 'run')],
+      testAdapter,
+    );
 
-    expect(() => renderOps([call])).toThrow(/Unfilled migration placeholder/);
+    expect(await dropped).toMatchObject({ id: 'dropTable.public.stale' });
+    await expect(stub).rejects.toThrow(/Unfilled migration placeholder/);
   });
 });
 
