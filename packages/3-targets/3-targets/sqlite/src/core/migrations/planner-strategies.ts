@@ -107,7 +107,8 @@ function classifyNodeIssue(issue: SchemaDiffIssue): 'widening' | 'destructive' |
 
 /**
  * Groups recreate-eligible issues by table, decides per-table operation class
- * (destructive wins over widening), and emits one `RecreateTableCall` per
+ * (destructive wins over widening, and a recreate that leaves a live column
+ * out of the new table loses its values, so it is destructive), and emits one `RecreateTableCall` per
  * table. Returns unchanged-or-smaller issue list — issues the strategy
  * consumed are removed so `mapNodeIssueToCall` doesn't double-handle them.
  *
@@ -149,9 +150,11 @@ export const recreateTableStrategy: CallMigrationStrategy = (issues, ctx) => {
     const expectedTable = ctx.expected.tables[tableName];
     const actualTable = ctx.actual.tables[tableName];
     if (!expectedTable || !actualTable) continue;
-    const operationClass: MigrationOperationClass = entry.hasDestructive
-      ? 'destructive'
-      : 'widening';
+    const leavesColumnsOut = Object.keys(actualTable.columns).some(
+      (column) => !Object.hasOwn(expectedTable.columns, column),
+    );
+    const operationClass: MigrationOperationClass =
+      entry.hasDestructive || leavesColumnsOut ? 'destructive' : 'widening';
 
     // Flatten the expected table node to a self-contained spec — the Call
     // holds pre-rendered SQL fragments only, no schema-IR node.

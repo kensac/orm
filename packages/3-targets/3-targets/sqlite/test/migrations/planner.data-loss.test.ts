@@ -12,7 +12,7 @@ import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-
 import { createSqliteMigrationPlanner } from '../../src/core/migrations/planner';
 import { sqliteCreateNamespace } from '../../src/core/sqlite-unbound-database';
 import { sqliteTestComponents, sqliteTestTypes } from '../sqlite-test-types';
-import { stubLowerer } from './rename-table-fixtures';
+import { HANDLE_INDEX_HASH, handleIndex, stubLowerer } from './rename-table-fixtures';
 
 const unbound = asNamespaceId(UNBOUND_NAMESPACE_ID);
 const ALL_CLASSES = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
@@ -29,6 +29,7 @@ type ColumnType = keyof typeof columnTypes;
 function contract(
   seed: string,
   tables: Readonly<Record<string, Readonly<Record<string, ColumnType>>>>,
+  indexed: ReadonlySet<string> = new Set(),
 ): Contract<SqlStorage> {
   return {
     target: 'sqlite',
@@ -49,7 +50,7 @@ function contract(
                   ),
                   primaryKey: { columns: ['id'] },
                   uniques: [],
-                  indexes: [],
+                  indexes: indexed.has(table) ? [handleIndex(table)] : [],
                   foreignKeys: [],
                 }),
               ]),
@@ -109,13 +110,16 @@ async function planned(
     snapshotsImportPath: '../../snapshots',
   });
   if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
-  const labels = (await Promise.all(result.plan.operations)).map((op) => op.label);
+  const operations = await Promise.all(result.plan.operations);
+  const labels = operations.map((op) => op.label);
   return {
+    labels,
     dataLoss: result.dataLoss.map(({ operationIndex, subject }) => ({
       operation: labels[operationIndex],
       subject,
     })),
     accessWidening: result.accessWidening,
+    classes: Object.fromEntries(operations.map((op) => [op.label, op.operationClass])),
   };
 }
 
@@ -127,7 +131,8 @@ describe('SQLite planner, data loss', () => {
     });
     const to = contract('to', { User: { id: 'integer', email: 'text' } });
 
-    expect(await planned(from, to)).toEqual({
+    const { dataLoss, accessWidening } = await planned(from, to);
+    expect({ dataLoss, accessWidening }).toEqual({
       dataLoss: [
         {
           operation: 'Drop column nickname on User',
@@ -154,11 +159,13 @@ describe('SQLite planner, data loss', () => {
     ]);
   });
 
-  it('names a column a widening recreate leaves behind once, at the recreate', async () => {
+  it('names a column a recreate leaves out once, at the recreate, which is destructive', async () => {
     const from = contract('from', { User: { id: 'integer', email: 'text?', nickname: 'text' } });
     const to = contract('to', { User: { id: 'integer', email: 'text' } });
+    const result = await planned(from, to);
 
-    expect((await planned(from, to)).dataLoss).toEqual([
+    expect(result.classes['Recreate table User']).toBe('destructive');
+    expect(result.dataLoss).toEqual([
       {
         operation: 'Recreate table User',
         subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' },
@@ -179,6 +186,45 @@ describe('SQLite planner, data loss', () => {
         subject: { kind: 'storage', name: 'User.nickname' },
       },
       { operation: 'Drop table Legacy', subject: { kind: 'storage', name: 'Legacy' } },
+    ]);
+  });
+
+  it('names the origin model and fields of a table a statement renamed earlier in the plan', async () => {
+    const from = contract(
+      'from',
+      { User: { id: 'integer', handle: 'text', nickname: 'text', age: 'text' } },
+      new Set(['User']),
+    );
+    const to = contract(
+      'to',
+      { Account: { id: 'integer', handle: 'text', age: 'integer' } },
+      new Set(['Account']),
+    );
+    const renameUser: ResolvedMigrationStatement = {
+      kind: 'rename',
+      entity: 'model',
+      from: { namespaceId: unbound, model: 'User' },
+      to: { namespaceId: unbound, model: 'Account' },
+    };
+
+    const result = await planned(from, to, { statements: [renameUser] });
+
+    expect(result.labels).toEqual([
+      'Rename table User to Account',
+      `Drop index User_handle_idx_${HANDLE_INDEX_HASH} on Account`,
+      `Create index Account_handle_idx_${HANDLE_INDEX_HASH} on Account`,
+      'Recreate table Account',
+      'Drop column nickname on Account',
+    ]);
+    expect(result.dataLoss).toEqual([
+      {
+        operation: 'Recreate table Account',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' },
+      },
+      {
+        operation: 'Recreate table Account',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'age' },
+      },
     ]);
   });
 });

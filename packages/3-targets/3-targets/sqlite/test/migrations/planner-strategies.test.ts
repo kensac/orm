@@ -179,6 +179,34 @@ describe('recreateTableStrategy', () => {
     expect(classes).toEqual(['widening', 'widening']);
   });
 
+  it('classifies a recreate that leaves a live column out as destructive', () => {
+    const actualWithNickname = table({
+      name: 'user',
+      columns: {
+        id: actualColumn({ name: 'id', nativeType: 'INTEGER', nullable: false }),
+        email: actualColumn({ name: 'email', nativeType: 'TEXT', nullable: false }),
+        nickname: actualColumn({ name: 'nickname', nativeType: 'TEXT', nullable: true }),
+      },
+      primaryKey: primaryKey(['id']),
+    });
+    const relaxing = issue({
+      path: ['database', 'user', 'column:email'],
+      expected: expectedColumn({ name: 'email', nativeType: 'TEXT', nullable: true }),
+      actual: actualColumn({ name: 'email', nativeType: 'TEXT', nullable: false }),
+    });
+    const result = recreateTableStrategy(
+      [relaxing],
+      makeContext({
+        expected: new SqlSchemaIR({ tables: { user: expectedUserTable } }),
+        actual: new SqlSchemaIR({ tables: { user: actualWithNickname } }),
+      }),
+    );
+
+    expect(result.kind === 'match' && (result.calls[0] as RecreateTableCall).operationClass).toBe(
+      'destructive',
+    );
+  });
+
   it('records the columns whose type changes as the lossy columns of the recreate', () => {
     const ctx = makeContext({
       expected: new SqlSchemaIR({ tables: { user: expectedUserTable } }),
