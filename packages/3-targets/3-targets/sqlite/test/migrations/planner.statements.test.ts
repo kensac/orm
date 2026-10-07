@@ -11,6 +11,7 @@ import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
 import { describe, expect, it } from 'vitest';
 import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-schema';
 import { createSqliteMigrationPlanner } from '../../src/core/migrations/planner';
+import { sqliteTestComponents, sqliteTestTypes } from '../sqlite-test-types';
 import {
   contractOf,
   HANDLE_INDEX_HASH,
@@ -38,7 +39,7 @@ function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
   statements: readonly ResolvedStatement[],
-  schema: SqlSchemaIR = sqliteContractToSchema(from),
+  schema: SqlSchemaIR = sqliteContractToSchema(from, sqliteTestTypes),
   policy: MigrationOperationPolicy = ALL_CLASSES,
 ) {
   return createSqliteMigrationPlanner(stubLowerer).plan({
@@ -47,7 +48,7 @@ function plan(
     policy,
     fromContract: from,
     statements,
-    frameworkComponents: [],
+    frameworkComponents: sqliteTestComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -157,7 +158,7 @@ describe('SQLite planner, model statements', () => {
   });
 
   it('refuses a rename whose table the schema being planned from does not have', () => {
-    const otherSchema = sqliteContractToSchema(contractOf('Other', {}, 'other'));
+    const otherSchema = sqliteContractToSchema(contractOf('Other', {}, 'other'), sqliteTestTypes);
     expect(conflictsOf(plan(from, to, [renameModel('Profile', 'User')], otherSchema))).toEqual([
       expect.objectContaining({
         kind: 'statementRejected',

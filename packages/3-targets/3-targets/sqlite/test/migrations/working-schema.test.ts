@@ -15,6 +15,7 @@ import {
   createWorkingSchema,
   renameTableInSqliteSchema,
 } from '../../src/core/migrations/working-schema';
+import { sqliteTestTypes } from '../sqlite-test-types';
 import {
   contractOf,
   HANDLE_INDEX_HASH,
@@ -33,7 +34,7 @@ const withObjects: ProfileSpec = {
 };
 
 function startSchema(): SqlSchemaIR {
-  return sqliteContractToSchema(contractOf('userProfile', withObjects, 'from'));
+  return sqliteContractToSchema(contractOf('userProfile', withObjects, 'from'), sqliteTestTypes);
 }
 
 function tableIn(schema: SqlSchemaIR, table: string): SqlTableIR {

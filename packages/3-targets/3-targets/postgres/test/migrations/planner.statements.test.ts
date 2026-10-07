@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { createPostgresMigrationPlanner } from '../../src/core/migrations/planner';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
 import type { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import {
   contractOf,
   type ProfileSpec,
@@ -38,7 +39,7 @@ function renameModel(
 const uniqueEmail: ProfileSpec = { uniques: [{ columns: ['email'] }] };
 
 function postTableNamed(postTableName: string, profileTableName: string): StorageTable {
-  const int4 = { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false };
+  const int4 = { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false };
   return new StorageTable({
     columns: { id: int4, profileId: int4 },
     primaryKey: { columns: ['id'], name: `${postTableName}_pk` },
@@ -57,7 +58,7 @@ function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
   statements: readonly ResolvedStatement[],
-  schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, []),
+  schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, postgresTypeComponents),
   policy: MigrationOperationPolicy = ALL_CLASSES,
 ) {
   return createPostgresMigrationPlanner(stubLowerer).plan({
@@ -66,7 +67,7 @@ function plan(
     policy,
     fromContract: from,
     statements,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -164,7 +165,7 @@ describe('Postgres planner, model statements', () => {
   });
 
   it('pairs foreign keys against the tables earlier statements renamed', async () => {
-    const int4 = { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false };
+    const int4 = { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false };
     const ownerTable = () =>
       new StorageTable({
         columns: { id: int4 },
@@ -255,7 +256,10 @@ describe('Postgres planner, model statements', () => {
   });
 
   it('refuses a rename whose table the schema being planned from does not have', () => {
-    const otherSchema = postgresContractToSchema(contractOf('Other', {}, 'other'), []);
+    const otherSchema = postgresContractToSchema(
+      contractOf('Other', {}, 'other'),
+      postgresTypeComponents,
+    );
     expect(conflictsOf(plan(from, to, [renameModel('Profile', 'User')], otherSchema))).toEqual([
       expect.objectContaining({
         kind: 'statementRejected',

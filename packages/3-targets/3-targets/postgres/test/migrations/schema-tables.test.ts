@@ -2,11 +2,15 @@ import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
 import { postgresSchemaTables } from '../../src/core/migrations/schema-tables';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import { contractOf } from './rename-table-fixtures';
 
 describe('postgresSchemaTables', () => {
   const unbound = contractOf('userProfile', {}, 'unbound');
-  const tables = postgresSchemaTables(postgresContractToSchema(unbound, []), unbound);
+  const tables = postgresSchemaTables(
+    postgresContractToSchema(unbound, postgresTypeComponents),
+    unbound,
+  );
 
   it('finds a table and its columns by the contract namespace id', () => {
     expect(tables.hasTable(UNBOUND_NAMESPACE_ID, 'userProfile')).toBe(true);
@@ -24,7 +28,10 @@ describe('postgresSchemaTables', () => {
 
   it('maps a bound namespace id to its DDL schema', () => {
     const bound = contractOf('userProfile', {}, 'bound', () => ({}), 'auth');
-    const authTables = postgresSchemaTables(postgresContractToSchema(bound, []), bound);
+    const authTables = postgresSchemaTables(
+      postgresContractToSchema(bound, postgresTypeComponents),
+      bound,
+    );
 
     expect(authTables.hasTable('auth', 'userProfile')).toBe(true);
     expect(authTables.namespacesWithTable('userProfile')).toEqual(['auth']);

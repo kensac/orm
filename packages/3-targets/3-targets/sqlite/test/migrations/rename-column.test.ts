@@ -23,6 +23,7 @@ import { SqliteMigration } from '../../src/core/migrations/sqlite-migration';
 import { sqliteColumnRenameCall } from '../../src/core/migrations/table-rename-calls';
 import { renameColumnInSqliteSchema } from '../../src/core/migrations/working-schema';
 import { SqliteContractSerializer } from '../../src/core/sqlite-contract-serializer';
+import { sqliteTestComponents, sqliteTestTypes } from '../sqlite-test-types';
 import { ORIGINAL_COLUMNS, type ProfileObjects, profileContract } from './rename-column-fixtures';
 import { stubLowerer } from './rename-table-fixtures';
 
@@ -80,11 +81,11 @@ function plan(
 ) {
   const result = createSqliteMigrationPlanner(stubLowerer).plan({
     contract: to,
-    schema: sqliteContractToSchema(from),
+    schema: sqliteContractToSchema(from, sqliteTestTypes),
     policy: ALL_CLASSES,
     fromContract: from,
     statements,
-    frameworkComponents: [],
+    frameworkComponents: sqliteTestComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -136,7 +137,7 @@ describe('sqliteColumnRenameCall', () => {
   function labelsFor(objects: ProfileObjects): readonly string[] {
     const { from, to } = contracts(objects);
     const call = sqliteColumnRenameCall({
-      previous: sqliteContractToSchema(from),
+      previous: sqliteContractToSchema(from, sqliteTestTypes),
       contract: to,
       rename: {
         namespaceId: UNBOUND_NAMESPACE_ID,
@@ -144,7 +145,7 @@ describe('sqliteColumnRenameCall', () => {
         from: 'email',
         to: 'emailAddress',
       },
-      frameworkComponents: [],
+      frameworkComponents: sqliteTestComponents,
     });
     return [call.label, ...call.companions.map((companion) => companion.label)];
   }
@@ -158,11 +159,14 @@ describe('sqliteColumnRenameCall', () => {
   });
 
   it('follows the column in foreign keys that reference it from another table', () => {
-    const renamed = renameColumnInSqliteSchema(sqliteContractToSchema(profileContract('from')), {
-      table: 'Profile',
-      from: 'id',
-      to: 'profileId',
-    });
+    const renamed = renameColumnInSqliteSchema(
+      sqliteContractToSchema(profileContract('from'), sqliteTestTypes),
+      {
+        table: 'Profile',
+        from: 'id',
+        to: 'profileId',
+      },
+    );
     expect(renamed.tables['post']?.foreignKeys.map((fk) => fk.referencedColumns)).toEqual([
       ['profileId'],
     ]);
@@ -170,7 +174,10 @@ describe('sqliteColumnRenameCall', () => {
 });
 
 const stack = {
-  adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'sqlite'> },
+  adapter: {
+    ...sqliteTestComponents[0],
+    create: () => stubLowerer as unknown as SqlControlAdapter<'sqlite'>,
+  },
   target: { kind: 'target', familyId: 'sql', targetId: 'sqlite' },
   extensions: [],
 } as unknown as ControlStack<'sql', 'sqlite'>;

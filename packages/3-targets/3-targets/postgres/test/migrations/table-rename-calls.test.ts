@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
 import { postgresTableRenameCall } from '../../src/core/migrations/table-rename-calls';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import { contractOf, type ProfileSpec, reference } from './rename-table-fixtures';
 
 const RENAME = { namespaceId: '__unbound__', from: 'userProfile', to: 'UserProfile' } as const;
@@ -8,10 +9,13 @@ const RENAME = { namespaceId: '__unbound__', from: 'userProfile', to: 'UserProfi
 function companionLabels(previousSpec: ProfileSpec, nextSpec: ProfileSpec): readonly string[] {
   const next = contractOf('UserProfile', nextSpec, 'to');
   const call = postgresTableRenameCall({
-    previous: postgresContractToSchema(contractOf('userProfile', previousSpec, 'from'), []),
+    previous: postgresContractToSchema(
+      contractOf('userProfile', previousSpec, 'from'),
+      postgresTypeComponents,
+    ),
     contract: next,
     rename: RENAME,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
   });
   return [call.label, ...call.companions.map((companion) => companion.label)];
 }

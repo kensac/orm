@@ -2,10 +2,13 @@ import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-schema';
 import { sqliteSchemaTables } from '../../src/core/migrations/schema-tables';
+import { sqliteTestTypes } from '../sqlite-test-types';
 import { contractOf } from './rename-table-fixtures';
 
 describe('sqliteSchemaTables', () => {
-  const tables = sqliteSchemaTables(sqliteContractToSchema(contractOf('userProfile', {}, 'from')));
+  const tables = sqliteSchemaTables(
+    sqliteContractToSchema(contractOf('userProfile', {}, 'from'), sqliteTestTypes),
+  );
 
   it('finds a table and its columns whatever namespace id it is asked about', () => {
     expect(tables.hasTable(UNBOUND_NAMESPACE_ID, 'userProfile')).toBe(true);

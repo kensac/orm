@@ -11,8 +11,8 @@ import { applicationDomainOf } from '@repo/test-utils';
 import { postgresCreateNamespace } from '../../src/core/postgres-schema';
 import { reference } from './rename-table-fixtures';
 
-const text = { nativeType: 'text', codecId: 'pg/text@1', nullable: false };
-const int4 = { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false };
+const text = { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false };
+const int4 = { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false };
 const scalar = { nullable: false, type: { kind: 'scalar', codecId: 'pg/text@1' } } as const;
 
 /** The names the profile table's columns have in one contract. */

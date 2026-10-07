@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
 import { constraintRenamesForTableRename } from '../../src/core/migrations/table-rename-constraint-renames';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import { contractOf, type ProfileSpec, reference } from './rename-table-fixtures';
 
 function unrenamedTable(spec: ProfileSpec): PostgresTableSchemaNode {
-  const schema = postgresContractToSchema(contractOf('UserProfile', spec, 'to'), []);
+  const schema = postgresContractToSchema(
+    contractOf('UserProfile', spec, 'to'),
+    postgresTypeComponents,
+  );
   const table = schema.namespaces['public']?.tables['UserProfile'];
   if (table === undefined) throw new Error('table UserProfile missing');
   return table;

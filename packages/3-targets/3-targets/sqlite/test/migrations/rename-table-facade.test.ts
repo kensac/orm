@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import type { SqlitePlanTargetDetails } from '../../src/core/migrations/planner-target-details';
 import { SqliteMigration } from '../../src/core/migrations/sqlite-migration';
 import { SqliteContractSerializer } from '../../src/core/sqlite-contract-serializer';
+import { sqliteTestComponents } from '../sqlite-test-types';
 import {
   contractOf,
   HANDLE_INDEX_HASH,
@@ -32,7 +33,7 @@ type ContractJson = { readonly storage: { readonly storageHash: string } };
 const stack = {
   adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'sqlite'> },
   target: { kind: 'target', familyId: 'sql', targetId: 'sqlite' },
-  extensions: [],
+  extensions: sqliteTestComponents,
 } as unknown as ControlStack<'sql', 'sqlite'>;
 
 function jsonOf(contract: Contract<SqlStorage>): ContractJson {

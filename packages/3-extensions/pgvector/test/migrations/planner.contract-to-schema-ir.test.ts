@@ -5,15 +5,15 @@ import postgresAdapterDescriptor, {
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
 import type {
   CodecControlHooks,
-  NativeTypeExpander,
   SqlMigrationPlanOperation,
   SqlPlannerResult,
 } from '@internal/family-sql/control';
 import {
   contractToSchemaIR as contractToSchemaIRImpl,
   detectDestructiveChanges,
-  extractCodecControlHooks,
+  sqlTypeLookupsOf,
 } from '@internal/family-sql/control';
+import type { AnyCodecDescriptor } from '@internal/framework-components/codec';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import { APP_SPACE_ID, type SchemaOwnership } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -24,7 +24,8 @@ import {
   type StorageTable,
 } from '@internal/sql-contract/types';
 import { SqlForeignKeyIR } from '@internal/sql-schema-ir/types';
-import { postgresRenderDefault } from '@internal/target-postgres/control';
+import postgresTargetDescriptor, { postgresRenderDefault } from '@internal/target-postgres/control';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import { createPostgresMigrationPlanner } from '@internal/target-postgres/planner';
 import type { PostgresPlanTargetDetails } from '@internal/target-postgres/planner-target-details';
 import { resolveDdlSchemaForNamespaceStorage } from '@internal/target-postgres/schema-ir-annotations';
@@ -39,13 +40,21 @@ import { applicationDomainOf } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
 import pgvectorDescriptor from '../../src/exports/control';
 
-const testAdapter = new PostgresControlAdapter(createPostgresBuiltinCodecLookup());
-const adapterCodecHooks = extractCodecControlHooks([postgresAdapterDescriptor]);
-const expandParameterizedNativeType: NativeTypeExpander = (input) => {
-  if (!input.codecId) return input.nativeType;
-  const hooks = adapterCodecHooks.get(input.codecId);
-  return hooks?.expandNativeType?.(input) ?? input.nativeType;
-};
+const testAdapter = new PostgresControlAdapter(
+  createPostgresBuiltinCodecLookup(),
+  createPostgresBuiltinDataTypeLookup(),
+);
+const postgresComponents: ReadonlyArray<TargetBoundComponentDescriptor<'sql', 'postgres'>> = [
+  postgresTargetDescriptor,
+  postgresAdapterDescriptor,
+  pgvectorDescriptor,
+];
+
+function typeOptions(components: ReadonlyArray<TargetBoundComponentDescriptor<'sql', string>>) {
+  return sqlTypeLookupsOf(components);
+}
+
+const postgresTypeOptions = typeOptions(postgresComponents);
 
 function ns(tables: Record<string, StorageTable>): Pick<SqlStorageInput, 'namespaces'> {
   return {
@@ -58,7 +67,7 @@ function ns(tables: Record<string, StorageTable>): Pick<SqlStorageInput, 'namesp
   };
 }
 
-function col(overrides: Partial<StorageColumn> & { nativeType: string }): StorageColumn {
+function col(overrides: Partial<StorageColumn> & Pick<StorageColumn, 'dataType'>): StorageColumn {
   return {
     many: false,
     codecId: 'pg/text@1',
@@ -107,7 +116,7 @@ function createTestContract(
 // signal, so each node carries an empty `members` list.
 function contractToSchemaIR(
   contract: Contract<SqlStorage> | null,
-  options?: Omit<Parameters<typeof contractToSchemaIRImpl>[1], 'annotationNamespace'>,
+  options: Omit<Parameters<typeof contractToSchemaIRImpl>[1], 'annotationNamespace'>,
 ): PostgresDatabaseSchemaNode {
   const sqlIr = contractToSchemaIRImpl(contract, { annotationNamespace: 'pg', ...options });
   const enums =
@@ -116,7 +125,7 @@ function contractToSchemaIR(
       : Object.values(contract.storage.types ?? {}).map(
           (t) =>
             new PostgresNativeEnumSchemaNode({
-              typeName: t.nativeType,
+              typeName: t.typeParams?.['typeName'] as string,
               namespaceId: 'public',
               members: [],
             }),
@@ -183,7 +192,7 @@ function planFromStorages(
 ): SqlPlannerResult<PostgresPlanTargetDetails> {
   const toContract = createTestContract(to);
   const fromSchemaIR = contractToSchemaIR(from ? createTestContract(from) : null, {
-    expandNativeType: expandParameterizedNativeType,
+    ...postgresTypeOptions,
     renderDefault: postgresRenderDefault,
   });
   const planner = createPostgresMigrationPlanner(testAdapter);
@@ -193,7 +202,7 @@ function planFromStorages(
     policy: { allowedOperationClasses: ['additive'] },
     fromContract: null,
     statements: [],
-    frameworkComponents: [],
+    frameworkComponents: postgresComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -206,9 +215,9 @@ describe('contractToSchemaIR → planner round-trip', () => {
       ...ns({
         user: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-            email: { many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: false },
-            name: { many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: true },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+            email: { many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
+            name: { many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: true },
           },
           primaryKey: { columns: ['id'] },
           uniques: [{ columns: ['email'] }],
@@ -220,7 +229,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
 
     const contract = createTestContract(storage);
     const schemaIR = contractToSchemaIR(createTestContract(storage), {
-      expandNativeType: expandParameterizedNativeType,
+      ...postgresTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const planner = createPostgresMigrationPlanner(testAdapter);
@@ -231,7 +240,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       policy: { allowedOperationClasses: ['additive'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -248,8 +257,8 @@ describe('contractToSchemaIR → planner round-trip', () => {
       ...ns({
         user: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-            email: { many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: false },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+            email: { many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -261,7 +270,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
 
     const contract = createTestContract(storage);
     const emptySchemaIR = contractToSchemaIR(null, {
-      expandNativeType: expandParameterizedNativeType,
+      ...postgresTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const planner = createPostgresMigrationPlanner(testAdapter);
@@ -272,7 +281,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       policy: { allowedOperationClasses: ['additive'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -294,7 +303,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       ...ns({
         user: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -309,7 +318,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       ...ns({
         user: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -318,8 +327,8 @@ describe('contractToSchemaIR → planner round-trip', () => {
         },
         post: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-            title: { many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: false },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+            title: { many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
           },
           primaryKey: { columns: ['id'] },
           uniques: [],
@@ -331,7 +340,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
 
     const contract = createTestContract(toStorage);
     const fromSchemaIR = contractToSchemaIR(createTestContract(fromStorage), {
-      expandNativeType: expandParameterizedNativeType,
+      ...postgresTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const planner = createPostgresMigrationPlanner(testAdapter);
@@ -342,7 +351,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       policy: { allowedOperationClasses: ['additive'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -365,17 +374,17 @@ describe('contractToSchemaIR → planner round-trip', () => {
       ...ns({
         item: {
           columns: {
-            id: { many: false, nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+            id: { many: false, dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
             status: {
               many: false,
-              nativeType: 'text',
+              dataType: 'pg/text',
               codecId: 'pg/text@1',
               nullable: false,
               default: { kind: 'literal', value: 'active' },
             },
             createdAt: {
               many: false,
-              nativeType: 'timestamptz',
+              dataType: 'pg/timestamptz',
               codecId: 'pg/timestamptz-temporal@1',
               nullable: false,
               default: { kind: 'function', expression: 'now()' },
@@ -391,7 +400,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
 
     const contract = createTestContract(storage);
     const schemaIR = contractToSchemaIR(createTestContract(storage), {
-      expandNativeType: expandParameterizedNativeType,
+      ...postgresTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const planner = createPostgresMigrationPlanner(testAdapter);
@@ -402,7 +411,7 @@ describe('contractToSchemaIR → planner round-trip', () => {
       policy: { allowedOperationClasses: ['additive'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -421,8 +430,8 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -434,9 +443,9 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
-            age: col({ many: false, nativeType: 'int4', codecId: 'pg/int4@1', nullable: true }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
+            age: col({ many: false, dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: true }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -462,7 +471,7 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -474,14 +483,14 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
         post: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            title: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            title: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -506,7 +515,7 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -518,15 +527,15 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
         post: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            title: col({ nativeType: 'text', codecId: 'pg/text@1' }),
-            slug: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            title: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
+            slug: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
           uniques: [{ columns: ['slug'] }],
@@ -556,8 +565,8 @@ describe('planner — additive scenarios', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -580,9 +589,9 @@ describe('detectDestructiveChanges', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
-            name: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
+            name: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -594,8 +603,8 @@ describe('detectDestructiveChanges', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -614,11 +623,11 @@ describe('detectDestructiveChanges', () => {
       storageHash: coreHash('test'),
       ...ns({
         user: table({
-          columns: { id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }) },
+          columns: { id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }) },
           primaryKey: { columns: ['id'] },
         }),
         post: table({
-          columns: { id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }) },
+          columns: { id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }) },
           primaryKey: { columns: ['id'] },
         }),
       }),
@@ -628,7 +637,7 @@ describe('detectDestructiveChanges', () => {
       storageHash: coreHash('test'),
       ...ns({
         user: table({
-          columns: { id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }) },
+          columns: { id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }) },
           primaryKey: { columns: ['id'] },
         }),
       }),
@@ -647,13 +656,13 @@ describe('detectDestructiveChanges', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            name: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            name: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
         post: table({
-          columns: { id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }) },
+          columns: { id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }) },
           primaryKey: { columns: ['id'] },
         }),
       }),
@@ -663,7 +672,7 @@ describe('detectDestructiveChanges', () => {
       storageHash: coreHash('test'),
       ...ns({
         user: table({
-          columns: { id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }) },
+          columns: { id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }) },
           primaryKey: { columns: ['id'] },
         }),
       }),
@@ -685,8 +694,8 @@ describe('planner — type and nullability change behavior', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            name: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            name: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -698,8 +707,8 @@ describe('planner — type and nullability change behavior', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            name: col({ nativeType: 'int4', codecId: 'pg/int4@1' }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            name: col({ dataType: 'pg/int4', codecId: 'pg/int4@1' }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -724,8 +733,8 @@ describe('planner — type and nullability change behavior', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            bio: col({ many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: true }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            bio: col({ many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: true }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -737,8 +746,8 @@ describe('planner — type and nullability change behavior', () => {
       ...ns({
         user: table({
           columns: {
-            id: col({ nativeType: 'uuid', codecId: 'pg/uuid@1' }),
-            bio: col({ many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: false }),
+            id: col({ dataType: 'pg/uuid', codecId: 'pg/uuid@1' }),
+            bio: col({ many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: false }),
           },
           primaryKey: { columns: ['id'] },
         }),
@@ -760,11 +769,7 @@ describe('planner — type and nullability change behavior', () => {
 
 // --- Comprehensive incremental migration test (prisma-8-demo-like contract) ---
 
-function createAdapterHooksComponent(): TargetBoundComponentDescriptor<'sql', string> {
-  const parameterizedTypeHooks: CodecControlHooks = {
-    expandNativeType: expandParameterizedNativeType,
-  };
-
+function createAdapterHooksComponent(): TargetBoundComponentDescriptor<'sql', 'postgres'> {
   // Intentionally minimal test double for planner/contractToSchemaIR wiring.
   // Concrete enum hook behavior is covered in adapter enum-control-hooks tests.
   const enumHooks: CodecControlHooks = {
@@ -780,7 +785,7 @@ function createAdapterHooksComponent(): TargetBoundComponentDescriptor<'sql', st
         ? schema.nativeEnums.map((e) => e.typeName)
         : [];
 
-      if (existingEnumTypes.includes(typeInstance.nativeType)) {
+      if (existingEnumTypes.includes(typeInstance.typeParams?.['typeName'] as string)) {
         return { operations: [] };
       }
 
@@ -795,7 +800,7 @@ function createAdapterHooksComponent(): TargetBoundComponentDescriptor<'sql', st
             execute: [
               {
                 description: `create type "${typeName}"`,
-                sql: `CREATE TYPE "${schemaName ?? 'public'}"."${typeInstance.nativeType}" AS ENUM (${values.map((v) => `'${v}'`).join(', ')})`,
+                sql: `CREATE TYPE "${schemaName ?? 'public'}"."${typeInstance.typeParams?.['typeName'] as string}" AS ENUM (${values.map((v) => `'${v}'`).join(', ')})`,
               },
             ],
             postcheck: [],
@@ -813,9 +818,16 @@ function createAdapterHooksComponent(): TargetBoundComponentDescriptor<'sql', st
     version: '0.0.0-test',
     types: {
       codecTypes: {
+        codecDescriptors: [
+          {
+            codecId: 'app/test-type@1',
+            dataType: 'pg/enum',
+            traits: [],
+            isParameterized: false,
+            factory: () => () => ({ id: 'app/test-type@1' }),
+          } as unknown as AnyCodecDescriptor,
+        ],
         controlPlaneHooks: {
-          'sql/char@1': parameterizedTypeHooks,
-          'pg/timestamptz-temporal@1': parameterizedTypeHooks,
           'app/test-type@1': enumHooks,
         },
       },
@@ -827,18 +839,18 @@ const DEMO_BASE_TABLES = {
   user: table({
     columns: {
       id: col({
-        nativeType: 'character',
+        dataType: 'pg/char',
         codecId: 'sql/char@1',
         typeParams: { length: 36 },
       }),
-      email: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+      email: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
       createdAt: col({
-        nativeType: 'timestamptz',
+        dataType: 'pg/timestamptz',
         codecId: 'pg/timestamptz-temporal@1',
         default: { kind: 'function', expression: 'now()' },
       }),
       kind: col({
-        nativeType: 'user_type',
+        dataType: 'app/test-type',
         codecId: 'app/test-type@1',
         typeRef: 'user_type',
       }),
@@ -849,22 +861,28 @@ const DEMO_BASE_TABLES = {
   post: table({
     columns: {
       id: col({
-        nativeType: 'character',
+        dataType: 'pg/char',
         codecId: 'sql/char@1',
         typeParams: { length: 36 },
       }),
-      title: col({ nativeType: 'text', codecId: 'pg/text@1' }),
+      title: col({ dataType: 'pg/text', codecId: 'pg/text@1' }),
       userId: col({
-        nativeType: 'character',
+        dataType: 'pg/char',
         codecId: 'sql/char@1',
         typeParams: { length: 36 },
       }),
       createdAt: col({
-        nativeType: 'timestamptz',
+        dataType: 'pg/timestamptz',
         codecId: 'pg/timestamptz-temporal@1',
         default: { kind: 'function', expression: 'now()' },
       }),
-      embedding: col({ many: false, nativeType: 'vector', codecId: 'pg/vector@1', nullable: true }),
+      embedding: col({
+        many: false,
+        dataType: 'pgvector/vector',
+        codecId: 'pg/vector@1',
+        nullable: true,
+        typeParams: { length: 3 },
+      }),
     },
     primaryKey: { columns: ['id'] },
     foreignKeys: [
@@ -891,8 +909,8 @@ const DEMO_BASE_STORAGE: SqlStorageInput = {
     user_type: {
       kind: 'codec-instance',
       codecId: 'app/test-type@1',
-      nativeType: 'user_type',
-      typeParams: { values: ['admin', 'user'] },
+      dataType: 'app/test-type',
+      typeParams: { typeName: 'user_type', values: ['admin', 'user'] },
     },
   },
 };
@@ -932,7 +950,8 @@ const ownsUserTypeEnum: SchemaOwnership = {
 };
 
 describe('incremental migration with full contract surface (enums, FKs)', () => {
-  const frameworkComponents = [createAdapterHooksComponent(), pgvectorDescriptor];
+  const frameworkComponents = [...postgresComponents, createAdapterHooksComponent()];
+  const demoTypeOptions = typeOptions(frameworkComponents);
 
   it('only emits ops for the actual change when adding a column to an existing table', async () => {
     const toStorage: Omit<SqlStorageInput, 'storageHash'> = {
@@ -943,14 +962,14 @@ describe('incremental migration with full contract surface (enums, FKs)', () => 
           ...DEMO_BASE_TABLES['user']!,
           columns: {
             ...DEMO_BASE_TABLES['user']!.columns,
-            name: col({ many: false, nativeType: 'text', codecId: 'pg/text@1', nullable: true }),
+            name: col({ many: false, dataType: 'pg/text', codecId: 'pg/text@1', nullable: true }),
           },
         }),
       }),
     };
 
     const fromSchemaIR = contractToSchemaIR(createDemoContract(DEMO_BASE_STORAGE), {
-      expandNativeType: expandParameterizedNativeType,
+      ...demoTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const toContract = createDemoContract(toStorage);
@@ -984,7 +1003,7 @@ describe('incremental migration with full contract surface (enums, FKs)', () => 
 
   it('produces no ops when from and to storages are identical (with types)', () => {
     const fromSchemaIR = contractToSchemaIR(createDemoContract(DEMO_BASE_STORAGE), {
-      expandNativeType: expandParameterizedNativeType,
+      ...demoTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const toContract = createDemoContract(DEMO_BASE_STORAGE);
@@ -1012,7 +1031,7 @@ describe('incremental migration with full contract surface (enums, FKs)', () => 
 
   it('emits all ops on initial migration from empty state', async () => {
     const fromSchemaIR = contractToSchemaIR(null, {
-      expandNativeType: expandParameterizedNativeType,
+      ...demoTypeOptions,
       renderDefault: postgresRenderDefault,
     });
     const toContract = createDemoContract(DEMO_BASE_STORAGE);
@@ -1040,20 +1059,5 @@ describe('incremental migration with full contract surface (enums, FKs)', () => 
     const opIds = ops.map((op) => op.id);
     expect(opIds.some((id) => id.startsWith('type.'))).toBe(true);
     expect(opIds.some((id) => id.startsWith('table.'))).toBe(true);
-  });
-
-  it('the family contractToSchemaIR derives annotations from contract storage types', () => {
-    const schemaIR = contractToSchemaIRImpl(createDemoContract(DEMO_BASE_STORAGE), {
-      annotationNamespace: 'pg',
-      expandNativeType: expandParameterizedNativeType,
-      renderDefault: postgresRenderDefault,
-    });
-    const pgAnnotations = schemaIR.annotations?.['pg'] as Record<string, unknown> | undefined;
-    const storageTypes = pgAnnotations?.['storageTypes'] as Record<string, unknown> | undefined;
-    expect(storageTypes).toBeDefined();
-    expect(storageTypes?.['user_type']).toMatchObject({
-      codecId: 'app/test-type@1',
-      nativeType: 'user_type',
-    });
   });
 });

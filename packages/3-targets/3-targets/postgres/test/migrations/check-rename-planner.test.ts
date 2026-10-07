@@ -22,6 +22,7 @@ import { PostgresSchema } from '../../src/core/postgres-schema';
 import { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
 import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-namespace-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 
 const TABLE_NAME = 'items';
 const OTHER_TABLE = 'others';
@@ -48,8 +49,8 @@ interface LooseCheck {
 }
 
 const columns = {
-  id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
-  email: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
+  id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
+  email: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
 };
 
 function storageTable(checks: readonly LooseCheck[]): StorageTable {
@@ -151,7 +152,7 @@ async function planOpIds(
     policy: { allowedOperationClasses: [...policy.allowedOperationClasses] },
     fromContract: null,
     statements: [],
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -261,7 +262,7 @@ describe('policy gating', () => {
       policy: { allowedOperationClasses: [...NO_WIDENING_POLICY.allowedOperationClasses] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });

@@ -26,7 +26,7 @@ export interface ModelSpec {
   readonly fields?: Readonly<Record<string, string | null>>;
 }
 
-const text = { nativeType: 'text', codecId: 'test/text@1', nullable: false };
+const text = { dataType: 'test/text', codecId: 'test/text@1', nullable: false };
 
 function model(namespaceId: string, spec: ModelSpec): ContractModelBase {
   const fields = Object.entries(spec.fields ?? {});

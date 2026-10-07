@@ -4,6 +4,7 @@ import { APP_SPACE_ID } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage } from '@internal/sql-contract/types';
 import { createPostgresBuiltinCodecLookup } from '@internal/target-postgres/codecs';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import {
   contractToPostgresDatabaseSchemaNode,
   createPostgresMigrationPlanner,
@@ -17,6 +18,7 @@ import {
 import { applicationDomainOf } from '@repo/test-utils';
 import { describe, expect, it } from 'vitest';
 import { PostgresControlAdapter } from '../../src/core/control-adapter';
+import { postgresComponents } from './fixtures/postgres-components';
 
 // FK1: `constraint`/`index` are authoring-time booleans materialized once at
 // `contract emit` (`buildSqlContractFromDefinition`) — a persisted contract
@@ -42,8 +44,8 @@ function createFkTestContract(fkConfig: {
             table: {
               user: {
                 columns: {
-                  id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-                  email: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
+                  id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+                  email: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
                 },
                 primaryKey: { columns: ['id'] },
                 uniques: [],
@@ -52,9 +54,9 @@ function createFkTestContract(fkConfig: {
               },
               post: {
                 columns: {
-                  id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-                  userId: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-                  title: { nativeType: 'text', codecId: 'pg/text@1', nullable: false },
+                  id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+                  userId: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+                  title: { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false },
                 },
                 primaryKey: { columns: ['id'] },
                 uniques: [],
@@ -109,7 +111,10 @@ const MIGRATION_PLAN_POLICY = {
 
 describe('PostgresMigrationPlanner - materialized FK/index combinations', () => {
   const planner = createPostgresMigrationPlanner(
-    new PostgresControlAdapter(createPostgresBuiltinCodecLookup()),
+    new PostgresControlAdapter(
+      createPostgresBuiltinCodecLookup(),
+      createPostgresBuiltinDataTypeLookup(),
+    ),
   );
 
   it('plans both the FK constraint and its backing index when both are present in the contract', async () => {
@@ -120,7 +125,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -141,7 +146,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -162,7 +167,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -183,7 +188,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -205,8 +210,11 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       storageHash: coreHash('to'),
       includeStateColumn: true,
     });
+    const codecLookup = createPostgresBuiltinCodecLookup();
     const schema = contractToPostgresDatabaseSchemaNode(fromContract, {
       annotationNamespace: 'pg',
+      codecLookup,
+      dataTypeLookup: createPostgresBuiltinDataTypeLookup(),
     });
 
     const result = planner.plan({
@@ -215,7 +223,7 @@ describe('PostgresMigrationPlanner - materialized FK/index combinations', () => 
       policy: MIGRATION_PLAN_POLICY,
       fromContract,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -241,10 +249,10 @@ function createWorkflowStateContract(options: {
   includeStateColumn: boolean;
 }): PostgresContract {
   const workflowStateColumns = {
-    workflow_id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-    team_id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+    workflow_id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+    team_id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
     ...(options.includeStateColumn
-      ? { state: { nativeType: 'jsonb', codecId: 'pg/json@1', nullable: true } }
+      ? { state: { dataType: 'pg/json', codecId: 'pg/json@1', nullable: true } }
       : {}),
   };
 
@@ -261,7 +269,7 @@ function createWorkflowStateContract(options: {
             table: {
               teams: {
                 columns: {
-                  id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+                  id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
                 },
                 primaryKey: { columns: ['id'] },
                 uniques: [],
@@ -270,8 +278,8 @@ function createWorkflowStateContract(options: {
               },
               workflows: {
                 columns: {
-                  id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
-                  team_id: { nativeType: 'uuid', codecId: 'pg/uuid@1', nullable: false },
+                  id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
+                  team_id: { dataType: 'pg/uuid', codecId: 'pg/uuid@1', nullable: false },
                 },
                 primaryKey: { columns: ['id', 'team_id'] },
                 uniques: [],

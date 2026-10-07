@@ -6,8 +6,8 @@ import { applicationDomainOf } from '@repo/test-utils';
 import { sqliteCreateNamespace } from '../../src/core/sqlite-unbound-database';
 import { reference } from './rename-table-fixtures';
 
-const text = { nativeType: 'text', codecId: 'sqlite/text@1', nullable: false };
-const int4 = { nativeType: 'integer', codecId: 'sqlite/integer@1', nullable: false };
+const text = { dataType: 'sqlite/text', codecId: 'sqlite/text@1', nullable: false };
+const int4 = { dataType: 'sqlite/integer', codecId: 'sqlite/integer@1', nullable: false };
 const scalar = { nullable: false, type: { kind: 'scalar', codecId: 'sqlite/text@1' } } as const;
 
 /** The names the profile table's columns have in one contract. */

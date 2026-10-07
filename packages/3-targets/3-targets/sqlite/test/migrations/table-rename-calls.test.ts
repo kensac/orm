@@ -2,6 +2,7 @@ import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-schema';
 import { sqliteTableRenameCall } from '../../src/core/migrations/table-rename-calls';
+import { sqliteTestComponents, sqliteTestTypes } from '../sqlite-test-types';
 import {
   contractOf,
   HANDLE_INDEX_HASH,
@@ -15,10 +16,10 @@ const RENAME = { namespaceId: UNBOUND_NAMESPACE_ID, from: 'userProfile', to: 'Us
 
 function callFor(origin: ProfileSpec, destination: ProfileSpec) {
   return sqliteTableRenameCall({
-    previous: sqliteContractToSchema(contractOf('userProfile', origin, 'from')),
+    previous: sqliteContractToSchema(contractOf('userProfile', origin, 'from'), sqliteTestTypes),
     contract: contractOf('UserProfile', destination, 'to'),
     rename: RENAME,
-    frameworkComponents: [],
+    frameworkComponents: sqliteTestComponents,
   });
 }
 

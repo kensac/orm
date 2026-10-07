@@ -16,6 +16,7 @@ import {
   planFieldEventOperations,
   plannerFailure,
   planStatements,
+  sqlTypeLookupsOf,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -308,6 +309,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
         : schemaIssues.filter((issue) => !renameConsumed.has(issue));
 
     const codecHooks = extractCodecControlHooks(options.frameworkComponents);
+    const types = sqlTypeLookupsOf(options.frameworkComponents);
     const storageTypes = options.contract.storage.types ?? {};
     // The strategy layer reads the live schema by bare table name for existence
     // checks (shared-temp-default safety, FK/unique probes), so it takes one
@@ -374,6 +376,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
       fromContract: options.fromContract,
       schemaName,
       codecHooks,
+      types,
       storageTypes,
       ...ifDefined('schema', relationalSchema),
       policy: options.policy,

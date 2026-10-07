@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import type { PostgresPlanTargetDetails } from '../../src/core/migrations/planner-target-details';
 import { PostgresMigration } from '../../src/core/migrations/postgres-migration';
 import { PostgresContractSerializer } from '../../src/core/postgres-contract-serializer';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import { ORIGINAL_COLUMNS, profileContract } from './rename-column-fixtures';
 import { stubLowerer } from './rename-table-fixtures';
 
@@ -29,7 +30,10 @@ type Rename =
     };
 
 const stack = {
-  adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'> },
+  adapter: {
+    ...postgresTypeComponents[0],
+    create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'>,
+  },
   target: { kind: 'target', familyId: 'sql', targetId: 'postgres' },
   extensions: [],
 } as unknown as ControlStack<'sql', 'postgres'>;

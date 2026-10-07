@@ -23,6 +23,7 @@ import { PostgresContractSerializer } from '../../src/core/postgres-contract-ser
 import { PostgresRlsEnablement } from '../../src/core/postgres-rls-enablement';
 import { PostgresRlsPolicy } from '../../src/core/postgres-rls-policy';
 import { PostgresSchema } from '../../src/core/postgres-schema';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import {
   contractOf,
   NICKNAME_CHECK,
@@ -36,7 +37,10 @@ type Op = SqlMigrationPlanOperation<PostgresPlanTargetDetails>;
 type ContractJson = { readonly storage: { readonly storageHash: string } };
 
 const stack = {
-  adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'> },
+  adapter: {
+    ...postgresTypeComponents[0],
+    create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'>,
+  },
   target: { kind: 'target', familyId: 'sql', targetId: 'postgres' },
   extensions: [],
 } as unknown as ControlStack<'sql', 'postgres'>;
@@ -140,8 +144,8 @@ function rlsContract(tableName: string, hashSeed: string): Contract<SqlStorage> 
             table: {
               [tableName]: new StorageTable({
                 columns: {
-                  id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
-                  tenant_id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
+                  id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
+                  tenant_id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
                 },
                 primaryKey: { columns: ['id'], name: 'profile_pk' },
                 foreignKeys: [],
@@ -202,7 +206,7 @@ describe('PostgresMigration.renameTable', () => {
   it('renames a foreign key the end contract points at another table, which the plan then replaces under its new name', async () => {
     const memberTable = () => ({
       member: new StorageTable({
-        columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+        columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
         primaryKey: { columns: ['id'], name: 'member_pk' },
         uniques: [],
         indexes: [],
@@ -327,7 +331,7 @@ describe('PostgresMigration.renameTable', () => {
   it('refuses a new name that already exists at this point of the migration', async () => {
     const withBoth = contractOf('userProfile', {}, 'from', () => ({
       UserProfile: new StorageTable({
-        columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+        columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
         primaryKey: { columns: ['id'], name: 'other_pk' },
         uniques: [],
         indexes: [],
@@ -355,7 +359,7 @@ describe('PostgresMigration.renameTable', () => {
   it('renames a table twice in one migration when the end contract declares both new names, each rename from where the last left it', async () => {
     const intermediate = () => ({
       UserProfile: new StorageTable({
-        columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+        columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
         primaryKey: { columns: ['id'], name: 'profile_pk' },
         uniques: [],
         indexes: [],

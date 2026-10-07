@@ -24,6 +24,7 @@ import { postgresCreateNamespace } from '../../src/core/postgres-schema';
 import { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
 import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-namespace-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 
 const stubLowerer: ExecuteRequestLowerer = {
   lower(_ast, _ctx) {
@@ -45,7 +46,7 @@ function buildContract(): Contract<SqlStorage> {
     entries: {
       table: {
         app_user: new StorageTable({
-          columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+          columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
           foreignKeys: [],
           uniques: [],
           indexes: [],
@@ -126,7 +127,7 @@ function buildContractWithSecondNamespace(): Contract<SqlStorage> {
     entries: {
       table: {
         app_user: new StorageTable({
-          columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+          columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
           foreignKeys: [],
           uniques: [],
           indexes: [],
@@ -140,7 +141,7 @@ function buildContractWithSecondNamespace(): Contract<SqlStorage> {
     entries: {
       table: {
         tenant_meta: new StorageTable({
-          columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+          columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
           foreignKeys: [],
           uniques: [],
           indexes: [],
@@ -250,7 +251,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: DB_UPDATE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -273,7 +274,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: DB_UPDATE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: ownsOnly(inPublic('app_user'), inPublic('cipher_state')),
@@ -295,7 +296,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: INIT_ADDITIVE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -343,7 +344,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: DB_UPDATE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: ownsOnly(inPublic('app_user')),
@@ -370,7 +371,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: DB_UPDATE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: ownsOnly(inPublic('app_user'), inPublic('orphan_table')),
@@ -395,7 +396,7 @@ describe('Postgres planner ownership consultation', () => {
       policy: DB_UPDATE_POLICY,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: ownsOnly(

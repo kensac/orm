@@ -34,6 +34,7 @@ import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-n
 import { PostgresNativeEnumSchemaNode } from '../../src/core/schema-ir/postgres-native-enum-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
 import { PostgresCreateType, PostgresDropType } from '../../src/exports/ddl';
+import { postgresTypeComponents, postgresTypeLookups } from '../postgres-type-lookups';
 
 const MEMBERS = ['draft', 'review', 'done'] as const;
 
@@ -78,9 +79,16 @@ function makeContract(options: { readonly withEnum: boolean }): Contract<SqlStor
       table: {
         orders: new StorageTable({
           columns: {
-            id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false },
+            id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false },
             ...(options.withEnum
-              ? { status: { nativeType: 'order_status', codecId: 'pg/enum@1', nullable: false } }
+              ? {
+                  status: {
+                    dataType: 'pg/enum',
+                    codecId: 'pg/enum@1',
+                    nullable: false,
+                    typeParams: { typeName: 'order_status' },
+                  },
+                }
               : {}),
           },
           primaryKey: { columns: ['id'] },
@@ -174,7 +182,7 @@ function planResultFor(contract: Contract<SqlStorage>, actual: PostgresDatabaseS
   const { issues } = buildPostgresPlanDiff({
     contract,
     actualSchema: actual,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
   });
   return planIssues({
     issues: coalesceSubtreeIssues(issues),
@@ -182,6 +190,7 @@ function planResultFor(contract: Contract<SqlStorage>, actual: PostgresDatabaseS
     fromContract: null,
     schemaName: 'sales',
     codecHooks: new Map(),
+    types: postgresTypeLookups,
     storageTypes: contract.storage.types ?? {},
     strategies: [],
   });
@@ -388,7 +397,7 @@ describe('planner ownership + policy for enum extras', () => {
       policy,
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ...(ownership !== undefined ? { ownership } : {}),
@@ -476,7 +485,7 @@ describe('D2-F1: enum drop-safety resolves ownership by physical type name', () 
       entries: {
         table: {
           orders: new StorageTable({
-            columns: { id: { nativeType: 'int4', codecId: 'pg/int4@1', nullable: false } },
+            columns: { id: { dataType: 'pg/int4', codecId: 'pg/int4@1', nullable: false } },
             primaryKey: { columns: ['id'] },
             foreignKeys: [],
             uniques: [],
@@ -544,7 +553,7 @@ describe('D2-F1: enum drop-safety resolves ownership by physical type name', () 
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: twoSpaceOwnership(app.storage, packStorageDeclaringRenamedEnum()),
@@ -568,7 +577,7 @@ describe('D2-F1: enum drop-safety resolves ownership by physical type name', () 
       policy: { allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'] },
       fromContract: null,
       statements: [],
-      frameworkComponents: [],
+      frameworkComponents: postgresTypeComponents,
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
       ownership: twoSpaceOwnership(app.storage, packStorageDeclaringRenamedEnum()),

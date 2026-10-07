@@ -5,6 +5,7 @@ import {
   resolveColumnRenameAgainst,
   resolveTableRenameAgainst,
   type SqlMigrationPlanOperation,
+  sqlTypeLookupsOf,
   type TableRename,
   unmatchedColumnRename,
   unmatchedTableRename,
@@ -235,7 +236,9 @@ export abstract class SqliteMigration<
 
   /** The start contract's schema with this read's rename calls applied in order. */
   private schemaAfterRenames(startContract: Contract<SqlStorage>): SqlSchemaIR {
-    const working = createWorkingSchema(sqliteContractToSchema(startContract));
+    const working = createWorkingSchema(
+      sqliteContractToSchema(startContract, sqlTypeLookupsOf(this.frameworkComponents())),
+    );
     for (const call of this.#renames) working.apply(call);
     return working.current;
   }

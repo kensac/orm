@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
 import { postgresColumnRenameCall } from '../../src/core/migrations/table-rename-calls';
 import { renameColumnInPostgresSchema } from '../../src/core/migrations/working-schema';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import {
   ORIGINAL_COLUMNS,
   type ProfileColumns,
@@ -18,10 +19,13 @@ function labelsFor(
   columns: ProfileColumns = EMAIL_RENAMED,
 ): readonly string[] {
   const call = postgresColumnRenameCall({
-    previous: postgresContractToSchema(profileContract('from', { objects: objects.before }), []),
+    previous: postgresContractToSchema(
+      profileContract('from', { objects: objects.before }),
+      postgresTypeComponents,
+    ),
     contract: profileContract('to', { columns, objects: objects.after }),
     rename: { namespaceId: UNBOUND_NAMESPACE_ID, table: 'Profile', ...rename },
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
   });
   return [call.label, ...call.companions.map((companion) => companion.label)];
 }
@@ -99,7 +103,7 @@ describe('postgresColumnRenameCall companions', () => {
 describe('renameColumnInPostgresSchema', () => {
   const previous = postgresContractToSchema(
     profileContract('from', { objects: { emailIndex: true, emailPartialIndex: true } }),
-    [],
+    postgresTypeComponents,
   );
 
   it('follows the column in foreign keys that reference it from another table', () => {

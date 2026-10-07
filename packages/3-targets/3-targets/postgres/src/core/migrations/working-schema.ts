@@ -105,8 +105,8 @@ function withColumnName(column: SqlColumnIR, name: string): SqlColumnIR {
     ...ifDefined('authoredDefault', column.authoredDefault),
     ...ifDefined('codecRef', column.codecRef),
     ...ifDefined('codecBaseNativeType', column.codecBaseNativeType),
-    ...ifDefined('codecNamedType', column.codecNamedType),
     ...ifDefined('dataType', column.dataType),
+    ...ifDefined('toCanonicalForm', column.toCanonicalForm),
   });
 }
 

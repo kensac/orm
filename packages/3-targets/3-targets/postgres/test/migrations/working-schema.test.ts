@@ -19,6 +19,7 @@ import { PostgresNamespaceSchemaNode } from '../../src/core/schema-ir/postgres-n
 import { PostgresPolicySchemaNode } from '../../src/core/schema-ir/postgres-policy-schema-node';
 import { PostgresTableSchemaNode } from '../../src/core/schema-ir/postgres-table-schema-node';
 import { PostgresSchemaNodeKind } from '../../src/core/schema-ir/schema-node-kinds';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import {
   contractOf,
   NICKNAME_CHECK,
@@ -57,7 +58,7 @@ const withObjects: ProfileSpec = {
 function startSchema(): PostgresDatabaseSchemaNode {
   return postgresContractToSchema(
     contractOf('userProfile', withObjects, 'from', (tableName) => ({ post: postTable(tableName) })),
-    [],
+    postgresTypeComponents,
   );
 }
 

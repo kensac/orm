@@ -11,7 +11,7 @@ import {
 } from '../src/core/migrations/resolve-column-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
 
-const text = { nativeType: 'text', codecId: 'pg/text@1', nullable: false };
+const text = { dataType: 'pg/text', codecId: 'pg/text@1', nullable: false };
 
 function contractWithColumns(
   tables: Readonly<Record<string, readonly string[]>>,

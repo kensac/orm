@@ -12,6 +12,7 @@ import {
   SqliteUnboundDatabase,
   sqliteCreateNamespace,
 } from '../../src/core/sqlite-unbound-database';
+import { sqliteTestComponents } from '../sqlite-test-types';
 
 const stubLowerer: ExecuteRequestLowerer = {
   lower: () => {
@@ -39,8 +40,8 @@ function createContract(): Contract<SqlStorage> {
             table: {
               user: {
                 columns: {
-                  id: { nativeType: 'integer', codecId: 'sqlite/integer@1', nullable: false },
-                  email: { nativeType: 'text', codecId: 'sqlite/text@1', nullable: false },
+                  id: { dataType: 'sqlite/integer', codecId: 'sqlite/integer@1', nullable: false },
+                  email: { dataType: 'sqlite/text', codecId: 'sqlite/text@1', nullable: false },
                 },
                 primaryKey: { columns: ['id'] },
                 uniques: [],
@@ -82,7 +83,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: fromContractWithHash(FROM_STORAGE_HASH),
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -102,7 +103,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract,
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -121,7 +122,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: null,
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -139,7 +140,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: null,
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -159,7 +160,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: null,
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -179,7 +180,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['additive'] },
         fromContract: fromContractWithHash(FROM_STORAGE_HASH),
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });
@@ -253,7 +254,7 @@ describe('SqliteMigrationPlanner authoring surface', () => {
         policy: { allowedOperationClasses: ['widening', 'destructive'] },
         fromContract: null,
         statements: [],
-        frameworkComponents: [],
+        frameworkComponents: sqliteTestComponents,
         spaceId: APP_SPACE_ID,
         snapshotsImportPath: SNAPSHOTS_IMPORT_PATH,
       });

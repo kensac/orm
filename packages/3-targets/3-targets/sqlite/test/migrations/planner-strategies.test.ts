@@ -6,6 +6,7 @@ import {
   recreateTableStrategy,
   type StrategyContext,
 } from '../../src/core/migrations/planner-strategies';
+import { sqliteTestComponents, sqliteTestTypes } from '../sqlite-test-types';
 import {
   actualColumn,
   columnDefault,
@@ -22,7 +23,8 @@ function makeContext(overrides: Partial<StrategyContext> = {}): StrategyContext 
     expected: new SqlSchemaIR({ tables: {} }),
     actual: new SqlSchemaIR({ tables: {} }),
     policy: { allowedOperationClasses: ['additive', 'widening', 'destructive'] },
-    frameworkComponents: [],
+    frameworkComponents: sqliteTestComponents,
+    types: sqliteTestTypes,
     ...overrides,
   };
 }

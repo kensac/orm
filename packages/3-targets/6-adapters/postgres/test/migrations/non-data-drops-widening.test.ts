@@ -1,5 +1,6 @@
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { createPostgresBuiltinCodecLookup } from '@internal/target-postgres/codecs';
+import { createPostgresBuiltinDataTypeLookup } from '@internal/target-postgres/data-types';
 import {
   DisableRowLevelSecurityCall,
   DropCheckConstraintCall,
@@ -15,7 +16,10 @@ import { renderOps } from '@internal/target-postgres/render-ops';
 import { describe, expect, it } from 'vitest';
 import { PostgresControlAdapter } from '../../src/core/control-adapter';
 
-const adapter = new PostgresControlAdapter(createPostgresBuiltinCodecLookup());
+const adapter = new PostgresControlAdapter(
+  createPostgresBuiltinCodecLookup(),
+  createPostgresBuiltinDataTypeLookup(),
+);
 
 async function classes(call: OpFactoryCall) {
   const [op] = await Promise.all(renderOps([call], adapter));

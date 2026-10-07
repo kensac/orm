@@ -17,6 +17,7 @@ import { postgresContractToSchema } from '../../src/core/migrations/postgres-con
 import { PostgresMigration } from '../../src/core/migrations/postgres-migration';
 import { PostgresContractSerializer } from '../../src/core/postgres-contract-serializer';
 import type { PostgresDatabaseSchemaNode } from '../../src/core/schema-ir/postgres-database-schema-node';
+import { postgresTypeComponents } from '../postgres-type-lookups';
 import { ORIGINAL_COLUMNS, type ProfileObjects, profileContract } from './rename-column-fixtures';
 import { stubLowerer } from './rename-table-fixtures';
 
@@ -24,7 +25,10 @@ type Op = SqlMigrationPlanOperation<PostgresPlanTargetDetails>;
 type ContractJson = { readonly storage: { readonly storageHash: string } };
 
 const stack = {
-  adapter: { create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'> },
+  adapter: {
+    ...postgresTypeComponents[0],
+    create: () => stubLowerer as unknown as SqlControlAdapter<'postgres'>,
+  },
   target: { kind: 'target', familyId: 'sql', targetId: 'postgres' },
   extensions: [],
 } as unknown as ControlStack<'sql', 'postgres'>;
@@ -64,7 +68,7 @@ function plan(
   from: Contract<SqlStorage>,
   to: Contract<SqlStorage>,
   statements: readonly ResolvedStatement[],
-  schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, []),
+  schema: PostgresDatabaseSchemaNode = postgresContractToSchema(from, postgresTypeComponents),
 ) {
   return createPostgresMigrationPlanner(stubLowerer).plan({
     contract: to,
@@ -72,7 +76,7 @@ function plan(
     policy: ALL_CLASSES,
     fromContract: from,
     statements,
-    frameworkComponents: [],
+    frameworkComponents: postgresTypeComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -186,7 +190,7 @@ describe('Postgres planner, field statements', () => {
     const { from, to } = contracts();
     const otherSchema = postgresContractToSchema(
       profileContract('other', { columns: EMAIL_RENAMED }),
-      [],
+      postgresTypeComponents,
     );
     const result = plan(from, to, [renameEmail], otherSchema);
     expect(result.kind === 'failure' && result.conflicts).toEqual([
