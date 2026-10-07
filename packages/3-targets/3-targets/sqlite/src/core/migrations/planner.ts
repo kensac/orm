@@ -41,7 +41,7 @@ import {
   issueNode,
   planIssues,
 } from './issue-planner';
-import { type RenameColumnCall, RenameTableCall } from './op-factory-call';
+import type { RenameColumnCall, RenameTableCall } from './op-factory-call';
 import { renameTableSteps } from './operations/tables';
 import {
   type SqliteMigrationDestinationInfo,
@@ -50,7 +50,11 @@ import {
 import { sqlitePlannerStrategies } from './planner-strategies';
 import type { SqlitePlanTargetDetails } from './planner-target-details';
 import { sqliteSchemaTables } from './schema-tables';
-import { sqliteColumnRenameCall, sqliteTableRenameCall } from './table-rename-calls';
+import {
+  renderRenameTableCall,
+  sqliteColumnRenameCall,
+  sqliteTableRenameCall,
+} from './table-rename-calls';
 import { createWorkingSchema } from './working-schema';
 
 export function createSqliteMigrationPlanner(
@@ -179,8 +183,7 @@ export class SqliteMigrationPlanner
       namespaceIdOf: () => UNBOUND_NAMESPACE_ID,
       renameByHandStatements: (rename) =>
         renameTableSteps(rename.from, rename.to).map((renameStep) => renameStep.sql),
-      renameTableCall: (rename) =>
-        new RenameTableCall(rename.from, rename.to, []).renderTypeScript(),
+      renameTableCall: renderRenameTableCall,
       contract: options.contract,
       defaultNamespaceId: UNBOUND_NAMESPACE_ID,
     });
@@ -283,6 +286,7 @@ export class SqliteMigrationPlanner
             frameworkComponents: options.frameworkComponents,
           }),
         apply: (call) => working.apply(call),
+        renderTableRename: renderRenameTableCall,
       },
     });
     if (!planned.ok) return planned;

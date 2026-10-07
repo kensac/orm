@@ -62,17 +62,24 @@ export function unmatchedColumnRename(rename: ColumnRename, reason: string): Str
   );
 }
 
+/** Why a column rename does not match the schema it renames in and the end contract. */
+export type ColumnRenameMismatch =
+  | { readonly kind: 'tableMissing' }
+  | { readonly kind: 'tableInManyNamespaces'; readonly namespaceIds: readonly string[] }
+  | { readonly kind: 'columnMissing'; readonly namespaceId: string }
+  | { readonly kind: 'nameTaken'; readonly namespaceId: string; readonly taken: string }
+  | { readonly kind: 'notInEndContract'; readonly namespaceId: string };
+
 /**
- * Resolves a column a migration renames: the table must exist in `previous` (in exactly one
- * namespace when the namespace is not given) with the old column and without the new one, and the
- * end contract must have the new column on that table; otherwise the rename is refused with
- * `MIGRATION.COLUMN_RENAME_UNMATCHED`.
+ * Checks a column rename: the table must exist in `previous` (in exactly one namespace when the
+ * namespace is not given) with the old column and without the new one, and the end contract must
+ * have the new column on that table.
  */
-export function resolveColumnRenameAgainst(
+export function checkColumnRename(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
   rename: ColumnRename,
-): Result<ResolvedColumnRename, StructuredError> {
+): Result<ResolvedColumnRename, ColumnRenameMismatch> {
   const namespaceIds =
     rename.namespaceId === undefined
       ? previous.namespacesWithTable(rename.table)
@@ -80,48 +87,54 @@ export function resolveColumnRenameAgainst(
         ? [rename.namespaceId]
         : [];
   const [namespaceId, ...others] = namespaceIds;
-  if (namespaceId === undefined) {
-    return notOk(
-      unmatchedColumnRename(
-        rename,
-        `table "${tableLabel(rename.namespaceId, rename.table)}" does not exist at this point of the migration`,
-      ),
-    );
-  }
-  if (others.length > 0) {
-    return notOk(
-      unmatchedColumnRename(
-        rename,
-        `table "${rename.table}" is declared in more than one namespace (${namespaceIds.join(', ')}); name its namespace`,
-      ),
-    );
-  }
+  if (namespaceId === undefined) return notOk({ kind: 'tableMissing' });
+  if (others.length > 0) return notOk({ kind: 'tableInManyNamespaces', namespaceIds });
   if (!previous.hasColumn(namespaceId, rename.table, rename.from)) {
-    return notOk(
-      unmatchedColumnRename(
-        rename,
-        `column ${columnLabel(namespaceId, rename.table, rename.from)} does not exist at this point of the migration`,
-      ),
-    );
+    return notOk({ kind: 'columnMissing', namespaceId });
   }
   const [taken] = previous
     .columnsNamed(namespaceId, rename.table, rename.to)
     .filter((column) => column !== rename.from);
-  if (taken !== undefined) {
-    return notOk(
-      unmatchedColumnRename(
-        rename,
-        `column ${columnLabel(namespaceId, rename.table, rename.to)} already exists at this point of the migration${taken === rename.to ? '' : ` as "${taken}"`}`,
-      ),
-    );
-  }
+  if (taken !== undefined) return notOk({ kind: 'nameTaken', namespaceId, taken });
   if (!declaresColumn(endContract, namespaceId, rename.table, rename.to)) {
-    return notOk(
-      unmatchedColumnRename(
-        rename,
-        `column ${columnLabel(namespaceId, rename.table, rename.to)} does not exist in the end contract`,
-      ),
-    );
+    return notOk({ kind: 'notInEndContract', namespaceId });
   }
   return ok({ namespaceId, table: rename.table, from: rename.from, to: rename.to });
+}
+
+/** The reason `MIGRATION.COLUMN_RENAME_UNMATCHED` gives for a mismatch. */
+export function columnRenameMismatchReason(
+  rename: ColumnRename,
+  mismatch: ColumnRenameMismatch,
+): string {
+  switch (mismatch.kind) {
+    case 'tableMissing':
+      return `table "${tableLabel(rename.namespaceId, rename.table)}" does not exist at this point of the migration`;
+    case 'tableInManyNamespaces':
+      return `table "${rename.table}" is declared in more than one namespace (${mismatch.namespaceIds.join(', ')}); name its namespace`;
+    case 'columnMissing':
+      return `column ${columnLabel(mismatch.namespaceId, rename.table, rename.from)} does not exist at this point of the migration`;
+    case 'nameTaken':
+      return `column ${columnLabel(mismatch.namespaceId, rename.table, rename.to)} already exists at this point of the migration${mismatch.taken === rename.to ? '' : ` as "${mismatch.taken}"`}`;
+    case 'notInEndContract':
+      return `column ${columnLabel(mismatch.namespaceId, rename.table, rename.to)} does not exist in the end contract`;
+  }
+}
+
+/**
+ * Resolves a column a migration renames with {@link checkColumnRename}, refusing a mismatch with
+ * `MIGRATION.COLUMN_RENAME_UNMATCHED`.
+ */
+export function resolveColumnRenameAgainst(
+  previous: SchemaTables,
+  endContract: Contract<SqlStorage>,
+  rename: ColumnRename,
+): Result<ResolvedColumnRename, StructuredError> {
+  const checked = checkColumnRename(previous, endContract, rename);
+  if (!checked.ok) {
+    return notOk(
+      unmatchedColumnRename(rename, columnRenameMismatchReason(rename, checked.failure)),
+    );
+  }
+  return ok(checked.value);
 }

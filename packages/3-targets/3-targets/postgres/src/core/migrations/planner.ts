@@ -73,7 +73,7 @@ import {
   RawSqlCall,
   type RenameColumnCall,
   RenamePostgresRlsPolicyCall,
-  RenameTableCall,
+  type RenameTableCall,
 } from './op-factory-call';
 import { renameTableStatement } from './operations/tables';
 import { TypeScriptRenderablePostgresMigration } from './planner-produced-postgres-migration';
@@ -84,6 +84,7 @@ import {
   emissionSchemaForNamespace,
   postgresColumnRenameCall,
   postgresTableRenameCall,
+  renderRenameTableCall,
 } from './table-rename-calls';
 import { verifyPostgresNamespacePresence } from './verify-postgres-namespaces';
 import { createWorkingSchema } from './working-schema';
@@ -352,13 +353,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
           rename.to,
         ),
       ],
-      renameTableCall: (rename) =>
-        new RenameTableCall(
-          rename.namespaceId ?? UNBOUND_NAMESPACE_ID,
-          rename.from,
-          rename.to,
-          [],
-        ).renderTypeScript(),
+      renameTableCall: renderRenameTableCall,
       contract: options.contract,
       defaultNamespaceId: DEFAULT_NAMESPACE_ID,
     });
@@ -731,6 +726,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
             frameworkComponents: options.frameworkComponents,
           }),
         apply: (call) => working.apply(call),
+        renderTableRename: renderRenameTableCall,
       },
     });
     if (!planned.ok) return planned;

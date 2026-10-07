@@ -8,6 +8,7 @@ import {
   RenameTableCall,
 } from '../../src/core/migrations/op-factory-call';
 import { renameTable } from '../../src/core/migrations/operations/tables';
+import { renderRenameTableCall } from '../../src/core/migrations/table-rename-calls';
 
 function recordingCheckLowerer(): { lowerer: ExecuteRequestLowerer; received: unknown[] } {
   const received: unknown[] = [];
@@ -127,6 +128,22 @@ describe('RenameTableCall (postgres)', () => {
         'UserProfile',
         [],
       ).renderTypeScript(),
+    ).toBe('...this.renameTable({ table: "userProfile", to: "UserProfile" })');
+  });
+
+  it('renders the hand-written call with the namespace as schema, left out when unbound or not given', () => {
+    expect(
+      renderRenameTableCall({ namespaceId: 'auth', from: 'userProfile', to: 'UserProfile' }),
+    ).toBe('...this.renameTable({ schema: "auth", table: "userProfile", to: "UserProfile" })');
+    expect(
+      renderRenameTableCall({
+        namespaceId: UNBOUND_NAMESPACE_ID,
+        from: 'userProfile',
+        to: 'UserProfile',
+      }),
+    ).toBe('...this.renameTable({ table: "userProfile", to: "UserProfile" })');
+    expect(
+      renderRenameTableCall({ namespaceId: undefined, from: 'userProfile', to: 'UserProfile' }),
     ).toBe('...this.renameTable({ table: "userProfile", to: "UserProfile" })');
   });
 

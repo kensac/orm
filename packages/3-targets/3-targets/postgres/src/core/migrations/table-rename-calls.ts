@@ -3,6 +3,7 @@ import type {
   MigrationOperationPolicy,
   ResolvedColumnRename,
   ResolvedTableRename,
+  TableRenameInMigration,
 } from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
@@ -27,6 +28,19 @@ export function emissionSchemaForNamespace(
   return namespaceId === UNBOUND_NAMESPACE_ID
     ? UNBOUND_NAMESPACE_ID
     : resolveDdlSchemaForNamespaceStorage(contract.storage, namespaceId);
+}
+
+/**
+ * The `renameTable` call a user writes in `migration.ts` for `rename`. `schema` names the namespace
+ * the facade resolves the table in, and is left out for the unbound namespace or when not given.
+ */
+export function renderRenameTableCall(rename: TableRenameInMigration): string {
+  return new RenameTableCall(
+    rename.namespaceId ?? UNBOUND_NAMESPACE_ID,
+    rename.from,
+    rename.to,
+    [],
+  ).renderTypeScript();
 }
 
 function tableNode(

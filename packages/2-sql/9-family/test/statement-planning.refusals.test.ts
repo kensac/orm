@@ -110,6 +110,16 @@ describe('statement refusals say what to do next', () => {
       why: 'The database has no column "name" on table "User", although the contract it was last updated to names it, so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.',
     },
     {
+      case: 'a column of a table the schema being planned from does not have',
+      input: {
+        statements: [renameField('User', 'name', 'fullName')],
+        fromContract: userWithName,
+        contract: userWithFullName,
+        target: fakeTarget([]),
+      },
+      why: 'The database has no table "User", although the contract it was last updated to names it, so the database has drifted from that contract. Inspect it with prisma db schema, or leave out this statement.',
+    },
+    {
       case: 'a column name another column already holds',
       input: {
         statements: [renameField('User', 'name', 'fullName')],

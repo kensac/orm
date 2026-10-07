@@ -154,20 +154,6 @@ export function renameField(
   };
 }
 
-export function renameFieldIn(
-  namespace: string,
-  model: string,
-  from: string,
-  to: string,
-): ResolvedFieldRenameStatement {
-  return {
-    kind: 'rename',
-    entity: 'field',
-    from: { namespaceId: asNamespaceId(namespace), model, field: from },
-    to: { namespaceId: asNamespaceId(namespace), model, field: to },
-  };
-}
-
 /** A fake target's call: its text names the rename, and it carries one companion. */
 export interface FakeCall extends StatementCall {
   readonly text: string;
@@ -213,6 +199,8 @@ export function fakeTarget(
       call(`table ${rename.namespaceId}.${rename.from} -> ${rename.to}`),
     renameColumnCall: (rename: ResolvedColumnRename) =>
       call(`column ${rename.namespaceId}.${rename.table}.${rename.from} -> ${rename.to}`),
+    renderTableRename: (rename: ResolvedTableRename) =>
+      `renameTable ${rename.namespaceId}.${rename.from} -> ${rename.to}`,
     apply: ({ text }) => {
       const [kind, from, , to] = text.split(' ');
       if (from === undefined || to === undefined) return;

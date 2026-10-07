@@ -1,5 +1,9 @@
 import type { Contract } from '@internal/contract/types';
-import type { ResolvedColumnRename, ResolvedTableRename } from '@internal/family-sql/control';
+import type {
+  ResolvedColumnRename,
+  ResolvedTableRename,
+  TableRenameInMigration,
+} from '@internal/family-sql/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type { SqlStorage } from '@internal/sql-contract/types';
 import type { SqlSchemaIR } from '@internal/sql-schema-ir/types';
@@ -8,6 +12,11 @@ import { pairIndexReplacements, renamedColumnIndex, renamedTableIndex } from './
 import { coalesceSubtreeIssues } from './issue-planner';
 import { RenameColumnCall, RenameTableCall } from './op-factory-call';
 import { renameColumnInSqliteSchema, renameTableInSqliteSchema } from './working-schema';
+
+/** The `renameTable` call a user writes in `migration.ts` for `rename`; SQLite has no namespaces. */
+export function renderRenameTableCall(rename: TableRenameInMigration): string {
+  return new RenameTableCall(rename.from, rename.to, []).renderTypeScript();
+}
 
 /**
  * The call that renames a table, carrying as companions a drop and a create under the new name of

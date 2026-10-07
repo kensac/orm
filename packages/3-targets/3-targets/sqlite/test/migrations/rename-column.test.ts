@@ -305,4 +305,20 @@ describe('SQLite planner, field statements', () => {
       ),
     ).toEqual(['Rename table Profile to User', 'Rename column email on User to emailAddress']);
   });
+
+  it('refuses a rename on a table the destination renames, naming the renameTable call to write by hand', () => {
+    const from = profileContract('from');
+    const to = profileContract('to', { table: 'User', columns: EMAIL_RENAMED });
+    const statement = renameField('Profile', 'email', 'emailAddress', 'User');
+    const result = plan(from, to, [statement]);
+    expect(result.kind === 'failure' && result.conflicts).toEqual([
+      expect.objectContaining({
+        kind: 'statementRefused',
+        refusedStatement: statement,
+        why: expect.stringContaining(
+          'with ...this.renameTable({ table: "Profile", to: "User" }) in its own migration.ts',
+        ),
+      }),
+    ]);
+  });
 });

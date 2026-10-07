@@ -50,16 +50,22 @@ export function unmatchedTableRename(rename: TableRename, reason: string): Struc
   );
 }
 
+/** Why a table rename does not match the schema it renames in and the end contract. */
+export type TableRenameMismatch =
+  | { readonly kind: 'tableMissing' }
+  | { readonly kind: 'tableInManyNamespaces'; readonly namespaceIds: readonly string[] }
+  | { readonly kind: 'nameTaken'; readonly namespaceId: string; readonly taken: string }
+  | { readonly kind: 'notInEndContract'; readonly namespaceId: string };
+
 /**
- * Resolves a table a migration renames: the table must exist in `previous` (in exactly one
- * namespace when the namespace is not given), and the new name must exist in the end contract and
- * not in `previous`; otherwise the rename is refused with `MIGRATION.TABLE_RENAME_UNMATCHED`.
+ * Checks a table rename: the table must exist in `previous` (in exactly one namespace when the
+ * namespace is not given), and the new name must exist in the end contract and not in `previous`.
  */
-export function resolveTableRenameAgainst(
+export function checkTableRename(
   previous: SchemaTables,
   endContract: Contract<SqlStorage>,
   rename: TableRename,
-): Result<ResolvedTableRename, StructuredError> {
+): Result<ResolvedTableRename, TableRenameMismatch> {
   const namespaceIds =
     rename.namespaceId === undefined
       ? previous.namespacesWithTable(rename.from)
@@ -67,40 +73,47 @@ export function resolveTableRenameAgainst(
         ? [rename.namespaceId]
         : [];
   const [namespaceId, ...others] = namespaceIds;
-  if (namespaceId === undefined) {
-    return notOk(
-      unmatchedTableRename(
-        rename,
-        `table "${tableLabel(rename.namespaceId, rename.from)}" does not exist at this point of the migration`,
-      ),
-    );
-  }
-  if (others.length > 0) {
-    return notOk(
-      unmatchedTableRename(
-        rename,
-        `table "${rename.from}" is declared in more than one namespace (${namespaceIds.join(', ')}); name its namespace`,
-      ),
-    );
-  }
+  if (namespaceId === undefined) return notOk({ kind: 'tableMissing' });
+  if (others.length > 0) return notOk({ kind: 'tableInManyNamespaces', namespaceIds });
   const [taken] = previous
     .tablesNamed(namespaceId, rename.to)
     .filter((table) => table !== rename.from);
-  if (taken !== undefined) {
-    return notOk(
-      unmatchedTableRename(
-        rename,
-        `table "${tableLabel(namespaceId, rename.to)}" already exists at this point of the migration${taken === rename.to ? '' : ` as "${taken}"`}`,
-      ),
-    );
-  }
+  if (taken !== undefined) return notOk({ kind: 'nameTaken', namespaceId, taken });
   if (!declares(endContract, namespaceId, rename.to)) {
-    return notOk(
-      unmatchedTableRename(
-        rename,
-        `table "${tableLabel(namespaceId, rename.to)}" does not exist in the end contract`,
-      ),
-    );
+    return notOk({ kind: 'notInEndContract', namespaceId });
   }
   return ok({ namespaceId, from: rename.from, to: rename.to });
+}
+
+/** The reason `MIGRATION.TABLE_RENAME_UNMATCHED` gives for a mismatch. */
+export function tableRenameMismatchReason(
+  rename: TableRename,
+  mismatch: TableRenameMismatch,
+): string {
+  switch (mismatch.kind) {
+    case 'tableMissing':
+      return `table "${tableLabel(rename.namespaceId, rename.from)}" does not exist at this point of the migration`;
+    case 'tableInManyNamespaces':
+      return `table "${rename.from}" is declared in more than one namespace (${mismatch.namespaceIds.join(', ')}); name its namespace`;
+    case 'nameTaken':
+      return `table "${tableLabel(mismatch.namespaceId, rename.to)}" already exists at this point of the migration${mismatch.taken === rename.to ? '' : ` as "${mismatch.taken}"`}`;
+    case 'notInEndContract':
+      return `table "${tableLabel(mismatch.namespaceId, rename.to)}" does not exist in the end contract`;
+  }
+}
+
+/**
+ * Resolves a table a migration renames with {@link checkTableRename}, refusing a mismatch with
+ * `MIGRATION.TABLE_RENAME_UNMATCHED`.
+ */
+export function resolveTableRenameAgainst(
+  previous: SchemaTables,
+  endContract: Contract<SqlStorage>,
+  rename: TableRename,
+): Result<ResolvedTableRename, StructuredError> {
+  const checked = checkTableRename(previous, endContract, rename);
+  if (!checked.ok) {
+    return notOk(unmatchedTableRename(rename, tableRenameMismatchReason(rename, checked.failure)));
+  }
+  return ok(checked.value);
 }
