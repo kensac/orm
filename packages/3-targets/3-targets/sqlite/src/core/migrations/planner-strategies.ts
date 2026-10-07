@@ -65,12 +65,10 @@ export type CallMigrationStrategy = (
  * all (table/column not-found-or-not-expected, and index issues — those are
  * standalone ops, never folded into a recreate).
  *
- * Column drift is a single `not-equal` issue now (type AND nullability
- * compared together by `SqlColumnIR.isEqualTo`), so this reads both fields
- * off the node pair directly rather than trusting a separate issue kind per
- * attribute: a type change is always destructive; a pure nullability change
- * is destructive when tightening (NOT NULL required) and widening when
- * relaxing.
+ * Column drift is a single `not-equal` issue (type and nullability compared
+ * together by `SqlColumnIR.isEqualTo`): a type change is destructive, because
+ * the copy can change values; a nullability change alone is widening, because
+ * a tightening copy fails on a NULL rather than losing it.
  */
 function classifyNodeIssue(issue: SchemaDiffIssue): 'widening' | 'destructive' | null {
   const node = issue.expected ?? issue.actual;
@@ -88,10 +86,7 @@ function classifyNodeIssue(issue: SchemaDiffIssue): 'widening' | 'destructive' |
       const actual = blindCast<SqlColumnIR, 'a not-equal column issue carries the actual node'>(
         issue.actual,
       );
-      if (columnTypeChanged(expected, actual)) return 'destructive';
-      // Type is unchanged, so `not-equal` here means only nullability
-      // differs: relaxing (NOT NULL → nullable) is safe; tightening is not.
-      return expected.nullable ? 'widening' : 'destructive';
+      return columnTypeChanged(expected, actual) ? 'destructive' : 'widening';
     }
     case RelationalSchemaNodeKind.columnDefault:
     case RelationalSchemaNodeKind.primaryKey:
@@ -194,11 +189,10 @@ export const recreateTableStrategy: CallMigrationStrategy = (issues, ctx) => {
  * recipe slot in strategy order (backfill first, recreate second), which
  * matches the required execution order.
  *
- * Mirrors Postgres's `nullableTighteningCallStrategy` / `'data'`-class
- * gating. When `'data'` is not in the policy (the default `db update` /
- * `db init` path), the strategy short-circuits and the recreate alone
- * runs with its current destructive-class gating — preserving today's
- * behavior where a tightening blows up at runtime if NULLs are present.
+ * Mirrors Postgres's `nullableTighteningCallStrategy`. When `'data'` is not
+ * in the policy (the default `db update` / `db init` path), the strategy
+ * short-circuits and the recreate alone runs, failing at runtime if NULLs
+ * are present.
  */
 export const nullabilityTighteningBackfillStrategy: CallMigrationStrategy = (issues, ctx) => {
   if (!ctx.policy.allowedOperationClasses.includes('data')) {
