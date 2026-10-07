@@ -5,7 +5,6 @@
 import type { Contract } from '@internal/contract/types';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
-  AppliedMigrationStatement,
   ControlAdapterInstance,
   ControlDriverInstance,
   ControlExtensionDescriptor,
@@ -41,6 +40,10 @@ import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok } from '@internal/utils/result';
 import { join } from 'pathe';
 import { CliStructuredError } from '../../utils/cli-errors';
+import {
+  type AppliedStatementReport,
+  reportAppliedStatements,
+} from '../statements/report-applied-statements';
 import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
 import type {
   DbInitFailure,
@@ -259,7 +262,11 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     );
   }
   const appPlan = appResolution.entry.plan;
-  const appliedStatements = appResolution.entry.appliedStatements;
+  const appliedStatements = reportAppliedStatements(
+    appResolution.entry.appliedStatements,
+    fromContract,
+    contract,
+  );
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -497,7 +504,7 @@ function wrapPlanResult(args: {
   readonly preview: OperationPreview | undefined;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
@@ -525,7 +532,7 @@ function wrapApplyResult(args: {
   readonly operationsExecuted: number;
   readonly perSpace: readonly PerSpaceExecutionEntry[];
   readonly summary: string;
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {

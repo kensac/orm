@@ -35,6 +35,7 @@ describe('executeDbInit', () => {
   it('passes fromContract: null to planner.plan (no prior contract under reconciliation)', async () => {
     const planFn = vi.fn().mockReturnValue({
       kind: 'success',
+      appliedStatements: [],
       plan: {
         targetId: 'postgres',
         destination: { storageHash: 'dest' },

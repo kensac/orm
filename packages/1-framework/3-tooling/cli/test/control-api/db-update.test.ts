@@ -415,6 +415,7 @@ describe('executeDbUpdate', () => {
   it('allows additive, widening, and destructive operation classes', async () => {
     const planFn = vi.fn().mockReturnValue({
       kind: 'success',
+      appliedStatements: [],
       plan: {
         targetId: 'postgres',
         destination: { storageHash: 'dest' },
@@ -640,6 +641,7 @@ describe('executeDbUpdate', () => {
       createPlanner: () => ({
         plan: vi.fn().mockReturnValue({
           kind: 'success',
+          appliedStatements: [],
           plan: {
             targetId: 'postgres',
             destination: { storageHash: 'dest' },

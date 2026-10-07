@@ -128,6 +128,7 @@ export type {
   ResolvedMigrationStatement,
   ResolvedModelRenameStatement,
 } from '../control/migration-statements';
+export { describeMigrationStatement } from '../control/migration-statements';
 export { orderIssuesByDependencies } from '../control/order-issues-by-dependencies';
 export type {
   DiffableNode,

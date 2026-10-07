@@ -267,7 +267,7 @@ export class SqliteMigrationPlanner
       policy: options.policy,
       target: {
         tables: () => sqliteSchemaTables(working.current),
-        renameCall: (rename) =>
+        renameTableCall: (rename) =>
           sqliteTableRenameCall({
             previous: working.current,
             contract: options.contract,
@@ -282,11 +282,6 @@ export class SqliteMigrationPlanner
             frameworkComponents: options.frameworkComponents,
           }),
         apply: (call) => working.apply(call),
-        operationCount: (call) => 1 + call.companions.length,
-        operationClasses: (call) => [
-          call.operationClass,
-          ...call.companions.map((companion) => companion.operationClass),
-        ],
       },
     });
     if (!planned.ok) return planned;

@@ -6,7 +6,6 @@ import { readFile } from 'node:fs/promises';
 import type { PrismaNextConfig } from '@internal/config/config-types';
 import type { Contract, ContractWithDomain } from '@internal/contract/types';
 import {
-  type AppliedMigrationStatement,
   createControlStack,
   hasOperationPreview,
   type MigrationPlanOperation,
@@ -47,6 +46,10 @@ import { toExtensionInputs } from '../../utils/extension-pack-inputs';
 import { assertFrameworkComponentsCompatible } from '../../utils/framework-components';
 import { createProjectSpecifierResolver } from '../../utils/project-import-root';
 import { snapshotVerifierFor } from '../../utils/snapshot-content-verification';
+import {
+  type AppliedStatementReport,
+  reportAppliedStatements,
+} from '../statements/report-applied-statements';
 import { resolveStatements } from '../statements/resolve-statements';
 import type { ControlClient, DestructivePlanOperation } from '../types';
 import { errorFromCaught } from './caught-errors';
@@ -112,7 +115,7 @@ type PlannerSuccess = {
   readonly plannedOps: readonly MigrationPlanOperation[];
   readonly migrationTsContent: string;
   readonly hasPlaceholders: boolean;
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
 };
 
 /** The origin of a plan from an empty database: no models, so no statement resolves. */
@@ -206,7 +209,11 @@ async function runPlannerLeg(
     plannedOps,
     migrationTsContent: plannerResult.plan.renderTypeScript(resolveImportSpecifier),
     hasPlaceholders,
-    appliedStatements: plannerResult.appliedStatements,
+    appliedStatements: reportAppliedStatements(
+      plannerResult.appliedStatements,
+      fromContract,
+      contract,
+    ),
   });
 }
 
@@ -346,7 +353,7 @@ export interface MigrationPlanResult {
    * family's description and its number of operations. Empty when no
    * `--rename` was given.
    */
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly timings: {
     readonly total: number;
   };

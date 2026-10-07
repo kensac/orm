@@ -142,6 +142,7 @@ export type {
   RenderContractDtsResult,
   RenderContractDtsSuccess,
 } from '../control-api/render-contract-dts';
+export type { AppliedStatementReport } from '../control-api/statements/report-applied-statements';
 export {
   type ResolveStatementsInput,
   resolveStatements,

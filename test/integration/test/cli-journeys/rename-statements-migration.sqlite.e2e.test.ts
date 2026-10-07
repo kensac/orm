@@ -67,13 +67,14 @@ model Post {
 const RENAMES = ['--rename', 'Profile:User', '--rename', 'User.name:User.fullName'] as const;
 
 interface PlannedOperation {
+  readonly id: string;
   readonly label: string;
   readonly operationClass: string;
 }
 
-interface AppliedMigrationStatement {
+interface AppliedStatementReport {
   readonly description: string;
-  readonly operationCount: number;
+  readonly operationIds: readonly string[];
 }
 
 function setupSqliteJourney(createTempDir: () => string): JourneyContext & { dbPath: string } {
@@ -134,16 +135,22 @@ function expectOnlyRenames(operations: readonly PlannedOperation[], label: strin
 }
 
 function expectAppliedStatements(
-  applied: readonly AppliedMigrationStatement[],
+  applied: readonly AppliedStatementReport[],
+  operations: readonly PlannedOperation[],
   label: string,
 ): void {
   expect(
-    applied.map((entry) => [entry.description, entry.operationCount]),
-    `${label}: both statements applied, in order, with their operations`,
-  ).toEqual([
-    ['rename model "Profile" to "User"', 1],
-    ['rename field "User.name" to "User.fullName"', 3],
-  ]);
+    applied.map((entry) => entry.description),
+    `${label}: both statements applied, in order`,
+  ).toEqual(['rename model "Profile" to "User"', 'rename field "User.name" to "User.fullName"']);
+  expect(
+    applied.map((entry) => entry.operationIds.length),
+    `${label}: the model rename and the field rename with their companions`,
+  ).toEqual([1, 3]);
+  expect(
+    applied.flatMap((entry) => entry.operationIds),
+    `${label}: the statements account for the plan's operations, in order`,
+  ).toEqual(operations.map((operation) => operation.id));
 }
 
 async function expectRenamedState(
@@ -227,11 +234,11 @@ withTempDir(({ createTempDir }) => {
         const planned = parseJsonOutput<{
           ok: boolean;
           operations: readonly PlannedOperation[];
-          appliedStatements: readonly AppliedMigrationStatement[];
+          appliedStatements: readonly AppliedStatementReport[];
         }>(plan);
         expect(planned.ok, 'S1.05: plan succeeds').toBe(true);
         expectOnlyRenames(planned.operations, 'S1.05');
-        expectAppliedStatements(planned.appliedStatements, 'S1.05');
+        expectAppliedStatements(planned.appliedStatements, planned.operations, 'S1.05');
 
         const renameDir = latestMigrationDirName(ctx);
         const written = packageFiles(ctx, renameDir);
@@ -279,11 +286,11 @@ withTempDir(({ createTempDir }) => {
         const updated = parseJsonOutput<{
           ok: boolean;
           plan: { operations: readonly PlannedOperation[]; destination: { storageHash: string } };
-          appliedStatements: readonly AppliedMigrationStatement[];
+          appliedStatements: readonly AppliedStatementReport[];
         }>(update);
         expect(updated.ok, 'S2.04: db update succeeds without consent').toBe(true);
         expectOnlyRenames(updated.plan.operations, 'S2.04');
-        expectAppliedStatements(updated.appliedStatements, 'S2.04');
+        expectAppliedStatements(updated.appliedStatements, updated.plan.operations, 'S2.04');
         await expectRenamedState(ctx, 'S2.05');
 
         const dryRun = await runDbUpdate(ctx, ['--dry-run', '--json']);

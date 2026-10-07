@@ -1,4 +1,4 @@
-import type { NamespaceId } from '@internal/contract/types';
+import type { ContractWithDomain, NamespaceId } from '@internal/contract/types';
 
 /** A model: its namespace and its name as the contract source writes it, never a table name. */
 export interface ModelCoordinate {
@@ -39,12 +39,33 @@ export type ResolvedMigrationStatement =
   | ResolvedFieldRenameStatement;
 
 /**
- * A statement as a plan applied it: `description` is the family's text for it, written from the
- * statement's domain coordinates, and `operationCount` the number of operations it produced (zero
- * when the storage did not change).
+ * A statement as a plan applied it: `operationIds` are the ids of the plan's operations the
+ * statement accounts for, in plan order, and empty when the storage did not change.
  */
 export interface AppliedMigrationStatement {
   readonly statement: ResolvedMigrationStatement;
-  readonly description: string;
-  readonly operationCount: number;
+  readonly operationIds: readonly string[];
+}
+
+function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
+  return Object.keys(contract.domain.namespaces).length > 1
+    ? `${coordinate.namespaceId}.${coordinate.model}`
+    : coordinate.model;
+}
+
+/**
+ * The text that reports a statement, in domain names: a model or field is named with its
+ * namespace only when its contract has more than one. A field is named through its model as the
+ * destination contract names it, as the statement itself is written.
+ */
+export function describeMigrationStatement(
+  statement: ResolvedMigrationStatement,
+  fromContract: ContractWithDomain,
+  contract: ContractWithDomain,
+): string {
+  if (statement.entity === 'model') {
+    return `rename model "${modelName(fromContract, statement.from)}" to "${modelName(contract, statement.to)}"`;
+  }
+  const model = modelName(contract, statement.to);
+  return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
 }

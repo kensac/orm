@@ -78,10 +78,11 @@ export type {
   ModelTable,
   NoTable,
   PlannedStatements,
+  StatementCall,
+  StatementOperationCall,
   StatementPlanningTarget,
 } from '../core/migrations/statement-planning';
 export {
-  describeStatement,
   fieldRenameStorageEffect,
   modelRenameStorageEffect,
   planStatements,

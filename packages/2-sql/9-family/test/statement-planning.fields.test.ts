@@ -83,8 +83,10 @@ describe('planStatements, field renames', () => {
       appliedStatements: [
         {
           statement,
-          description: 'rename field "User.name" to "User.fullName"',
-          operationCount: 2,
+          operationIds: [
+            'column app.User.name -> fullName',
+            'column app.User.name -> fullName companion',
+          ],
         },
       ],
     });
@@ -122,7 +124,7 @@ describe('planStatements, field renames', () => {
           target: fakeTarget(['app.User']),
         }),
       ),
-    ).toMatchObject({ calls: [], columnRenames: [], appliedStatements: [{ operationCount: 0 }] });
+    ).toMatchObject({ calls: [], columnRenames: [], appliedStatements: [{ operationIds: [] }] });
   });
 
   it('rejects a rename whose column the schema being planned from does not have', () => {

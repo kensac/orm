@@ -65,6 +65,10 @@ export function renameColumnStatement(
   return `ALTER TABLE ${qualifyTableName(schemaName, tableName)} RENAME COLUMN ${quoteIdentifier(fromName)} TO ${quoteIdentifier(toName)}`;
 }
 
+export function renameColumnOperationId(tableName: string, fromName: string): string {
+  return `renameColumn.${tableName}.${fromName}`;
+}
+
 export async function renameColumn(
   schemaName: string,
   tableName: string,
@@ -83,7 +87,7 @@ export async function renameColumn(
     column: toName,
   });
   return {
-    id: `renameColumn.${tableName}.${fromName}`,
+    id: renameColumnOperationId(tableName, fromName),
     label: `Rename column "${tableName}"."${fromName}" to "${toName}"`,
     operationClass: 'widening',
     target: targetDetails('column', toName, schemaName, tableName),

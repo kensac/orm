@@ -1,13 +1,14 @@
 import type { Contract, ContractWithDomain, ModelStorageBase } from '@internal/contract/types';
-import type {
-  AppliedMigrationStatement,
-  FieldCoordinate,
-  MigrationOperationClass,
-  MigrationOperationPolicy,
-  ModelCoordinate,
-  ResolvedFieldRenameStatement,
-  ResolvedMigrationStatement,
-  ResolvedModelRenameStatement,
+import {
+  type AppliedMigrationStatement,
+  describeMigrationStatement,
+  type FieldCoordinate,
+  type MigrationOperationClass,
+  type MigrationOperationPolicy,
+  type ModelCoordinate,
+  type ResolvedFieldRenameStatement,
+  type ResolvedMigrationStatement,
+  type ResolvedModelRenameStatement,
 } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { type SqlModelStorage, type SqlStorage, StorageTable } from '@internal/sql-contract/types';
@@ -131,45 +132,35 @@ export function fieldRenameStorageEffect(
   return ok({ kind: 'renameColumn', table, from, to });
 }
 
-function modelName(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
-  return Object.keys(contract.domain.namespaces).length > 1
-    ? `${coordinate.namespaceId}.${coordinate.model}`
-    : coordinate.model;
+/** A call a statement plans, or one of its companions: the one operation it lowers to. */
+export interface StatementOperationCall {
+  readonly operationClass: MigrationOperationClass;
+  /** The id of the operation the call lowers to. */
+  readonly operationId: string;
 }
 
-/**
- * The text that reports a statement, in domain names: a model or field is named with its
- * namespace only when its contract has more than one. A field is named through its model as the
- * destination contract names it, as the statement itself is written.
- */
-export function describeStatement(
-  statement: ResolvedMigrationStatement,
-  fromContract: ContractWithDomain,
-  contract: ContractWithDomain,
-): string {
-  if (statement.entity === 'model') {
-    return `rename model "${modelName(fromContract, statement.from)}" to "${modelName(contract, statement.to)}"`;
-  }
-  const model = modelName(contract, statement.to);
-  return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
+/** A call a statement plans: its own operation, then each companion's, in that order. */
+export interface StatementCall extends StatementOperationCall {
+  readonly companions: readonly StatementOperationCall[];
 }
 
 /** What a target supplies for planning statements against its working schema. */
-export interface StatementPlanningTarget<TCall> {
+export interface StatementPlanningTarget<TCall extends StatementCall> {
   /** The tables of the working schema as earlier statements have left it. */
   tables(): SchemaTables;
   /** The call that renames a table, with its companions, computed against the working schema. */
-  renameCall(rename: ResolvedTableRename): TCall;
+  renameTableCall(rename: ResolvedTableRename): TCall;
   /** The call that renames a column, with its companions, computed against the working schema. */
   renameColumnCall(rename: ResolvedColumnRename): TCall;
   /** Applies a call to the working schema. */
   apply(call: TCall): void;
-  operationCount(call: TCall): number;
-  /** The class of each operation the call produces: the call's own and its companions'. */
-  operationClasses(call: TCall): readonly MigrationOperationClass[];
 }
 
-export interface PlannedStatements<TCall> {
+function operationsOf(call: StatementCall): readonly StatementOperationCall[] {
+  return [call, ...call.companions];
+}
+
+export interface PlannedStatements<TCall extends StatementCall> {
   readonly calls: readonly TCall[];
   readonly renames: readonly ResolvedTableRename[];
   readonly columnRenames: readonly ResolvedColumnRename[];
@@ -233,7 +224,7 @@ function tableKey(table: ModelTable): string {
   return JSON.stringify([table.namespaceId, table.table]);
 }
 
-class StatementPlanner<TCall> {
+class StatementPlanner<TCall extends StatementCall> {
   readonly #fromContract: Contract<SqlStorage>;
   readonly #contract: Contract<SqlStorage>;
   readonly #policy: MigrationOperationPolicy;
@@ -256,8 +247,8 @@ class StatementPlanner<TCall> {
     this.#target = input.target;
   }
 
-  /** Plans one statement; the result is its number of operations. */
-  plan(statement: ResolvedMigrationStatement): Result<number, SqlPlannerConflict> {
+  /** Plans one statement; the result is the ids of the operations it accounts for. */
+  plan(statement: ResolvedMigrationStatement): Result<readonly string[], SqlPlannerConflict> {
     return statement.entity === 'model' ? this.#planModel(statement) : this.#planField(statement);
   }
 
@@ -281,9 +272,9 @@ class StatementPlanner<TCall> {
     label: string,
     location: ConflictLocation,
     call: TCall,
-  ): Result<number, SqlPlannerConflict> {
-    const refused = this.#target
-      .operationClasses(call)
+  ): Result<readonly string[], SqlPlannerConflict> {
+    const refused = operationsOf(call)
+      .map((operation) => operation.operationClass)
       .find((operationClass) => !this.#policy.allowedOperationClasses.includes(operationClass));
     if (refused !== undefined) {
       return notOk(
@@ -298,10 +289,12 @@ class StatementPlanner<TCall> {
     }
     this.#target.apply(call);
     this.calls.push(call);
-    return ok(this.#target.operationCount(call));
+    return ok(operationsOf(call).map((operation) => operation.operationId));
   }
 
-  #planModel(statement: ResolvedModelRenameStatement): Result<number, SqlPlannerConflict> {
+  #planModel(
+    statement: ResolvedModelRenameStatement,
+  ): Result<readonly string[], SqlPlannerConflict> {
     const worked = modelRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok) {
       return notOk(
@@ -314,7 +307,7 @@ class StatementPlanner<TCall> {
       );
     }
     const effect = worked.value;
-    if (effect.kind === 'unchanged') return ok(0);
+    if (effect.kind === 'unchanged') return ok([]);
     if (effect.kind === 'moveNamespace') {
       return notOk(
         statementRefused(
@@ -354,7 +347,12 @@ class StatementPlanner<TCall> {
         ),
       );
     }
-    const planned = this.#emit(statement, label, destinationTable, this.#target.renameCall(rename));
+    const planned = this.#emit(
+      statement,
+      label,
+      destinationTable,
+      this.#target.renameTableCall(rename),
+    );
     if (planned.ok) {
       this.renames.push(rename);
       this.#renamedTables.set(
@@ -365,7 +363,9 @@ class StatementPlanner<TCall> {
     return planned;
   }
 
-  #planField(statement: ResolvedFieldRenameStatement): Result<number, SqlPlannerConflict> {
+  #planField(
+    statement: ResolvedFieldRenameStatement,
+  ): Result<readonly string[], SqlPlannerConflict> {
     const worked = fieldRenameStorageEffect(statement, this.#fromContract, this.#contract);
     if (!worked.ok && worked.failure.kind === 'noTable') {
       return notOk(
@@ -381,14 +381,14 @@ class StatementPlanner<TCall> {
       return notOk(
         statementRefused(
           statement,
-          `Field "${qualified(statement.from)}.${statement.from.field}" has a column on one side only of ${describeStatement(statement, this.#fromContract, this.#contract)}`,
+          `Field "${qualified(statement.from)}.${statement.from.field}" has a column on one side only of ${describeMigrationStatement(statement, this.#fromContract, this.#contract)}`,
           'A field rename renames a column or changes nothing in storage, and this field gains or loses its column. Leave out this statement and plan the change without it.',
           undefined,
         ),
       );
     }
     const effect = worked.value;
-    if (effect.kind === 'unchanged') return ok(0);
+    if (effect.kind === 'unchanged') return ok([]);
     const table = this.#renamedTables.get(tableKey(effect.table)) ?? effect.table.table;
     const destinationTable = modelTable(this.#contract, statement.to);
     if (
@@ -456,14 +456,14 @@ class StatementPlanner<TCall> {
  * statements left, then applied to it. The first statement that cannot be planned fails the whole
  * plan with a `statementRefused` conflict that carries the statement.
  */
-export function planStatements<TCall>(input: {
+export function planStatements<TCall extends StatementCall>(input: {
   readonly statements: readonly ResolvedMigrationStatement[];
   readonly fromContract: Contract<SqlStorage> | null;
   readonly contract: Contract<SqlStorage>;
   readonly policy: MigrationOperationPolicy;
   readonly target: StatementPlanningTarget<TCall>;
 }): Result<PlannedStatements<TCall>, SqlPlannerConflict> {
-  const { fromContract, contract } = input;
+  const { fromContract } = input;
   const [first] = input.statements;
   if (first === undefined) {
     return ok({ calls: [], renames: [], columnRenames: [], appliedStatements: [] });
@@ -481,13 +481,9 @@ export function planStatements<TCall>(input: {
   const planner = new StatementPlanner({ ...input, fromContract });
   const appliedStatements: AppliedMigrationStatement[] = [];
   for (const statement of input.statements) {
-    const operationCount = planner.plan(statement);
-    if (!operationCount.ok) return operationCount;
-    appliedStatements.push({
-      statement,
-      description: describeStatement(statement, fromContract, contract),
-      operationCount: operationCount.value,
-    });
+    const operationIds = planner.plan(statement);
+    if (!operationIds.ok) return operationIds;
+    appliedStatements.push({ statement, operationIds: operationIds.value });
   }
   return ok({
     calls: planner.calls,

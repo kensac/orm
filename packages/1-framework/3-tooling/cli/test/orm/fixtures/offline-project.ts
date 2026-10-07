@@ -188,10 +188,9 @@ function fakePlanner(script: FakePlannerScript): Record<string, unknown> {
       return script.conflicts === undefined
         ? {
             kind: 'success',
-            appliedStatements: options.statements.map((statement, index) => ({
+            appliedStatements: options.statements.map((statement) => ({
               statement,
-              description: `statement ${index + 1}`,
-              operationCount: script.operations?.length ?? 1,
+              operationIds: (script.operations ?? [ADDITIVE_OP]).map((op) => op.id),
             })),
             plan: {
               operations:

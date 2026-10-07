@@ -16,7 +16,11 @@ import { createTestSqlNamespace } from '../../1-core/contract/test/test-support'
 import type { ResolvedColumnRename } from '../src/core/migrations/resolve-column-rename';
 import type { ResolvedTableRename } from '../src/core/migrations/resolve-table-rename';
 import type { SchemaTables } from '../src/core/migrations/schema-tables';
-import type { planStatements } from '../src/core/migrations/statement-planning';
+import type {
+  planStatements,
+  StatementCall,
+  StatementPlanningTarget,
+} from '../src/core/migrations/statement-planning';
 
 export interface ModelSpec {
   /** `null` for a model the contract stores in no table. */
@@ -164,16 +168,22 @@ export function renameFieldIn(
   };
 }
 
+/** A fake target's call: its text names the rename, and it carries one companion. */
+export interface FakeCall extends StatementCall {
+  readonly text: string;
+}
+
 /**
- * A target whose calls are strings and whose working schema maps each qualified table name to its
- * columns.
+ * A target whose calls carry a text naming the rename and one companion, and whose working schema
+ * maps each qualified table name to its columns. Every operation has the first of
+ * `operationClasses`.
  */
 export function fakeTarget(
   initial: readonly string[],
   columns: Readonly<Record<string, readonly string[]>> = {},
   operationClasses: readonly MigrationOperationClass[] = ['widening'],
   sameName: (left: string, right: string) => boolean = (left, right) => left === right,
-) {
+): StatementPlanningTarget<FakeCall> {
   const tables = new Map(initial.map((table) => [table, new Set(columns[table] ?? [])]));
   const schemaTables: SchemaTables = {
     hasTable: (namespaceId, table) => tables.has(`${namespaceId}.${table}`),
@@ -190,14 +200,21 @@ export function fakeTarget(
       ),
     namespacesWithTable: () => [],
   };
+  const operationClass = operationClasses[0] ?? 'widening';
+  const call = (text: string): FakeCall => ({
+    text,
+    operationClass,
+    operationId: text,
+    companions: [{ operationClass, operationId: `${text} companion` }],
+  });
   return {
     tables: () => schemaTables,
-    renameCall: (rename: ResolvedTableRename) =>
-      `table ${rename.namespaceId}.${rename.from} -> ${rename.to}`,
+    renameTableCall: (rename: ResolvedTableRename) =>
+      call(`table ${rename.namespaceId}.${rename.from} -> ${rename.to}`),
     renameColumnCall: (rename: ResolvedColumnRename) =>
-      `column ${rename.namespaceId}.${rename.table}.${rename.from} -> ${rename.to}`,
-    apply: (call: string) => {
-      const [kind, from, , to] = call.split(' ');
+      call(`column ${rename.namespaceId}.${rename.table}.${rename.from} -> ${rename.to}`),
+    apply: ({ text }) => {
+      const [kind, from, , to] = text.split(' ');
       if (from === undefined || to === undefined) return;
       const parts = from.split('.');
       if (kind === 'table') {
@@ -212,17 +229,16 @@ export function fakeTarget(
       existing?.delete(column ?? '');
       existing?.add(to);
     },
-    operationCount: () => 2,
-    operationClasses: () => operationClasses,
   };
 }
 
-export function planned<T>(result: ReturnType<typeof planStatements<T>>) {
+/** The planned statements, with each call given by its text. */
+export function planned(result: ReturnType<typeof planStatements<FakeCall>>) {
   if (!result.ok) throw new Error(`expected a plan, got: ${result.failure.summary}`);
-  return result.value;
+  return { ...result.value, calls: result.value.calls.map((call) => call.text) };
 }
 
-export function rejection<T>(result: ReturnType<typeof planStatements<T>>) {
+export function rejection(result: ReturnType<typeof planStatements<FakeCall>>) {
   if (result.ok) throw new Error('expected a rejection');
   return result.failure;
 }

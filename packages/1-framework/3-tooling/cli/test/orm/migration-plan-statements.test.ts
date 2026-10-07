@@ -96,7 +96,11 @@ describe('migration plan --rename', () => {
 
     expect(run.presented?.data).toMatchObject({
       appliedStatements: [
-        { statement: profileToUser, description: 'statement 1', operationCount: 1 },
+        {
+          statement: profileToUser,
+          description: 'rename model "Profile" to "User"',
+          operationIds: [expect.any(String)],
+        },
       ],
     });
     const human = run.presented?.presentation.human ?? [];
@@ -108,7 +112,12 @@ describe('migration plan --rename', () => {
     );
     expect(human[statementsIndex]).toEqual({
       kind: 'tree',
-      roots: [{ label: 'Statements applied', children: [{ label: 'statement 1 (1 operation)' }] }],
+      roots: [
+        {
+          label: 'Statements applied',
+          children: [{ label: 'rename model "Profile" to "User" (1 operation)' }],
+        },
+      ],
     });
     expect(statementsIndex).toBeGreaterThan(operationsIndex);
   });
@@ -190,7 +199,7 @@ describe('migration plan --rename', () => {
     expect(run.exitCode).toBe(0);
     expect(run.presented?.data).toMatchObject({
       noOp: true,
-      appliedStatements: [{ statement: profileToUser, operationCount: 0 }],
+      appliedStatements: [{ statement: profileToUser, operationIds: [] }],
     });
     expect(run.presented?.presentation.human.at(1)).toEqual({
       kind: 'summary',

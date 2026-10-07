@@ -1,16 +1,17 @@
 import type { Contract, ContractWithDomain } from '@internal/contract/types';
 import { contractToMongoSchemaIR } from '@internal/family-mongo/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
-import type {
-  MigrationOperationClass,
-  MigrationOperationPolicy,
-  MigrationPlanner,
-  MigrationPlannerConflict,
-  MigrationPlannerResult,
-  MigrationPlanWithAuthoringSurface,
-  MigrationScaffoldContext,
-  ModelCoordinate,
-  ResolvedMigrationStatement,
+import {
+  describeMigrationStatement,
+  type MigrationOperationClass,
+  type MigrationOperationPolicy,
+  type MigrationPlanner,
+  type MigrationPlannerConflict,
+  type MigrationPlannerResult,
+  type MigrationPlanWithAuthoringSurface,
+  type MigrationScaffoldContext,
+  type ModelCoordinate,
+  type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
 import type { MongoContract } from '@internal/mongo-contract';
 import type {
@@ -213,14 +214,6 @@ export type PlanCallsResult =
   | { readonly kind: 'success'; readonly calls: OpFactoryCall[] }
   | { readonly kind: 'failure'; readonly conflicts: MigrationPlannerConflict[] };
 
-function describeStatement(statement: ResolvedMigrationStatement): string {
-  if (statement.entity === 'model') {
-    return `rename model "${statement.from.model}" to "${statement.to.model}"`;
-  }
-  const model = statement.to.model;
-  return `rename field "${model}.${statement.from.field}" to "${model}.${statement.to.field}"`;
-}
-
 /** The collection a model stores its documents in; a model without `@@map` names it verbatim. */
 function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoordinate): string {
   const collection =
@@ -267,7 +260,7 @@ function statementNotApplied(
 ): MigrationPlannerConflict {
   return {
     kind: 'statementRefused',
-    summary: `MongoDB does not apply rename statements in this release, so nothing was planned: ${describeStatement(statement)}`,
+    summary: `MongoDB does not apply rename statements in this release, so nothing was planned: ${describeMigrationStatement(statement, fromContract ?? contract, contract)}`,
     why: keepTheData(statement, fromContract, contract),
     refusedStatement: statement,
   };

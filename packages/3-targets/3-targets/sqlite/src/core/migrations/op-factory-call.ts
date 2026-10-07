@@ -40,7 +40,12 @@ import {
 import * as contractFreeDdl from '../../contract-free/ddl';
 import { sqliteError } from '../errors';
 import { quoteIdentifier } from '../sql-utils';
-import { addColumn, dropColumnExecuteSql, renameColumn } from './operations/columns';
+import {
+  addColumn,
+  dropColumnExecuteSql,
+  renameColumn,
+  renameColumnOperationId,
+} from './operations/columns';
 import type { SqliteColumnSpec, SqliteIndexSpec, SqliteTableSpec } from './operations/shared';
 import { step } from './operations/shared';
 import {
@@ -341,6 +346,11 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
+  /** The id of the operation this call lowers to. */
+  get operationId(): string {
+    return `renameTable.${this.oldTableName}`;
+  }
+
   override toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
     return [this.toOp(lowerer), ...this.companions.map((companion) => companion.toOp(lowerer))];
   }
@@ -367,7 +377,7 @@ export class RenameTableCall extends SqliteOpFactoryCallNode {
     const toPresent = await lowerer.lowerToExecuteRequest(toChecks.tablePresent());
     const fromAbsent = await lowerer.lowerToExecuteRequest(fromChecks.tableAbsent());
     return {
-      id: `renameTable.${this.oldTableName}`,
+      id: this.operationId,
       label: this.label,
       summary: `Renames table ${this.oldTableName} to ${this.tableName}, keeping its rows`,
       operationClass: 'widening',
@@ -446,6 +456,11 @@ export class RenameColumnCall extends SqliteOpFactoryCallNode {
     this.indexReplacements = Object.freeze([...indexReplacements]);
     this.companions = Object.freeze(indexReplacementCalls(indexReplacements));
     this.freeze();
+  }
+
+  /** The id of the operation this call lowers to. */
+  get operationId(): string {
+    return renameColumnOperationId(this.tableName, this.oldColumnName);
   }
 
   override toOps(lowerer?: ExecuteRequestLowerer): readonly Promise<Op>[] {
@@ -685,6 +700,11 @@ export class CreateIndexCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
+  /** The id of the operation this call lowers to. */
+  get operationId(): string {
+    return `index.${this.tableName}.${this.indexName}`;
+  }
+
   async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {
     if (lowerer === undefined) {
       throw sqliteError(
@@ -699,7 +719,7 @@ export class CreateIndexCall extends SqliteOpFactoryCallNode {
     const absent = await lowerer.lowerToExecuteRequest(checks.indexAbsent());
     const present = await lowerer.lowerToExecuteRequest(checks.indexPresent());
     return {
-      id: `index.${this.tableName}.${this.indexName}`,
+      id: this.operationId,
       label: `Create index ${this.indexName} on ${this.tableName}`,
       summary: `Creates index ${this.indexName} on ${this.tableName}`,
       operationClass: 'additive',
@@ -742,6 +762,11 @@ export class DropIndexCall extends SqliteOpFactoryCallNode {
     this.freeze();
   }
 
+  /** The id of the operation this call lowers to. */
+  get operationId(): string {
+    return `dropIndex.${this.tableName}.${this.indexName}`;
+  }
+
   async toOp(lowerer?: ExecuteRequestLowerer): Promise<Op> {
     if (lowerer === undefined) {
       throw sqliteError(
@@ -756,7 +781,7 @@ export class DropIndexCall extends SqliteOpFactoryCallNode {
     const present = await lowerer.lowerToExecuteRequest(checks.indexPresent());
     const absent = await lowerer.lowerToExecuteRequest(checks.indexAbsent());
     return {
-      id: `dropIndex.${this.tableName}.${this.indexName}`,
+      id: this.operationId,
       label: `Drop index ${this.indexName} on ${this.tableName}`,
       summary: `Drops index ${this.indexName} on ${this.tableName} which is not in the contract`,
       operationClass: 'widening',

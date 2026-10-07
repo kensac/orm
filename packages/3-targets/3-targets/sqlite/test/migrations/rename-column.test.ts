@@ -248,15 +248,13 @@ describe('SQLite planner, field statements', () => {
     expect(labels.some((label) => label.startsWith('Drop column'))).toBe(false);
   });
 
-  it('reports the statement with its operation count', () => {
+  it('reports the statement with the ids of the operations it accounts for', async () => {
     const { from, to } = contracts({ emailIndex: true });
     const result = plan(from, to, [renameEmail]);
-    expect(result.kind === 'success' && result.appliedStatements).toEqual([
-      {
-        statement: renameEmail,
-        description: 'rename field "Profile.email" to "Profile.emailAddress"',
-        operationCount: 3,
-      },
+    if (result.kind !== 'success') throw new Error('expected a plan');
+    const ops = await Promise.all(result.plan.operations);
+    expect(result.appliedStatements).toEqual([
+      { statement: renameEmail, operationIds: ops.slice(0, 3).map((op) => op.id) },
     ]);
   });
 

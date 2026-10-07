@@ -1,5 +1,5 @@
-import type { AppliedMigrationStatement } from '@internal/framework-components/control';
 import type { Block } from '@prisma/cli-engine';
+import type { AppliedStatementReport } from '../control-api/statements/report-applied-statements';
 
 function operationCountText(count: number): string {
   if (count === 0) return 'no operations';
@@ -8,11 +8,11 @@ function operationCountText(count: number): string {
 
 /**
  * The `Statements applied` tree: one line per statement in the order given,
- * each the family's description of it and the number of operations it
- * produced. Nothing when no statements were given.
+ * each described in domain names, with the number of operations it
+ * accounts for. Nothing when no statements were given.
  */
 export function appliedStatementBlocks(
-  applied: readonly AppliedMigrationStatement[],
+  applied: readonly AppliedStatementReport[],
 ): readonly Block[] {
   if (applied.length === 0) {
     return [];
@@ -24,7 +24,7 @@ export function appliedStatementBlocks(
         {
           label: 'Statements applied',
           children: applied.map((entry) => ({
-            label: `${entry.description} (${operationCountText(entry.operationCount)})`,
+            label: `${entry.description} (${operationCountText(entry.operationIds.length)})`,
           })),
         },
       ],

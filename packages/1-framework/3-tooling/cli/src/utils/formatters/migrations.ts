@@ -1,8 +1,8 @@
 import type {
-  AppliedMigrationStatement,
   MigrationPlannerConflict,
   OperationPreview,
 } from '@internal/framework-components/control';
+import type { AppliedStatementReport } from '../../control-api/statements/report-applied-statements';
 import type { PerSpaceExecutionEntry } from '../../control-api/types';
 
 /**
@@ -83,7 +83,7 @@ export interface MigrationCommandResult {
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The `--rename` statements the plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly advancedRef?: { readonly name: string; readonly hash: string } | null;
   readonly plannedAdvanceRef?: { readonly name: string; readonly hash: string } | null;
   readonly summary: string;

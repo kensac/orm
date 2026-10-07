@@ -96,6 +96,10 @@ export function renameColumnExecuteSql(
  * must be free whatever its case, except in a rename that only changes case, which SQLite performs
  * in one statement.
  */
+export function renameColumnOperationId(tableName: string, fromName: string): string {
+  return `renameColumn.${tableName}.${fromName}`;
+}
+
 export async function renameColumn(
   tableName: string,
   fromName: string,
@@ -113,7 +117,7 @@ export async function renameColumn(
   const toPresent = await lowerer.lowerToExecuteRequest(toChecks.columnPresent());
   const fromAbsent = await lowerer.lowerToExecuteRequest(fromChecks.columnAbsent());
   return {
-    id: `renameColumn.${tableName}.${fromName}`,
+    id: renameColumnOperationId(tableName, fromName),
     label: `Rename column ${fromName} on ${tableName} to ${toName}`,
     summary: `Renames column ${fromName} on ${tableName} to ${toName}, keeping its values`,
     operationClass: 'widening',

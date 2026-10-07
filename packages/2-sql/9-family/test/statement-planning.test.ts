@@ -1,7 +1,6 @@
 import { ok } from '@internal/utils/result';
 import { describe, expect, it } from 'vitest';
 import {
-  describeStatement,
   modelRenameStorageEffect,
   planStatements,
 } from '../src/core/migrations/statement-planning';
@@ -11,7 +10,6 @@ import {
   fakeTarget,
   planned,
   rejection,
-  renameField,
   renameModel,
 } from './statement-fixtures';
 
@@ -50,47 +48,8 @@ describe('modelRenameStorageEffect', () => {
   });
 });
 
-describe('describeStatement', () => {
-  it('names models without their namespace when the contract has one namespace', () => {
-    const origin = contractOf({ Profile: { table: 'Profile' } });
-    const destination = contractOf({ User: { table: 'User' } });
-    expect(describeStatement(renameModel('Profile', 'User'), origin, destination)).toBe(
-      'rename model "Profile" to "User"',
-    );
-  });
-
-  it('names models with their namespace when the contract has several', () => {
-    const origin = contractOf({
-      Profile: { table: 'Profile' },
-      Bill: { table: 'Bill', namespace: 'billing' },
-    });
-    const destination = contractOf({
-      User: { table: 'User' },
-      Bill: { table: 'Bill', namespace: 'billing' },
-    });
-    expect(describeStatement(renameModel('Profile', 'User'), origin, destination)).toBe(
-      'rename model "app.Profile" to "app.User"',
-    );
-  });
-
-  it('names the old field through the model as the statement does, after a model rename', () => {
-    const origin = contractOf({ Profile: { table: 'Profile' } });
-    const destination = contractOf({ User: { table: 'User' } });
-    expect(
-      describeStatement(renameField('Profile', 'name', 'fullName', 'User'), origin, destination),
-    ).toBe('rename field "User.name" to "User.fullName"');
-  });
-
-  it('names a field with its model', () => {
-    const contract = contractOf({ User: { table: 'User' } });
-    expect(describeStatement(renameField('User', 'name', 'fullName'), contract, contract)).toBe(
-      'rename field "User.name" to "User.fullName"',
-    );
-  });
-});
-
 describe('planStatements', () => {
-  it('applies model renames in order and reports each with its operation count', () => {
+  it('applies model renames in order and reports the operations each accounts for', () => {
     const origin = contractOf({ Profile: { table: 'Profile' }, Post: { table: 'Post' } });
     const destination = contractOf({ User: { table: 'User' }, Article: { table: 'Article' } });
     const result = planStatements({
@@ -110,13 +69,11 @@ describe('planStatements', () => {
       appliedStatements: [
         {
           statement: renameModel('Profile', 'User'),
-          description: 'rename model "Profile" to "User"',
-          operationCount: 2,
+          operationIds: ['table app.Profile -> User', 'table app.Profile -> User companion'],
         },
         {
           statement: renameModel('Post', 'Article'),
-          description: 'rename model "Post" to "Article"',
-          operationCount: 2,
+          operationIds: ['table app.Post -> Article', 'table app.Post -> Article companion'],
         },
       ],
     });
@@ -133,7 +90,7 @@ describe('planStatements', () => {
     expect(planned(result)).toMatchObject({
       calls: [],
       renames: [],
-      appliedStatements: [{ operationCount: 0 }],
+      appliedStatements: [{ operationIds: [] }],
     });
   });
 

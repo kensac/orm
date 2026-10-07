@@ -7,7 +7,6 @@ import type {
 import type { Contract, ContractMarkerRecord, LedgerEntryRecord } from '@internal/contract/types';
 import type { AuthoringPslBlockDescriptorNamespace } from '@internal/framework-components/authoring';
 import type {
-  AppliedMigrationStatement,
   ControlAdapterDescriptor,
   ControlDriverDescriptor,
   ControlExtensionDescriptor,
@@ -25,6 +24,7 @@ import type { Result } from '@internal/utils/result';
 import type { ExecuteDbSignResult } from './operations/db-sign';
 import type { ExecuteDbVerifyResult } from './operations/db-verify';
 import type { RenderContractDtsOptions, RenderContractDtsResult } from './render-contract-dts';
+import type { AppliedStatementReport } from './statements/report-applied-statements';
 
 // ============================================================================
 // Client Options
@@ -410,7 +410,7 @@ export interface DbInitSuccess {
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }
@@ -489,7 +489,7 @@ export interface DbUpdateSuccess {
    */
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
-  readonly appliedStatements: readonly AppliedMigrationStatement[];
+  readonly appliedStatements: readonly AppliedStatementReport[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

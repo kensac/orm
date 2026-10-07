@@ -103,11 +103,13 @@ describe('Postgres planner, model statements', () => {
     expect(labels).toContain('Drop table "Profile"');
   });
 
-  it('reports each statement with its description and operation count', () => {
+  it('reports each statement with the ids of the operations it accounts for', async () => {
     const statement = renameModel('Profile', 'User');
     const result = plan(from, to, [statement]);
-    expect(result.kind === 'success' && result.appliedStatements).toEqual([
-      { statement, description: 'rename model "Profile" to "User"', operationCount: 2 },
+    if (result.kind !== 'success') throw new Error('expected a plan');
+    const ops = await Promise.all(result.plan.operations);
+    expect(result.appliedStatements).toEqual([
+      { statement, operationIds: ops.slice(0, 2).map((op) => op.id) },
     ]);
   });
 
@@ -134,7 +136,7 @@ describe('Postgres planner, model statements', () => {
     const result = plan(fromMapped, mapped, [renameModel('Profile', 'User')]);
     expect(await labelsOf(result)).toEqual([]);
     expect(result.kind === 'success' && result.appliedStatements).toEqual([
-      expect.objectContaining({ operationCount: 0 }),
+      expect.objectContaining({ operationIds: [] }),
     ]);
   });
 
