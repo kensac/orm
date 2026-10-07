@@ -340,6 +340,7 @@ describe('sql-target-family-hook', () => {
     });
 
     const types = generateContractDts(ir, sqlEmission, [], testHashes);
-    expect(types).toContain('Record<string, never>');
+    expect(types).toContain('readonly relations: {};');
+    expect(types).not.toContain('readonly relations: Record<string, never>');
   });
 });
