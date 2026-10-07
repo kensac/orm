@@ -385,7 +385,7 @@ type ContractBase = Omit<
                 };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'stamp';
               readonly namespaceId: 'public';

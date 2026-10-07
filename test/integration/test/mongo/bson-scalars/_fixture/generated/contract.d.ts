@@ -530,7 +530,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'assets' };
             readonly discriminator: { readonly field: 'kind' };
             readonly variants: { readonly Photo: { readonly value: 'photo' } };
@@ -624,7 +624,7 @@ type ContractBase = Omit<
                 readonly many: { readonly elementNullable: false };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'assets' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;
@@ -662,7 +662,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/int64@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'posts' };
           };
           readonly Reading: {
@@ -680,7 +680,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/double@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'readings' };
           };
           readonly Series: {
@@ -740,7 +740,7 @@ type ContractBase = Omit<
                 readonly many: { readonly elementNullable: false };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'series' };
           };
         };

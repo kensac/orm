@@ -345,7 +345,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'test';
               readonly namespaceId: 'public';

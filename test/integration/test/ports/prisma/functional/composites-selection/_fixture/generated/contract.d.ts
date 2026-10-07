@@ -172,7 +172,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'valueObject'; readonly name: 'Profile' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'user' };
           };
         };

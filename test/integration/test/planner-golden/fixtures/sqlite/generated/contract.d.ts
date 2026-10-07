@@ -481,7 +481,7 @@ type ContractBase = Omit<
                 };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'scalar';
               readonly namespaceId: '__unbound__';

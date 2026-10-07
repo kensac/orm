@@ -863,7 +863,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'events' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;
@@ -925,7 +925,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'events' };
             readonly discriminator: { readonly field: 'type' };
             readonly variants: {
@@ -1009,7 +1009,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'locations' };
           };
           readonly Order: {
@@ -1120,7 +1120,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'products' };
           };
           readonly SearchEvent: {
@@ -1130,7 +1130,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'events' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;
@@ -1201,7 +1201,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'events' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;

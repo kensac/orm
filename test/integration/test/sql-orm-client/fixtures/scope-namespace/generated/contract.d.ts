@@ -413,7 +413,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'posts';
               readonly namespaceId: 'public';
@@ -438,7 +438,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'audits';
               readonly namespaceId: 'scope';

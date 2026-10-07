@@ -276,7 +276,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/string@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'posts' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;
@@ -342,7 +342,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/int32@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'posts' };
             readonly base: {
               readonly namespace: '__unbound__' & NamespaceId;

@@ -70,4 +70,11 @@ describe('integration/polymorphism-key-only-variant', () => {
       chores.create({ title: 'Sweep', bogus: 1 });
     expectTypeOf(createChore).toBeFunction();
   });
+
+  it('types a model with no relations with no relation names', () => {
+    type ChoreRelations =
+      Contract['domain']['namespaces']['public']['models']['Chore']['relations'];
+
+    expectTypeOf<keyof ChoreRelations>().toEqualTypeOf<never>();
+  });
 });

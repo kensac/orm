@@ -146,7 +146,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'mongo/int32@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'Counter' };
           };
           readonly Tally: {
@@ -174,7 +174,7 @@ type ContractBase = Omit<
                 readonly many: { readonly elementNullable: false };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: { readonly collection: 'Tally' };
           };
         };

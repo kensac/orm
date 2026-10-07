@@ -361,7 +361,7 @@ type ContractBase = Omit<
                 readonly many: { readonly elementNullable: false };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'item';
               readonly namespaceId: 'public';

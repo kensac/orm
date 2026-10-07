@@ -1420,7 +1420,7 @@ type ContractBase = Omit<
                 };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'alias';
               readonly namespaceId: 'public';
@@ -1592,7 +1592,7 @@ type ContractBase = Omit<
                 readonly many: { readonly elementNullable: false };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'list';
               readonly namespaceId: 'public';
@@ -1706,7 +1706,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/unboundedint@1' };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'other_codec';
               readonly namespaceId: 'public';
@@ -1951,7 +1951,7 @@ type ContractBase = Omit<
                 };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'scalar';
               readonly namespaceId: 'public';

@@ -616,7 +616,7 @@ type ContractBase = Omit<
                 };
               };
             };
-            readonly relations: Record<string, never>;
+            readonly relations: {};
             readonly storage: {
               readonly table: 'post_tag';
               readonly namespaceId: '__unbound__';

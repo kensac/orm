@@ -102,7 +102,7 @@ export function generateModelFieldEntry(fieldName: string, field: ContractField)
 }
 
 /**
- * An object type with the given member entries. A model with no fields is `{}`: `Record<string, never>` would make `keyof` the whole of `string`, so a row type built from it would accept any key.
+ * An object type with the given member entries. A model with no fields or no relations gets `{}`: `Record<string, never>` would make `keyof` the whole of `string`, so a row type built from it would accept any key.
  */
 function objectTypeOf(entries: readonly string[]): string {
   return entries.length > 0 ? `{ ${entries.join('; ')} }` : '{}';
@@ -195,11 +195,7 @@ export function generateModelRelationsType(relations: Record<string, unknown>): 
     }
   }
 
-  if (relationEntries.length === 0) {
-    return 'Record<string, never>';
-  }
-
-  return `{ ${relationEntries.join('; ')} }`;
+  return objectTypeOf(relationEntries);
 }
 
 export function generateModelsType(

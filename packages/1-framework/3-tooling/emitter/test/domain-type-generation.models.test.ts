@@ -122,8 +122,8 @@ describe('generateRootsType', () => {
 });
 
 describe('generateModelRelationsType', () => {
-  it('returns empty object for empty relations', () => {
-    expect(generateModelRelationsType({})).toBe('Record<string, never>');
+  it('returns an object type with no keys for empty relations', () => {
+    expect(generateModelRelationsType({})).toBe('{}');
   });
 
   it('generates relation with to and cardinality', () => {
@@ -166,7 +166,7 @@ describe('generateModelRelationsType', () => {
     const result = generateModelRelationsType({
       bad: 'not an object' as unknown as Record<string, unknown>,
     });
-    expect(result).toBe('Record<string, never>');
+    expect(result).toBe('{}');
   });
 
   it('generates multiple relations', () => {
@@ -198,7 +198,7 @@ describe('generateModelRelationsType', () => {
     const result = generateModelRelationsType({
       empty: { unknown: true },
     });
-    expect(result).toBe('Record<string, never>');
+    expect(result).toBe('{}');
   });
 
   it('throws CONTRACT.RELATION_INVALID when relation has on but missing localFields/targetFields', () => {
