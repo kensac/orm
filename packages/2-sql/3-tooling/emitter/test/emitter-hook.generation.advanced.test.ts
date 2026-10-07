@@ -570,7 +570,7 @@ describe('sql-target-family-hook', () => {
     const types = generateContractDts(ir, sqlEmission, [], testHashes);
     expect(types).toContain('readonly User: {');
     expect(types).toContain('storage: { readonly table: "user"');
-    expect(types).toContain('readonly fields: Record<string, never>');
+    expect(types).toContain('readonly fields: {}');
     expect(types).not.toContain('fieldToColumn');
     expect(types).not.toContain('columnToField');
   });
