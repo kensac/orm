@@ -67,6 +67,7 @@ import {
 import type { PostgresColumnDefault } from '../types';
 import { boundSchema } from './bound-schema';
 import {
+  type AlterColumnTypeClass,
   addNotNullColumnDirect,
   alterColumnType,
   dropColumn,
@@ -634,9 +635,6 @@ export class DropColumnCall extends PostgresOpFactoryCallNode {
     return [];
   }
 }
-
-/** A type change is `widening` when every value of the old type converts to the new type unchanged. */
-export type AlterColumnTypeClass = 'widening' | 'destructive';
 
 export interface AlterColumnTypeOptions {
   readonly qualifiedTargetType: string;

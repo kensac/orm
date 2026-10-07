@@ -30,7 +30,6 @@ import {
   AddPrimaryKeyCall,
   AddUniqueCall,
   AlterColumnTypeCall,
-  type AlterColumnTypeClass,
   type AlterColumnTypeOptions,
   CreateIndexCall,
   CreateNativeEnumTypeCall,
@@ -54,6 +53,7 @@ import {
   SetDefaultCall,
   SetNotNullCall,
 } from './op-factory-call';
+import type { AlterColumnTypeClass } from './operations/columns';
 import type { RenamableConstraintKind } from './operations/constraints';
 import { type DataTransformOptions, dataTransform } from './operations/data-transform';
 import { installExtension } from './operations/dependencies';
