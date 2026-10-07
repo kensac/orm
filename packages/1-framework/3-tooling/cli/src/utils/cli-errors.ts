@@ -621,7 +621,7 @@ const WITHOUT_STATEMENTS_DROPS =
 /** How to store the snapshot of the contract the database is at, so statements can resolve. */
 const STORE_ORIGIN_SNAPSHOT_STEPS = [
   '1. Put the contract source back to the version the database is at, and run `{bin} contract emit`.',
-  '2. Run `{bin} db update --advance-ref <name>`, with the same `--db` as this command if it has one. The database already matches that contract, so this changes nothing in it, and it stores the contract snapshot.',
+  '2. Run `{bin} db update --advance-ref <name> --dry-run`, with the same `--db` as this command if it has one, and check that it plans no operations. Then run it again without `--dry-run`: the database matches that contract, so this changes nothing in it, and it stores the contract snapshot. If the dry run plans operations, the database has drifted from that contract; settle that before you go on.',
   '3. Put the new contract source back, run `{bin} contract emit`, and run this command again with `--advance-ref <name>`.',
 ];
 
@@ -686,7 +686,11 @@ export function errorStatementOriginUnknown(origin: {
       nextActions: [
         chooseAction('Put the contract source back to the version the database is at, and emit it'),
         runCommandAction(
-          'Store its snapshot (with the same --db as this command, if any)',
+          'Check that it plans no operations (with the same --db as this command, if any)',
+          '{bin} db update --advance-ref <name> --dry-run',
+        ),
+        runCommandAction(
+          'Then store its snapshot, which changes nothing in the database',
           '{bin} db update --advance-ref <name>',
         ),
         chooseAction(
