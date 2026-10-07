@@ -19,7 +19,8 @@ import type { SchemaTables } from '../src/core/migrations/schema-tables';
 import type { planStatements } from '../src/core/migrations/statement-planning';
 
 export interface ModelSpec {
-  readonly table: string;
+  /** `null` for a model the contract stores in no table. */
+  readonly table: string | null;
   readonly namespace?: string;
   readonly control?: ControlPolicy;
   /** Field name to column name; `null` for a relation field, which has no column. */
@@ -52,11 +53,14 @@ function model(namespaceId: string, spec: ModelSpec): ContractModelBase {
           },
         ]),
     ),
-    storage: {
-      table: spec.table,
-      namespaceId,
-      fields: Object.fromEntries(columns.map(([field, column]) => [field, { column }])),
-    },
+    storage:
+      spec.table === null
+        ? {}
+        : {
+            table: spec.table,
+            namespaceId,
+            fields: Object.fromEntries(columns.map(([field, column]) => [field, { column }])),
+          },
   };
 }
 
@@ -77,20 +81,22 @@ export function contractOf(models: Record<string, ModelSpec>): Contract<SqlStora
             id,
             entries: {
               table: Object.fromEntries(
-                inNamespace(id).map(([, spec]) => [
-                  spec.table,
-                  new StorageTable({
-                    columns: Object.fromEntries(
-                      Object.values(spec.fields ?? {}).flatMap((column) =>
-                        column === null ? [] : [[column, text]],
+                inNamespace(id)
+                  .flatMap(([, spec]) => (spec.table === null ? [] : [spec]))
+                  .map((spec) => [
+                    spec.table,
+                    new StorageTable({
+                      columns: Object.fromEntries(
+                        Object.values(spec.fields ?? {}).flatMap((column) =>
+                          column === null ? [] : [[column, text]],
+                        ),
                       ),
-                    ),
-                    uniques: [],
-                    indexes: [],
-                    foreignKeys: [],
-                    ...(spec.control === undefined ? {} : { control: spec.control }),
-                  }),
-                ]),
+                      uniques: [],
+                      indexes: [],
+                      foreignKeys: [],
+                      ...(spec.control === undefined ? {} : { control: spec.control }),
+                    }),
+                  ]),
               ),
             },
           }),

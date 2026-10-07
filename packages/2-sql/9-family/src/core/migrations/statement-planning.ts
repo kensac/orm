@@ -161,6 +161,9 @@ interface ConflictLocation extends ModelTable {
   readonly column?: string;
 }
 
+const CHECK_THE_DATABASE =
+  'Check that the database matches the origin contract with prisma db verify --schema-only, or leave out this statement.';
+
 function rejected(
   statement: ResolvedStatement,
   summary: string,
@@ -249,7 +252,7 @@ class StatementPlanner<TCall> {
     return rejected(
       statement,
       `${label}: the table's control policy is "${controlPolicy}"`,
-      'A statement can only rename a table, or a column of a table, whose control policy is "managed".',
+      `Statements rename only tables, and columns of tables, whose control policy is "managed"; table "${destinationTable.table}" is "${controlPolicy}". Make the change in the database yourself and leave out this statement.`,
       destinationTable,
     );
   }
@@ -268,7 +271,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the plan does not allow "${refused}" operations`,
-          `The rename produces a "${refused}" operation, and this command plans only ${this.#policy.allowedOperationClasses.map((c) => `"${c}"`).join(', ')} operations.`,
+          `The rename produces a "${refused}" operation, and this command plans only ${this.#policy.allowedOperationClasses.map((c) => `"${c}"`).join(', ')} operations. Leave out this statement, or make the change with a command that allows "${refused}" operations, such as migration plan.`,
           location,
           refused,
         ),
@@ -287,7 +290,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Model "${qualified(effect.model)}" has no table in its contract`,
-          'A model rename is planned from the tables of the two models, and this model names none.',
+          `A model rename renames the model's table, and model "${qualified(effect.model)}" has none in its contract. Leave out this statement.`,
           undefined,
         ),
       );
@@ -297,7 +300,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Moving a model to another namespace is not supported in this release: "${qualified(statement.from)}" to "${qualified(statement.to)}"`,
-          `The model's table would move from namespace "${effect.from.namespaceId}" to namespace "${effect.to.namespaceId}".`,
+          `The model's table would move from namespace "${effect.from.namespaceId}" to namespace "${effect.to.namespaceId}". Leave out this statement and move the table yourself in a hand-written migration, or keep the model in namespace "${effect.from.namespaceId}".`,
           effect.from,
         ),
       );
@@ -313,7 +316,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from has no table "${rename.from}"`,
-          'The origin contract names the table, but the schema the plan starts from does not have it.',
+          `The origin contract names table "${rename.from}", but the schema the plan starts from does not have it. ${CHECK_THE_DATABASE}`,
           { namespaceId: rename.namespaceId, table: rename.from },
         ),
       );
@@ -326,7 +329,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from already has a table "${rename.to}"${taken === rename.to ? '' : `, as "${taken}"`}`,
-          'A rename cannot replace a table that already exists.',
+          `A rename cannot replace a table that already exists. Rename or drop table "${taken}" first, or leave out this statement.`,
           destinationTable,
         ),
       );
@@ -350,7 +353,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Model "${qualified(effect.model)}" has no table in its contract`,
-          'A field rename is planned from the columns of the two fields, and this model names no table.',
+          `A field rename renames the field's column, and model "${qualified(effect.model)}" has no table in its contract. Leave out this statement.`,
           undefined,
         ),
       );
@@ -360,7 +363,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `Field "${qualified(statement.from)}.${statement.from.field}" has a column on one side only of ${describeStatement(statement, this.#fromContract, this.#contract)}`,
-          'A field rename either renames a column or changes nothing in storage; a field that gains or loses its column cannot be renamed.',
+          'A field rename renames a column or changes nothing in storage, and this field gains or loses its column. Leave out this statement and plan the change without it.',
           undefined,
         ),
       );
@@ -397,7 +400,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from has no column "${rename.from}" on table "${table}"`,
-          'The origin contract names the column, but the schema the plan starts from does not have it.',
+          `The origin contract names column "${rename.from}" on table "${table}", but the schema the plan starts from does not have it. ${CHECK_THE_DATABASE}`,
           { ...tableLocation, column: rename.from },
         ),
       );
@@ -410,7 +413,7 @@ class StatementPlanner<TCall> {
         rejected(
           statement,
           `${label}: the schema being planned from already has a column "${taken}" on table "${table}"`,
-          'A rename cannot replace a column that already exists.',
+          `A rename cannot replace a column that already exists. Rename or drop column "${taken}" of table "${table}" first, or leave out this statement.`,
           { ...tableLocation, column: rename.to },
         ),
       );
@@ -449,7 +452,7 @@ export function planStatements<TCall>(input: {
       rejected(
         first,
         'Statements need an origin contract, and this plan has none',
-        'A statement names entities of the origin contract, so the plan must start from one.',
+        'A statement names models and fields of the origin contract, and this plan has none. Plan from a contract that has the old names, or leave out the statement.',
         undefined,
       ),
     );
