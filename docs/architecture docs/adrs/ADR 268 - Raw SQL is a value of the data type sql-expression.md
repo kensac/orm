@@ -1,6 +1,6 @@
 # ADR 268 — Raw SQL is a value of the data type `sql/expression`
 
-**Status:** Accepted. Built: the data type, the `sql` tag, and the six PSL places. Decided and not yet built: the TypeScript builder's `sql` values (the TypeScript examples below show that surface as planned) and the wire-name rule for line comments.
+**Status:** Accepted. Built: the data type, the `sql` tag, and the six PSL places. Decided and not yet built: the TypeScript builder's `sql` values (the TypeScript examples below show that surface as planned).
 **Date:** 2026-09-30
 **Builds on:** [ADR 129 — Tagged literals write values of data types](ADR%20129%20-%20Template-Tagged%20Literals%20for%20Extensions.md), [ADR 231 — Declarative attribute specifications](ADR%20231%20-%20Declarative%20attribute%20specifications.md), [ADR 254 — Data types and casts](ADR%20254%20-%20Data%20types%20and%20casts.md), [ADR 262 — Block specs bind top-level block values](ADR%20262%20-%20Block%20specs%20bind%20top-level%20block%20values.md)
 
@@ -69,7 +69,7 @@ Raw SQL is a value of one data type, `sql/expression`. The SQL family defines it
 
 ## Every place takes a `sql` literal, and plain strings are refused
 
-The places are `@default`, `@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)`, and a policy's `using` and `withCheck`. The canonical text of a literal is what the contract stores (ADR 129). A quoted string rewritten as a `sql` literal keeps its text, except where canonicalization removes indentation shared by every line, blank lines at the start or end, a whitespace-only line or a carriage return; the stored text then changes once. The hash behind wire names is computed from whitespace-collapsed text, so no wire name changes, except for a text that holds both `--` and a line break, which gets a new name once (see below).
+The places are `@default`, `@@index(where:)`, `@@index(expression:)`, `@@fullTextIndex(where:)`, `@@check(expression:)`, and a policy's `using` and `withCheck`. The canonical text of a literal is what the contract stores (ADR 129). A quoted string rewritten as a `sql` literal keeps its text, except where canonicalization removes indentation shared by every line, blank lines at the start or end, a whitespace-only line or a carriage return; the stored text then changes once. The hash behind wire names ignores everything canonicalization removes, so no wire name changes (see Consequences).
 
 Plain strings are refused everywhere. This is a breaking change; the project keeps no code for backward compatibility, and upgrade instructions with a codemod rewrite existing schemas.
 
@@ -118,9 +118,9 @@ The tag accepts other `sql` values inside `${…}` and refuses anything else the
 
 Why: PSL removes the common indentation of a multi-line literal, and a TypeScript template string keeps it. Without the tag, the same SQL would get the same wire name but different text in `contract.json`, and PSL and TypeScript would stop emitting byte-identical contracts (ADR 129). Interpolation exists because TypeScript contracts reuse a predicate across policies; without it, authors would build SQL some other way and skip the canonicalization.
 
-## Wire names keep line breaks in text that holds `--`
+## Line comments in multi-line literals
 
-`normalizeSqlBody`, which prepares SQL text for the content hash in index, check and policy wire names ([ADR 234](ADR%20234%20-%20Content-addressed%20wire%20names%20for%20Postgres-normalized%20objects.md)), collapses all whitespace, line breaks included, to one space. So `a -- note⏎OR b` and `a -- note OR b` get the same name, although in the second `OR b` is part of the comment, and a fix made by adding a line break would plan as no change. Decided: when the text holds `--`, `normalizeSqlBody` keeps its line breaks. Text without `--` hashes exactly as before. Multi-line `sql` literals make line comments likely, which is why the rule belongs to this decision.
+Multi-line `sql` literals make line comments likely. The content hash behind index, check and policy wire names keeps the line breaks of a text that holds `--` ([ADR 234](ADR%20234%20-%20Content-addressed%20wire%20names%20for%20Postgres-normalized%20objects.md#normalizer-stability)), so `a -- note⏎OR b` and `a -- note OR b`, in which `OR b` is part of the comment, get different names. Without that rule, a fix made by adding a line break would plan as no change. The rule was built with this project's first slice and recorded in ADR 234; every place that renders such text into DDL ends it with a line break, so the comment cannot hide the rest of the statement (see the Migration System subsystem doc, "Opaque SQL in DDL").
 
 ## One set of codes for the cast rule
 
