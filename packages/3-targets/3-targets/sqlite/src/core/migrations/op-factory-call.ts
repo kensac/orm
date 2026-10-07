@@ -61,10 +61,7 @@ type Op = SqlMigrationPlanOperation<SqlitePlanTargetDetails>;
 // list.
 const TARGET_MIGRATION_MODULE = '@internal/sqlite/migration';
 
-export abstract class SqliteOpFactoryCallNode
-  extends TsExpression
-  implements FrameworkOpFactoryCall
-{
+abstract class SqliteOpFactoryCallNode extends TsExpression implements FrameworkOpFactoryCall {
   abstract readonly factoryName: string;
   abstract readonly operationClass: MigrationOperationClass;
   abstract readonly label: string;
@@ -82,6 +79,15 @@ export abstract class SqliteOpFactoryCallNode
   protected freeze(): void {
     Object.freeze(this);
   }
+}
+
+export type { SqliteOpFactoryCallNode };
+
+/** Whether `call` is one of this target's calls, which lower through {@link SqliteOpFactoryCallNode.toOps}. */
+export function isSqliteOpFactoryCall(
+  call: FrameworkOpFactoryCall,
+): call is SqliteOpFactoryCallNode {
+  return call instanceof SqliteOpFactoryCallNode;
 }
 
 // ============================================================================

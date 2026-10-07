@@ -122,10 +122,7 @@ type Op = SqlMigrationPlanOperation<PostgresPlanTargetDetails>;
 // import list.
 const POSTGRES_MIGRATION_FACADE = '@internal/postgres/migration';
 
-export abstract class PostgresOpFactoryCallNode
-  extends TsExpression
-  implements FrameworkOpFactoryCall
-{
+abstract class PostgresOpFactoryCallNode extends TsExpression implements FrameworkOpFactoryCall {
   abstract readonly factoryName: string;
   abstract readonly operationClass: MigrationOperationClass;
   abstract readonly label: string;
@@ -143,6 +140,15 @@ export abstract class PostgresOpFactoryCallNode
   protected freeze(): void {
     Object.freeze(this);
   }
+}
+
+export type { PostgresOpFactoryCallNode };
+
+/** Whether `call` is one of this target's calls, which lower through {@link PostgresOpFactoryCallNode.toOps}. */
+export function isPostgresOpFactoryCall(
+  call: FrameworkOpFactoryCall,
+): call is PostgresOpFactoryCallNode {
+  return call instanceof PostgresOpFactoryCallNode;
 }
 
 // ============================================================================
