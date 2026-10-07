@@ -74,8 +74,8 @@ For SQL targets, plan mode also prints a DDL preview derived from planned operat
 
 The planner supports three operation classes:
 - **Additive**: Create tables, add columns, add indexes/constraints
-- **Widening**: Relax nullability (NOT NULL → nullable)
-- **Destructive**: Drop tables, drop columns, alter column types, tighten nullability
+- **Widening**: Change existing structure without losing data: relax or tighten nullability, widen a column type, rename, drop an index or a constraint
+- **Destructive**: Lose rows or values: drop tables, drop columns, change a column type in a way that can change values
 
 ### Scenario 3: Local contract divergent from remote database (conflicts)
 

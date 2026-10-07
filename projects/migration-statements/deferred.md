@@ -28,12 +28,6 @@ A user keeps `model User` and changes `@@map("users")` to `@@map("app_users")`. 
 
 On SQL a statement names the model's field (`User.fullName`), and the storage bridge maps it to a column. On MongoDB every authoring surface keys a model's `fields` by the stored name (`@map("_id")` gives `fields._id`), so a statement resolved today against a Mongo contract names the stored field (`User._id`). Slice 4 must decide whether Mongo statements name the model's field or the stored field, and make the resolver agree on both families.
 
-## MongoDB still classes index drops as destructive
-
-**Found:** slice 1, whole-slice architect review (2026-10-07). For slice 2 and slice 4.
-
-Project requirement 10 says drops that lose no data are widening on every target. Slice 1 reclassified them on Postgres and SQLite only; the MongoDB planner still classes an index drop as `destructive`. Slice 2's refusal must not refuse a drop no statement can resolve, so either slice 2 reclassifies Mongo's index drops first or slice 4 does it before Mongo statements ship.
-
 ## A SQLite column rename followed by a table rebuild builds the replacement index twice
 
 **Found:** slice 1, whole-slice code review (2026-10-07), finding F04.

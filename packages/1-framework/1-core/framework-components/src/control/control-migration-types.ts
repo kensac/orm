@@ -68,16 +68,17 @@ export interface MigrationMetadata {
 // ============================================================================
 
 /**
- * What an operation can do to the data. `destructive` means the operation loses data; no other
- * class loses a row or a value.
- * - 'additive': adds structure without changing what exists.
- * - 'widening': changes existing structure without losing data: a rename, a relaxed constraint or
- *   a wider type, and a drop of an object that holds no data (an index; a unique, foreign-key or
- *   check constraint; a default; a native enum type; a row-level-security policy) or disabling
- *   row-level security. Dropping a policy or disabling row-level security widens who can read and
- *   write rows.
- * - 'destructive': loses data, such as dropping a table or a column.
- * - 'data': transforms data, such as a backfill or a type conversion.
+ * What an operation does to the data. Only `destructive` can lose a row or a value.
+ * - 'additive': adds structure and leaves existing structure and data as they are.
+ * - 'widening': changes existing structure without losing data. An operation that cannot keep
+ *   every value fails instead, so a tightened constraint is widening: `SET NOT NULL` fails on a
+ *   NULL, and a MongoDB validator applies to later writes only. So are a rename, a relaxed
+ *   constraint, a type change that keeps every value, and a drop of an object that holds no data,
+ *   such as an index, a constraint, a default or a row-level-security policy. Dropping a policy or
+ *   disabling row-level security widens who can read and write rows.
+ * - 'destructive': can lose rows or values: dropping a table, a column or a collection, or a type
+ *   change that can change values.
+ * - 'data': reads and writes rows, such as a backfill or a type conversion.
  */
 export type MigrationOperationClass = 'additive' | 'widening' | 'destructive' | 'data';
 
