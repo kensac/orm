@@ -34,6 +34,23 @@ describe('SQLite Migration E2E - Widening operations (recreate-table)', () => {
     );
   });
 
+  it('tightens nullability (nullable to NOT NULL)', async () => {
+    await applyMigration(
+      {
+        origin: defineContract({
+          models: { User: model('User', { fields: { id: int.id(), name: text.optional() } }) },
+        }),
+        destination: defineContract({
+          models: { User: model('User', { fields: { id: int.id(), name: text } }) },
+        }),
+        policy: WIDENING,
+      },
+      async ({ schema }) => {
+        expect(schema.tables['User']!.columns['name']!.nullable).toBe(false);
+      },
+    );
+  });
+
   it('changes a column default', async () => {
     await applyMigration(
       {
