@@ -83,6 +83,14 @@ The migration-file CLI (`prisma migration`) received `--config` without a path a
 
 `db update` was told the plan is destructive but was given no operations to name, so the consent prompt would have asked you to authorise a list of nothing. The command refuses instead of prompting. This is an inconsistency between the CLI and the control API rather than something your project can be wrong about; run `prisma db update --dry-run` to see the plan, and report the run. Payload: none.
 
+### CLI.CONSENT_REQUIRED
+
+Raised by the CLI engine, not by Prisma ORM's own code; the engine's entry is the reference: [CLI.CONSENT_REQUIRED](https://docs.prisma.io/docs/cli/error-reference#CLI.CONSENT_REQUIRED). `migration plan` raises it when the plan would lose data and the run has nobody to answer: it is not interactive, or `--yes` is set. The command asks one question per model, field or storage name whose data an operation would lose, and the error lists every question still unanswered, with the flags that answer each: `--delete <subject>` lets the plan lose that data, and, for a model or field, `--rename <subject>:<new name>` keeps it under a new name. Data no model of the origin contract stores can only be deleted. Nothing is written. `--confirm` does not answer these questions. Payload: `subject`, `verbs`, `unanswered` (each with its `subject` and `verbs`).
+
+### CLI.CONSENT_UNUSED
+
+Raised by the CLI engine; the engine's entry is the reference: [CLI.CONSENT_UNUSED](https://docs.prisma.io/docs/cli/error-reference#CLI.CONSENT_UNUSED). `migration plan` raises it when a `--delete` value answers no question the plan asks, for example a mistyped name or a model the plan does not drop, before it writes anything.
+
 ### CLI.CONSENT_TOKEN_UNRESOLVED
 
 `db update` could not derive a name for the database it is about to change, so there is nothing for the consent prompt to ask you to type, and an empty token would let a bare Enter (or `--confirm ""`) authorise data loss. The name comes from the `database` a driver connection object carries, or from the connection URL (its first path segment, else its host), falling back to the target id. Name the database in `db.connection` or pass `--db <url>`. Payload: none.
@@ -1372,7 +1380,7 @@ A `migration check` finding, carried as an `error` diagnostic on a completed run
 
 ### MIGRATION.CONSENT_PLAN_MISMATCH
 
-An apply carrying consent was refused because the plan recomputed for it is not the plan that was consented to. `db update` recomputes the plan at apply time and compares its hash against the one the consent was given for; a mismatch means the schema, the contract, or the database moved in between, so applying would carry out operations nobody agreed to. Re-run the command and review the freshly planned operations before consenting again. Payload: `consentedPlanHash`, `planHash`.
+An apply carrying consent was refused because the plan recomputed for it is not the plan that was consented to; only `db update` raises it. `db update` recomputes the plan at apply time and compares its hash against the one the consent was given for; a mismatch means the schema, the contract, or the database moved in between, so applying would carry out operations nobody agreed to. Re-run the command and review the freshly planned operations before consenting again. Payload: `consentedPlanHash`, `planHash`.
 
 ### MIGRATION.CONTRACT_DESERIALIZATION_FAILED
 
@@ -1420,7 +1428,7 @@ Runner-level failure during apply (`db init`, `db update`, `db migrate`): the pl
 
 ### MIGRATION.DESTRUCTIVE_CHANGES
 
-The planned operations include destructive changes (e.g. DROP) and the command was run without explicit consent. `db update` asks for that consent instead of failing: interactively it asks you to type the name of the database it is about to change, and outside an interactive terminal it is granted by `--confirm <database>` (`--yes` accepts declared prompt defaults and never grants consent; `--confirm` is read only when the run is non-interactive or `--yes` is set, so a script run from a terminal needs `--no-interactive --confirm <database>`). The name is the `database` a driver connection object carries, or the connection URL's first path segment, else its host, falling back to the target id. A run with nobody to ask and no `--confirm` settles as `CLI.CONSENT_REQUIRED` at exit 2; a run whose prompt is cancelled settles as `CLI.PROMPT_CANCELLED` at exit 3. `--dry-run` never asks; it settles as this error instead. Use it to preview the operations first. `migration plan` raises the same refusal before writing an auto-baseline package (planned on an empty migrations directory from the `db` ref) whose operations would remove data when applied; there the consent token is the project directory name, so a non-interactive run passes `--no-interactive --confirm <directory>`, and a consented re-run that no longer plans the consented baseline settles as `MIGRATION.CONSENT_PLAN_MISMATCH`. Payload at the `migration plan` site: `destructiveOperations`, `planHash`.
+The planned operations include destructive changes (e.g. DROP) and the command was run without explicit consent. `db update` asks for that consent instead of failing: interactively it asks you to type the name of the database it is about to change, and outside an interactive terminal it is granted by `--confirm <database>` (`--yes` accepts declared prompt defaults and never grants consent; `--confirm` is read only when the run is non-interactive or `--yes` is set, so a script run from a terminal needs `--no-interactive --confirm <database>`). The name is the `database` a driver connection object carries, or the connection URL's first path segment, else its host, falling back to the target id. A run with nobody to ask and no `--confirm` settles as `CLI.CONSENT_REQUIRED` at exit 2; a run whose prompt is cancelled settles as `CLI.PROMPT_CANCELLED` at exit 3. `--dry-run` never asks; it settles as this error instead. Use it to preview the operations first. `migration plan` no longer raises it: a plan that would lose data is answered with `--rename` and `--delete` statements instead (see `CLI.CONSENT_REQUIRED`).
 
 ### MIGRATION.DIR_EXISTS
 
@@ -1651,6 +1659,10 @@ A `--from` reference cannot produce a contract: either a ref name has no pointer
 ### MIGRATION.SQLITE_CONTROL_STACK_MISSING
 
 SQLite twin of `MIGRATION.POSTGRES_CONTROL_STACK_MISSING`: a `SqliteMigration` operation needing the control adapter was invoked on an instance constructed without a control stack (only introspection is valid in that form). Payload: `operation`.
+
+### MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS
+
+A `rename` typed at `migration plan`'s data-loss question was planned with the plan's other renames, and the plan still loses the data of the subject the question was about: the rename resolves, but it does not keep that data, for example because it renames a different model or field. Nothing is written. Answer the question with `--delete <subject>` if the data may be lost, or with a rename whose old name stores that data. Payload: `statement` (the rename's text), `verb` (`rename`), `subject`.
 
 ### MIGRATION.STATEMENT_INVALID
 
