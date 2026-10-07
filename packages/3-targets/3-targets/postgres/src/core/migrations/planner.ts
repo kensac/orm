@@ -406,7 +406,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     // byte-stable. The hook fires only at the application emitter —
     // extension-space planning never reaches this helper.
     const fieldEventCalls = planFieldEventCalls({
-      priorContract: options.fromContract,
+      priorContract: options.origin === null ? null : options.fromContract,
       newContract: options.contract,
       codecHooks,
       tableRenames: statements.value.tableRenames,

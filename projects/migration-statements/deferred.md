@@ -16,11 +16,11 @@ A user keeps `model User` and changes `@@map("users")` to `@@map("app_users")`. 
 
 **Found:** slice 1, dispatch 3 (2026-10-06). Resolves but is refused with `statementRejected`; needs a `set schema` operation with its working-schema step and companion names. Scheduled for slice 3 with the namespace renames (recorded in `plan.md`).
 
-## A codec's `onFieldEvent` hook sees different events under `db update` with and without a snapshot
+## A codec's `onFieldEvent` hook never sees the prior contract under `db update`
 
-**Found:** slice 1, dispatch 5 review (2026-10-06). Changed by slice 2, dispatch 4 (2026-10-08).
+**Found:** slice 1, dispatch 5 review (2026-10-06). Settled by slice 2, dispatch 4 (2026-10-08).
 
-Since slice 2, `db update` reads the origin contract from the snapshot store on every run and passes it to the planner whenever the snapshot exists, with or without statements. So field-event planning sees the prior contract and reports only real changes on every run with a snapshot; on a run without one (no marker, a marker whose hash has no snapshot, or an unreadable snapshot) it has no prior contract and reports every column as added. No codec in the repository implements `onFieldEvent` today, so nothing observable differs. If a codec starts relying on the hook under `db update`, decide what it should see when the snapshot is missing.
+Since slice 2, `db update` reads the origin contract on every run with a snapshot, but the planners give field-event planning the prior contract only when the plan has an origin. `db init` and `db update` plan with `origin: null`, so the hook reports every column as added on every run, with or without a snapshot, as before slice 1, and a plain `db update` plans the same operations whether or not the snapshot exists. No codec in the repository implements `onFieldEvent` today. If a codec needs real `added`, `dropped` and `altered` events under `db update`, the plan's operations would then depend on the snapshot, and that needs a decision.
 
 ## Which field name a MongoDB statement uses
 

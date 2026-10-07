@@ -1,4 +1,5 @@
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
+import type { CodecControlHooks } from '@internal/family-sql/control';
 import {
   APP_SPACE_ID,
   planOriginOf,
@@ -229,6 +230,44 @@ describe('SQLite planner, data loss', () => {
   });
 });
 
+/** A codec hook that adds an operation for every field it is told was added. */
+function withAddedFieldHook(components: typeof sqliteTestComponents): typeof sqliteTestComponents {
+  const hooks: CodecControlHooks = {
+    onFieldEvent: (event, ctx) =>
+      event === 'added'
+        ? [
+            {
+              factoryName: 'codecAdded',
+              operationClass: 'additive',
+              label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
+              renderTypeScript: () => 'codecAdded()',
+              importRequirements: () => [],
+              toOp: () => ({
+                id: `codec.added.${ctx.tableName}.${ctx.fieldName}`,
+                label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
+                operationClass: 'additive',
+                target: { id: 'sqlite' },
+                precheck: [],
+                execute: [],
+                postcheck: [],
+              }),
+            },
+          ]
+        : [],
+  };
+  return [
+    ...components,
+    {
+      kind: 'adapter',
+      id: 'field-event-hook',
+      familyId: 'sql',
+      targetId: 'sqlite',
+      version: '0.0.0',
+      types: { codecTypes: { controlPlaneHooks: { 'sqlite/text@1': hooks } } },
+    } as (typeof components)[number],
+  ];
+}
+
 describe('SQLite planner under db update', () => {
   async function dbUpdatePlan(
     from: Contract<SqlStorage>,
@@ -242,7 +281,7 @@ describe('SQLite planner under db update', () => {
       fromContract,
       origin: null,
       statements: [],
-      frameworkComponents: sqliteTestComponents,
+      frameworkComponents: withAddedFieldHook(sqliteTestComponents),
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -253,7 +292,7 @@ describe('SQLite planner under db update', () => {
     return { origin: result.plan.origin, operations };
   }
 
-  it('plans the same operations with and without the origin contract, and asserts no origin', async () => {
+  it('plans the same operations with and without the origin contract, codec field-event hooks included, and asserts no origin', async () => {
     const from = contract('from', {
       Legacy: { id: 'integer' },
       User: { id: 'integer', email: 'text?', nickname: 'text', age: 'text' },

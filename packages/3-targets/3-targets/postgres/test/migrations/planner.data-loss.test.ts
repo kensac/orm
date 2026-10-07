@@ -1,4 +1,5 @@
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
+import type { CodecControlHooks } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import {
   APP_SPACE_ID,
@@ -269,6 +270,46 @@ describe('Postgres planner, data loss', () => {
   });
 });
 
+/** A codec hook that adds an operation for every field it is told was added. */
+function withAddedFieldHook(
+  components: typeof postgresTypeComponents,
+): typeof postgresTypeComponents {
+  const hooks: CodecControlHooks = {
+    onFieldEvent: (event, ctx) =>
+      event === 'added'
+        ? [
+            {
+              factoryName: 'codecAdded',
+              operationClass: 'additive',
+              label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
+              renderTypeScript: () => 'codecAdded()',
+              importRequirements: () => [],
+              toOp: () => ({
+                id: `codec.added.${ctx.tableName}.${ctx.fieldName}`,
+                label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
+                operationClass: 'additive',
+                target: { id: 'postgres' },
+                precheck: [],
+                execute: [],
+                postcheck: [],
+              }),
+            },
+          ]
+        : [],
+  };
+  return [
+    ...components,
+    {
+      kind: 'adapter',
+      id: 'field-event-hook',
+      familyId: 'sql',
+      targetId: 'postgres',
+      version: '0.0.0',
+      types: { codecTypes: { controlPlaneHooks: { 'pg/text@1': hooks } } },
+    } as (typeof components)[number],
+  ];
+}
+
 describe('Postgres planner under db update', () => {
   const DB_UPDATE = { allowedOperationClasses: ['additive', 'widening', 'destructive'] as const };
 
@@ -284,7 +325,7 @@ describe('Postgres planner under db update', () => {
       fromContract,
       origin: null,
       statements: [],
-      frameworkComponents: postgresTypeComponents,
+      frameworkComponents: withAddedFieldHook(postgresTypeComponents),
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
@@ -295,7 +336,7 @@ describe('Postgres planner under db update', () => {
     return { origin: result.plan.origin, operations };
   }
 
-  it('plans the same operations with and without the origin contract, and asserts no origin', async () => {
+  it('plans the same operations with and without the origin contract, codec field-event hooks included, and asserts no origin', async () => {
     const from = contract('from', {
       Legacy: { columns: { id: 'int4' } },
       User: {

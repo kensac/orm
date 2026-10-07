@@ -216,7 +216,7 @@ export class SqliteMigrationPlanner
     // Hook fires only at the application emitter — extension-space planning
     // (M2 R2) never reaches this helper.
     const fieldEventCalls = planFieldEventCalls({
-      priorContract: options.fromContract,
+      priorContract: options.origin === null ? null : options.fromContract,
       newContract: options.contract,
       codecHooks,
       tableRenames: statements.value.tableRenames,
