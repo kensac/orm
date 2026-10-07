@@ -372,12 +372,20 @@ describe('Config Errors', () => {
       to: { namespaceId: UNBOUND_NAMESPACE_ID, model: 'User' },
     } as unknown as ResolvedMigrationStatement;
     const error = errorMigrationPlanningFailed({
-      conflicts: [{ kind: 'statementRefused', summary: 'Cannot rename', refusedStatement }],
+      conflicts: [
+        {
+          kind: 'statementRefused',
+          summary: 'Cannot rename',
+          location: { namespaceId: UNBOUND_NAMESPACE_ID, entityKind: 'table', entityName: 'users' },
+          refusedStatement,
+        },
+      ],
     });
     expect(error.meta?.['conflicts']).toEqual([
       {
         kind: 'statementRefused',
         summary: 'Cannot rename',
+        location: { entityKind: 'table', entityName: 'users' },
         refusedStatement: {
           kind: 'rename',
           entity: 'model',
