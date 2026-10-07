@@ -24,7 +24,7 @@ GA is the last chance to make breaking changes, so this stream decides the date.
 | 4 | SQL expression literals | Must | Will | 🔄 3 slices merged, 3 in review | Review the three open PRs |
 | 5 | PSL mixins, then remove type aliases and field presets | Must | Serhii | ⏳ No spec | Write the spec |
 | 6 | Remove `@noCheck` and `.noCheck()` | Must | Will | ⏳ Not started, no ticket, unblocked | File the ticket with the replacements from decisions.md |
-| 7 | Migration statements: the planner refuses data loss, the user states renames, deletes, conversions and backfills | Not decided | Will | 🔄 Slice 1 of 4 in progress. Slice 2 is breaking | Decide: GA or after |
+| 7 | Migration statements: the planner refuses data loss, the user states renames, deletes, conversions and backfills | Not decided | Will | 🔄 Slice 1 of 4 in progress. Slice 2 is breaking | Finish slice 1 (TML-3475), then slice 2 (TML-3476) |
 
 ## Stream 2: Upgrade path from Prisma 7
 
@@ -34,7 +34,7 @@ Test: an existing Prisma 7 database can be signed by Prisma 8.
 | --- | --- | --- | --- | --- | --- |
 | 1 | Close every urgent and high upgrade issue | Must | Will | 🔄 5 closed, 6 open | TML-3267 next: `@updatedAt` with `@default(now())`. Close TML-3250 |
 | 2 | Prisma 8 owns migrations in a Prisma 7 project that still reads `schema.prisma` | Must | Will | 🟡 Proven. Follow-ups: 1 PR in review, 5 gaps open | Review the PR, then the two high planner gaps |
-| 3 | Unexposed storage: tables and columns migrations manage but the ORM never sees | Not decided | Will | ⏳ Planned, 2 slices | Decide: GA or after |
+| 3 | Unexposed storage: tables and columns migrations manage but the ORM never sees | Not decided | Will | ⏳ Planned, 2 slices | Start slice 1 (TML-3468) |
 | 4 | Upgrade guide rewrite | Must | Will | ⏳ Not tracked. One known error in the guide | Remove the switch to a printed contract before the handover (prisma/web) |
 | 5 | Codecs for `citext`, `bit`, `varbit`, `xml`, `oid` | Must | Will | ⏳ Backlog | `citext` first; it is the one users hit |
 | 6 | Design: columns Prisma 8 does not manage, including unknown types | Must | Will | ⏳ Proposed, not designed | Hold the design discussion |
