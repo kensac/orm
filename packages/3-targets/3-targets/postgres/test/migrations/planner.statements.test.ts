@@ -233,9 +233,9 @@ describe('Postgres planner, model statements', () => {
     const additiveOnly = { allowedOperationClasses: ['additive'] as const };
     expect(conflictsOf(plan(from, to, [statement], undefined, additiveOnly))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         refusedOperationClass: 'widening',
-        statement,
+        refusedStatement: statement,
       }),
     ]);
   });
@@ -247,9 +247,9 @@ describe('Postgres planner, model statements', () => {
     const statement = renameModel('Profile', 'User');
     expect(conflictsOf(plan(from, external, [statement]))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary: expect.stringContaining('control policy is "external"'),
-        statement,
+        refusedStatement: statement,
         location: { namespaceId: UNBOUND_NAMESPACE_ID, entityKind: 'table', entityName: 'User' },
       }),
     ]);
@@ -262,7 +262,7 @@ describe('Postgres planner, model statements', () => {
     );
     expect(conflictsOf(plan(from, to, [renameModel('Profile', 'User')], otherSchema))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary: expect.stringContaining('has no table "Profile"'),
       }),
     ]);
@@ -282,10 +282,10 @@ describe('Postgres planner, model statements', () => {
     const statement = renameModel('User', 'User', 'auth', 'billing');
     expect(conflictsOf(plan(fromAuth, toBilling, [statement]))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary:
           'Moving a model to another namespace is not supported in this release: "auth.User" to "billing.User"',
-        statement,
+        refusedStatement: statement,
       }),
     ]);
   });

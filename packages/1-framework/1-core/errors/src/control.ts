@@ -37,7 +37,7 @@ export interface CliErrorConflict {
   readonly summary: string;
   readonly why?: string;
   /** The statement the conflict refuses, in domain coordinates. */
-  readonly statement?: ResolvedMigrationStatement;
+  readonly refusedStatement?: ResolvedMigrationStatement;
 }
 
 /**

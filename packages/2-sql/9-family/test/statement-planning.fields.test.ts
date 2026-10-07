@@ -137,8 +137,8 @@ describe('planStatements, field renames', () => {
       }),
     );
     expect(conflict).toMatchObject({
-      kind: 'statementRejected',
-      statement,
+      kind: 'statementRefused',
+      refusedStatement: statement,
       location: { namespaceId: 'app', entityKind: 'table', entityName: 'User', column: 'name' },
     });
     expect(conflict.summary).toContain('has no column "name"');
@@ -207,8 +207,8 @@ describe('planStatements, field renames', () => {
       }),
     );
     expect(conflict).toMatchObject({
-      kind: 'statementRejected',
-      statement,
+      kind: 'statementRefused',
+      refusedStatement: statement,
       summary:
         'Cannot rename column "users"."name": the model\'s table changes from "users" to "app_users", and no statement renames the table',
     });
@@ -252,7 +252,7 @@ describe('planStatements, field renames', () => {
         target: fakeTarget(['app.User']),
       }),
     );
-    expect(conflict.kind).toBe('statementRejected');
+    expect(conflict.kind).toBe('statementRefused');
     expect(conflict.summary).toContain('column on one side only');
   });
 
@@ -267,7 +267,7 @@ describe('planStatements, field renames', () => {
       }),
     );
     expect(conflict).toMatchObject({
-      kind: 'statementRejected',
+      kind: 'statementRefused',
       refusedOperationClass: 'widening',
     });
   });

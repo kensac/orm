@@ -274,8 +274,12 @@ export interface MigrationPlannerConflict {
   readonly why?: string;
   /** Set when the conflict is an operation the policy does not allow: the class of that operation. */
   readonly refusedOperationClass?: MigrationOperationClass;
-  /** Set when the conflict refuses a statement: the statement, in domain coordinates. */
-  readonly statement?: ResolvedMigrationStatement;
+  /**
+   * Set when the conflict refuses a statement: the statement, in domain coordinates. Consumers key
+   * on this field, not on the conflict's kind, which each family names (the SQL and MongoDB
+   * planners use `statementRefused`).
+   */
+  readonly refusedStatement?: ResolvedMigrationStatement;
 }
 
 /**

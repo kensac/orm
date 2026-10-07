@@ -90,11 +90,11 @@ describe('MongoMigrationPlanner with statements', () => {
       kind: 'failure',
       conflicts: [
         {
-          kind: 'statementRejected',
+          kind: 'statementRefused',
           summary:
             'MongoDB does not apply rename statements in this release, so nothing was planned: rename model "Profile" to "User"',
           why: 'MongoDB cannot carry out rename statements in this release. Without the statement, a plan drops collection "profiles" with its documents and creates collection "users". To keep the documents, rename the collection by hand on each database before a plan made without the statement is applied there, for example with db.getCollection("profiles").renameCollection("users") in mongosh. A migration written by migration plan without the statement still drops "profiles" wherever it is applied, so check its operations first.',
-          statement: modelRename,
+          refusedStatement: modelRename,
         },
       ],
     });
@@ -105,10 +105,10 @@ describe('MongoMigrationPlanner with statements', () => {
     if (result.kind !== 'failure') throw new Error('Expected failure');
     expect(result.conflicts).toMatchObject([
       {
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary: expect.stringContaining('rename field "User.name" to "User.fullName"'),
         why: 'MongoDB cannot carry out rename statements in this release. Without the statement, the documents in collection "profiles" keep their values under "name", and nothing moves them to "fullName". To move them, update the documents by hand on each database, for example with db.getCollection("profiles").updateMany({}, { $rename: { "name": "fullName" } }) in mongosh, using the field names as they are stored.',
-        statement: fieldRename,
+        refusedStatement: fieldRename,
       },
     ]);
   });
@@ -118,9 +118,9 @@ describe('MongoMigrationPlanner with statements', () => {
     if (result.kind !== 'failure') throw new Error('Expected failure');
     expect(result.conflicts).toMatchObject([
       {
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         why: 'MongoDB cannot carry out rename statements in this release. Both models store their documents in collection "posts", so a plan made without the statement keeps them.',
-        statement: modelRename,
+        refusedStatement: modelRename,
       },
     ]);
   });

@@ -91,9 +91,9 @@ describe('db update with statements on MongoDB', () => {
         code: 'PLANNING_FAILED',
         conflicts: [
           {
-            kind: 'statementRejected',
+            kind: 'statementRefused',
             summary: expect.stringContaining('MongoDB does not apply rename statements'),
-            statement: {
+            refusedStatement: {
               kind: 'rename',
               entity: 'model',
               from: { namespace: 'app', model: 'Profile' },

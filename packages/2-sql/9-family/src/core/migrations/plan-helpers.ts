@@ -135,7 +135,9 @@ export function plannerSuccess<TTargetDetails>(
                 summary: conflict.summary,
                 ...(conflict.why ? { why: conflict.why } : {}),
                 ...(conflict.location ? { location: Object.freeze({ ...conflict.location }) } : {}),
-                ...(conflict.statement ? { statement: conflict.statement } : {}),
+                ...(conflict.refusedStatement
+                  ? { refusedStatement: conflict.refusedStatement }
+                  : {}),
                 ...(conflict.refusedOperationClass
                   ? { refusedOperationClass: conflict.refusedOperationClass }
                   : {}),
@@ -158,7 +160,7 @@ export function plannerFailure(conflicts: readonly SqlPlannerConflict[]): SqlPla
           summary: conflict.summary,
           ...(conflict.why ? { why: conflict.why } : {}),
           ...(conflict.location ? { location: Object.freeze({ ...conflict.location }) } : {}),
-          ...(conflict.statement ? { statement: conflict.statement } : {}),
+          ...(conflict.refusedStatement ? { refusedStatement: conflict.refusedStatement } : {}),
           ...(conflict.refusedOperationClass
             ? { refusedOperationClass: conflict.refusedOperationClass }
             : {}),

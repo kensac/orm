@@ -370,10 +370,10 @@ describe('Config Errors', () => {
       from: { namespace: 'app', model: 'Profile' },
       to: { namespace: 'app', model: 'User' },
     } as unknown as ResolvedMigrationStatement;
-    const conflicts = [{ kind: 'statementRejected', summary: 'Cannot rename', statement }];
+    const conflicts = [{ kind: 'statementRefused', summary: 'Cannot rename', statement }];
     const error = errorMigrationPlanningFailed({ conflicts });
     expect(error.meta?.['conflicts']).toEqual([
-      { kind: 'statementRejected', summary: 'Cannot rename', statement },
+      { kind: 'statementRefused', summary: 'Cannot rename', statement },
     ]);
   });
 

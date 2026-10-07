@@ -264,7 +264,7 @@ export type SqlPlannerConflictKind =
   | 'unsupportedOperation'
   | 'controlPolicySuppressedCall'
   | 'tableNameCaseChanged'
-  | 'statementRejected';
+  | 'statementRefused';
 
 export interface SqlPlannerConflictLocation {
   readonly namespaceId?: string;
@@ -279,8 +279,6 @@ export interface SqlPlannerConflictLocation {
 export interface SqlPlannerConflict extends MigrationPlannerConflict {
   readonly kind: SqlPlannerConflictKind;
   readonly location?: SqlPlannerConflictLocation;
-  /** The statement the conflict refuses, for a `statementRejected` conflict. */
-  readonly statement?: ResolvedMigrationStatement;
   readonly meta?: AnyRecord;
 }
 

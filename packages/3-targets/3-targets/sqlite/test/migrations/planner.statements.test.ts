@@ -134,9 +134,9 @@ describe('SQLite planner, model statements', () => {
     const additiveOnly = { allowedOperationClasses: ['additive'] as const };
     expect(conflictsOf(plan(from, to, [statement], undefined, additiveOnly))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         refusedOperationClass: 'widening',
-        statement,
+        refusedStatement: statement,
       }),
     ]);
   });
@@ -149,9 +149,9 @@ describe('SQLite planner, model statements', () => {
     const statement = renameModel('Profile', 'User');
     expect(conflictsOf(plan(from, external, [statement]))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary: expect.stringContaining('control policy is "external"'),
-        statement,
+        refusedStatement: statement,
         location: { namespaceId: UNBOUND_NAMESPACE_ID, entityKind: 'table', entityName: 'User' },
       }),
     ]);
@@ -161,7 +161,7 @@ describe('SQLite planner, model statements', () => {
     const otherSchema = sqliteContractToSchema(contractOf('Other', {}, 'other'), sqliteTestTypes);
     expect(conflictsOf(plan(from, to, [renameModel('Profile', 'User')], otherSchema))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary: expect.stringContaining('has no table "Profile"'),
       }),
     ]);
@@ -174,7 +174,7 @@ describe('SQLite planner, model statements', () => {
     );
     expect(conflictsOf(plan(withUser, to, [renameModel('Profile', 'User')]))).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         summary:
           'Cannot rename table "Profile" to "User": the schema being planned from already has a table "User", as "user"',
       }),

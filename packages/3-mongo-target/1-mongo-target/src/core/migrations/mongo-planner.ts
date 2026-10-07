@@ -266,10 +266,10 @@ function statementNotApplied(
   contract: ContractWithDomain,
 ): MigrationPlannerConflict {
   return {
-    kind: 'statementRejected',
+    kind: 'statementRefused',
     summary: `MongoDB does not apply rename statements in this release, so nothing was planned: ${describeStatement(statement)}`,
     why: keepTheData(statement, fromContract, contract),
-    statement,
+    refusedStatement: statement,
   };
 }
 

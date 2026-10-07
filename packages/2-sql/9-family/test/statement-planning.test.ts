@@ -149,8 +149,8 @@ describe('planStatements', () => {
       }),
     );
     expect(conflict).toMatchObject({
-      kind: 'statementRejected',
-      statement,
+      kind: 'statementRefused',
+      refusedStatement: statement,
       location: { namespaceId: 'auth', entityKind: 'table', entityName: 'User' },
     });
     expect(conflict.summary).toContain('not supported in this release');
@@ -171,7 +171,7 @@ describe('planStatements', () => {
         }),
       );
       expect(conflict).toMatchObject({
-        kind: 'statementRejected',
+        kind: 'statementRefused',
         location: { namespaceId: 'app', entityKind: 'table', entityName: 'User' },
       });
       expect(conflict.summary).toContain(`control policy is "${control}"`);
@@ -188,7 +188,7 @@ describe('planStatements', () => {
         target: fakeTarget([]),
       }),
     );
-    expect(conflict.kind).toBe('statementRejected');
+    expect(conflict.kind).toBe('statementRefused');
     expect(conflict.summary).toContain('has no table "Profile"');
   });
 
@@ -245,8 +245,8 @@ describe('planStatements', () => {
       }),
     );
     expect(conflict).toMatchObject({
-      kind: 'statementRejected',
-      statement,
+      kind: 'statementRefused',
+      refusedStatement: statement,
       refusedOperationClass: 'widening',
     });
     expect(conflict.summary).toContain('does not allow "widening" operations');
@@ -262,6 +262,6 @@ describe('planStatements', () => {
         target: fakeTarget(['app.Profile']),
       }),
     );
-    expect(conflict.kind).toBe('statementRejected');
+    expect(conflict.kind).toBe('statementRefused');
   });
 });

@@ -26,7 +26,7 @@ Every dispatch runs on Opus. Validation gate unless stated: `pnpm typecheck`, `p
 
 ### 3 — Model renames from statements on both SQL planners
 
-**Outcome.** The SQL family maps a resolved model statement to its storage effect, applies it to the working copy in order, the planners emit the table rename and companions ahead of the diff, refuse a non-`managed` target with a `statementRejected` conflict, and the plan reports `appliedStatements` with the family's description text.
+**Outcome.** The SQL family maps a resolved model statement to its storage effect, applies it to the working copy in order, the planners emit the table rename and companions ahead of the diff, refuse a non-`managed` target with a `statementRefused` conflict, and the plan reports `appliedStatements` with the family's description text.
 
 **Builds on.** Dispatches 1 and 2.
 

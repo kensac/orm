@@ -195,8 +195,8 @@ describe('Postgres planner, field statements', () => {
     const result = plan(from, to, [renameEmail], otherSchema);
     expect(result.kind === 'failure' && result.conflicts).toEqual([
       expect.objectContaining({
-        kind: 'statementRejected',
-        statement: renameEmail,
+        kind: 'statementRefused',
+        refusedStatement: renameEmail,
         summary: expect.stringContaining('has no column "email"'),
       }),
     ]);
