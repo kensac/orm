@@ -36,7 +36,7 @@ import type { TargetBoundComponentDescriptor } from '@internal/framework-compone
 import type { SchemaDiffIssue } from '@internal/framework-components/control';
 import { issueOutcome } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
-import { type SqlTypeLookups, sqlDataTypeOfCodec } from '@internal/sql-contract/data-type';
+import type { SqlTypeLookups } from '@internal/sql-contract/data-type';
 import type { SqlStorage, StorageTable, StorageTypeInstance } from '@internal/sql-contract/types';
 import * as contractFree from '@internal/sql-relational-core/contract-free';
 import {
@@ -45,8 +45,6 @@ import {
   type SqlSchemaIR,
 } from '@internal/sql-schema-ir/types';
 import { blindCast } from '@internal/utils/casts';
-import { InternalError } from '@internal/utils/internal-error';
-import { pgFloat4, pgFloat8, pgInt2, pgInt4, pgInt8 } from '../data-types';
 import { isPostgresSchema } from '../postgres-schema';
 import {
   renderColumnAlterType,
@@ -68,6 +66,7 @@ import {
 } from './op-factory-call';
 import { buildSchemaLookupMap, hasForeignKey, hasUniqueConstraint } from './planner-schema-lookup';
 import { buildTargetDetails, type PostgresPlanTargetDetails } from './planner-target-details';
+import { columnDataType, isSafeTypeWidening } from './safe-widenings';
 
 /**
  * Look up a storage table by its explicit namespace coordinate. Returns
@@ -236,23 +235,6 @@ export const notNullBackfillCallStrategy: CallMigrationStrategy = (issues, ctx) 
   };
 };
 
-const SAFE_WIDENINGS = new Set([
-  `${pgInt2.id}→${pgInt4.id}`,
-  `${pgInt2.id}→${pgInt8.id}`,
-  `${pgInt4.id}→${pgInt8.id}`,
-  `${pgFloat4.id}→${pgFloat8.id}`,
-]);
-
-/** The id of the data type a column node's codec represents. */
-function columnDataType(column: SqlColumnIR, types: SqlTypeLookups): string {
-  if (column.codecRef === undefined) {
-    throw new InternalError(
-      `Column "${column.name}" carries no codec, so its data type is unknown; a type change is planned only between columns built from contracts.`,
-    );
-  }
-  return sqlDataTypeOfCodec(column.codecRef.codecId, types).id;
-}
-
 /**
  * Handles `not-equal` column issues whose TYPE differs. `fromContract` is
  * only supplied by `migration plan` — for reconciliation (`db update` /
@@ -285,7 +267,7 @@ export const typeChangeCallStrategy: CallMigrationStrategy = (issues, ctx) => {
 
     const fromType = columnDataType(actual, ctx.types);
     const toType = columnDataType(expected, ctx.types);
-    const isSafeWidening = SAFE_WIDENINGS.has(`${fromType}→${toType}`);
+    const isSafeWidening = isSafeTypeWidening(fromType, toType);
     if (!isSafeWidening && !dataAllowed) continue;
 
     const ddlSchemaName = issueSchemaName(issue);
