@@ -72,3 +72,18 @@
 
 - That completion actually offers `sql` at a policy's `using` (C04). The code path suggests it does, but I wrote no test, because my output is limited to this file.
 - The text of pull request #30550's description, which C08 depends on.
+
+## Fixes check
+
+Range `c64973ded3..HEAD` (implementer `97e8eedd42..440d83fbcd`, orchestrator `532a4ac3f4..16f93849b5`), read at `16f93849b5`.
+
+- C01: fixed. ADR 268 says the wire-name hash ignores everything canonicalization removes, so no name changes. The `--` section is now "Line comments in multi-line literals": it credits the rule to slice 1 and ADR 234, with a link to the existing `#normalizer-stability` heading, and points at the Migration System doc's "Opaque SQL in DDL" section, which says what the ADR says. The status line no longer lists the rule as unbuilt. Spec requirement 5 now says no name changes and that the one-time rename for a body with `--` and a line break came with slice 1, in rc.15.
+- C02: fixed. The extension fragment writes `{ symbols, dataTypes }` in both places and points to `BlockAttributeCtx.selfBlock` and ADR 262.
+- C03: fixed. The supersede sentence is gone, and the change id is `block-spec-context-carries-data-types`. design.md's fragment row uses the new id.
+- C04: fixed. `completion-provider.test.ts` completes `using = |` in a `policy_select` block on the real Postgres stack and asserts the whole `sql` item. `wip/2b-round-3-fixes/d03-postgres-planted.log` shows it failing with the defect planted. The editor tooling brief, the spec and design.md now say a policy's `using` completes `sql`, as ADR 268 does.
+- C05: fixed. The refusal reason, its test constant and the error-reference bullet say "blank lines at the start or end". The previous bullet now ends with ";".
+- C06: fixed. The spec sentence and the manual QA expected column quote the current messages. The recorded run outputs keep the old text, and each run names its commit, as suggested.
+- C07: fixed. The ADR index row and ADR 129 both say "exact-named".
+- C08: not changed, and the stated reason mostly holds. The pull request description has a bullet naming the Bash hook change as unrelated and per Will. That bullet says only that the change rode into `0e83ea5e3f`. It does not say that `ff0a677271` widened the change to `pnpm --filter e2e-tests test`. The description also does not tie that commit's codemod and ADR edits to its title, but a squash merge removes the commit titles, so that part does not matter. Suggestion: add "and widened in `ff0a677271`" to that bullet.
+
+No new findings. I checked the new text against the code and the other documents. The only stale wording left is in historical records: design.md section 9 on the #30381 base, design.md's 2b fragment row ("blank first or last lines"), status.md's earlier round entries, plan.md, and recorded manual QA output. None of them describes the current behaviour.

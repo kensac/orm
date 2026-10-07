@@ -127,3 +127,40 @@ Every planted change was restored with `git checkout -- <file>`, and the working
 
 - That `using = |` in a real Postgres project offers `sql` (D03). This follows from reading `blockValueGrammar`, `optional` and `valueItems`; no test exercises it, which is the finding.
 - I ran no integration or end-to-end tests, as the brief requires. The rename-table journey fixtures from `43c42110b7` are exercised only there.
+
+## Fixes check
+
+Checked on `16f93849b5`, commits `c64973ded3..16f93849b5`. My logs are under `wip/2b-round-3/code-review/fixes-*.log`; the implementer's are under `wip/2b-round-3-fixes/`.
+
+- **D01 fixed.** ADR 268's status line, line 72 and the section now titled "Line comments in multi-line literals" say that canonicalization changes no wire name and that slice 1 built the line-comment rule (ADR 234, "Normalizer stability"). ADR 129 now says "including for a text that holds a line comment".
+- **D02 fixed.** The extension fragment says `BlockSpecContext` is `{ symbols, dataTypes }`, says where the block went (`BlockAttributeCtx.selfBlock`), and calls `blockSpecContext({ symbols, dataTypes })`. The "pending `arguments-typed-by-data-type`" sentence is gone. The change id is now `block-spec-context-carries-data-types`, so it no longer reuses the id of the released rc.16 change.
+- **D03 fixed.** `test/block-spec-context.test.ts` uses a fixture block whose `using` is a `dataTypeValue` with a tag. It checks that block value completion and block keyword completion receive the source's data types by identity, and that `using = |` offers the tag only when the source has data types. `completion-provider.test.ts` checks that `using = |` in a `policy_select` block on the real Postgres stack offers `sql`. I gave `blockValueGrammar` `EMPTY_DATA_TYPES` again, and three tests fail (`fixes-ls-planted-block-value-2.log`). The implementer's log shows the keyword snippet path failing the same way (`d03-planted-keyword.log`). The tooling doc now says a policy's `using` completes `sql`. See D10 for how the real-stack test loads Postgres.
+- **D04 fixed.** The test is named "calls the spec factory with the spec context and never invokes rule parsing". It passes a known `DataTypeSupport` and asserts `toBe` on it. The implementer's planted log fails (`d04-planted.log`).
+- **D05 fixed.** Both Postgres tests build the context with `blockSpecContext({ symbols, dataTypes })`, and the probe blocks are gone. The type checker now rejects a stray field (`d05-typecheck-planted.log`).
+- **D06 fixed.** The commented line is now `// @@check(expression: "commented out", name: "c")`. I restored `break`, and the test fails along with the two copy checks (`fixes-codemod-planted-break.log`).
+- **D07 left, and the reason holds.** `status.md`, "Slice 2b review, round 3", says Will asked for the hook and that round 1 (F08) kept it. The pull request description of #30550 names the hook change as unrelated and "per Will". It names only `0e83ea5e3f`, not the `e2e-tests` rule added in `ff0a677271`. That is minor, and I do not raise it as a finding.
+- **D08 fixed.** The Supabase reference says the only escapes in a backtick `sql` literal are `` \` `` and `\\`.
+- **D09 fixed.** The expected column of the manual QA table and the spec quote the current messages (``Expected sql`...`; write sql`<text>` ``, ``Expected sql`...` ``, ``Expected sql`...`; got an identifier``).
+
+### D10. The real-Postgres-stack language-server test imports target source from a framework package by file path
+
+Location: `packages/1-framework/3-tooling/language-server/test/completion-provider.test.ts`, `actualPostgresStack` (around line 354) and the test "offers a sql literal for a policy block's using".
+
+The test loads `../../../3-targets/3-targets/postgres/src/core/authoring.ts` through `importFromPackageRoot`, a dynamic `import()` of a computed file path. The language server's `package.json` gains no dependency. `lint:deps` passes because dependency-cruiser cannot follow a computed path, and `scripts/lint-framework-target-imports.mjs` passes because it looks only for the text `@internal/target-` (`fixes-lint-framework-target-imports.log`). But that script's header states the rule: a framework package "must never name a Domain 3 (target) package, not even inside a string". So this test meets the letter of the checks, not the rule.
+
+It is not a new kind of import. The same file already loads Postgres's `data-types.ts` and the Postgres adapter's `control-mutation-defaults.ts` this way. This test widens the reach to Postgres's whole authoring module, which pulls in the SQL family's control plane at run time. One of my planted runs hit `Cannot find package '@internal/family-sql/control' imported from .../postgres/dist/...` in a neighbouring real-stack test while another session was rebuilding in this worktree (`fixes-ls-planted-block-value.log`); the rerun did not reproduce it. Tests that reach across packages by path depend on other packages' build output in ways their own manifest does not declare.
+
+The fixture test in `block-spec-context.test.ts` already pins the language-server behaviour, so the real-stack check is an end-to-end check of the Postgres descriptor.
+
+Suggestion: move "offers a sql literal for a policy block's using" to `test/integration/test/authoring/`, whose `package.json` declares both `@internal/language-server` and `@internal/target-postgres`, next to `attribute-specs.lsp-consumability.test.ts`. Moving the older path imports in this file is out of scope for this slice.
+
+### Fixes-check runs
+
+| Command (run with `mise exec --`) | Log | Result |
+| --- | --- | --- |
+| `pnpm test test/block-spec-context.test.ts test/completion-provider.test.ts` in the language server | `fixes-ls-green.log` | 71 pass |
+| same, with `blockValueGrammar` given `EMPTY_DATA_TYPES` | `fixes-ls-planted-block-value.log`, `fixes-ls-planted-block-value-2.log` | the three D03 tests fail; the first run also had the transient failure described in D10 |
+| `node --test scripts/codemods/rewrite-sql-strings.test.mjs` with `break` restored | `fixes-codemod-planted-break.log` | the D06 test and the two copy checks fail |
+| `node scripts/lint-framework-target-imports.mjs` | `fixes-lint-framework-target-imports.log` | passes (D10) |
+
+Every planted change was restored with `git checkout -- <file>`. While I worked, other sessions changed two tracked files in this worktree that I did not touch: `test/integration/test/cli-journeys/sql-expression-literals.e2e.test.ts` and `projects/sql-expression-literals/slice-reviews/2b-round-3/system-design-review.md`. I left them as they are.
