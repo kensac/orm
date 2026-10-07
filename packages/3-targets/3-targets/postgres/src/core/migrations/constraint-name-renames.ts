@@ -80,7 +80,7 @@ export function constraintNameRenames(
 }
 
 /**
- * The constraint renames of a plan: {@link constraintNameRenames} for every table the start tree the planner was given and the end contract both have. The start tree comes from the start contract for `migration plan` and from the database for `db update`, so a database Prisma 8 created under derived names is renamed too once the contract states other names.
+ * The constraint renames of a plan: {@link constraintNameRenames} for every table the start tree and the end contract both have, with the start tree as the plan's rename statements left it. The start tree comes from the start contract for `migration plan` and from the database for `db update`, so a database Prisma 8 created under derived names is renamed too once the contract states other names.
  */
 export function plannedConstraintNameRenames(
   options: Pick<

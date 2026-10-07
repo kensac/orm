@@ -382,7 +382,11 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
     }
 
     const renamePartition = partitionPostgresCallsByControlPolicy(
-      [...indexRenames.calls, ...checkRenames.calls, ...plannedConstraintNameRenames(options)],
+      [
+        ...indexRenames.calls,
+        ...checkRenames.calls,
+        ...plannedConstraintNameRenames({ ...options, schema }),
+      ],
       options.contract,
     );
 
