@@ -28,7 +28,7 @@ import type {
 
 type FieldMultiplicity = false | { readonly elementNullable: boolean };
 
-/** A field declared by its codec and nullability, for a scope written without a field builder. `many` declares a list field as a contract field records one: `{ elementNullable: false }`, or `{ elementNullable: true }` when its elements may be null. */
+/** A field declared by its codec and nullability, for a fragment written without a field builder. `many` declares a list field as a contract field records one: `{ elementNullable: false }`, or `{ elementNullable: true }` when its elements may be null. */
 export interface DeclaredField<
   CodecId extends string = string,
   Nullable extends boolean = boolean,
@@ -58,32 +58,32 @@ type BuiltMultiplicity<Builder> = Builder extends { build(): infer Built }
   : false;
 
 /** A field builder from the contract DSL, such as `field.text().optional()`, with the codec and nullability it declares. */
-export type ScopeFieldBuilder<
+export type FragmentFieldBuilder<
   CodecId extends string = string,
   Nullable extends boolean = boolean,
 > = ScalarFieldDeclarationBuilder<CodecDescriptorRef<CodecId>, Nullable>;
 
-/** The fields a scope for any model needs, each declared with a field builder or a {@link DeclaredField}. */
-export type ScopeFieldDeclarations<CodecId extends string = string> = Readonly<
-  Record<string, ScopeFieldBuilder<CodecId> | DeclaredField<CodecId, boolean, FieldMultiplicity>>
+/** The fields a fragment for any model needs, each declared with a field builder or a {@link DeclaredField}. */
+export type FragmentFieldDeclarations<CodecId extends string = string> = Readonly<
+  Record<string, FragmentFieldBuilder<CodecId> | DeclaredField<CodecId, boolean, FieldMultiplicity>>
 >;
 
 type DeclarationField<Declaration> =
-  Declaration extends ScopeFieldBuilder<infer Id, infer Nullable>
+  Declaration extends FragmentFieldBuilder<infer Id, infer Nullable>
     ? DeclaredField<Id, Nullable, BuiltMultiplicity<Declaration>>
     : Declaration extends DeclaredField<infer Id, infer Nullable, FieldMultiplicity>
       ? DeclaredField<Id, Nullable, DeclaredMultiplicity<Declaration>>
       : never;
 
 /** The declared fields with each builder read as its codec and nullability. */
-export type DeclaredFields<Declarations extends ScopeFieldDeclarations> = {
+export type DeclaredFields<Declarations extends FragmentFieldDeclarations> = {
   readonly [K in keyof Declarations]: DeclarationField<Declarations[K]>;
 } extends infer Fields
   ? { readonly [K in keyof Fields]: Fields[K] }
   : never;
 
-/** The model accessor of a scope for any model: only the declared fields, typed by codec. */
-export type ScopeModelAccessor<
+/** The model accessor of a fragment for any model: only the declared fields, typed by codec. */
+export type FragmentModelAccessor<
   TContract extends Contract<SqlStorage>,
   Fields extends Readonly<Record<string, AnyDeclaredField>>,
 > = {
@@ -97,27 +97,27 @@ export type ScopeModelAccessor<
     : never;
 };
 
-export declare const ScopeFactsType: unique symbol;
+export declare const FragmentFactsType: unique symbol;
 
-/** What the body of a scope for any model has established. A flag that is `boolean` is not known; `true` is established. */
-export interface ScopeFacts {
+/** What the body of a fragment for any model has established. A flag that is `boolean` is not known; `true` is established. */
+export interface FragmentFacts {
   readonly hasWhere: boolean;
   readonly hasOrderBy: boolean;
 }
 
 type OrderSelector<Row> = (row: Row) => OrderByItem;
 
-/** The collection the body of a scope for any model receives: the methods that keep the row, on the declared fields, and what has been established so far. */
-export interface ScopeCollection<Row, Facts extends ScopeFacts> {
-  readonly [ScopeFactsType]: Facts;
+/** The collection the body of a fragment for any model receives: the methods that keep the row, on the declared fields, and what has been established so far. */
+export interface FragmentCollection<Row, Facts extends FragmentFacts> {
+  readonly [FragmentFactsType]: Facts;
   where(
     fn: (row: Row) => WhereArg,
-  ): ScopeCollection<Row, { readonly hasWhere: true; readonly hasOrderBy: Facts['hasOrderBy'] }>;
+  ): FragmentCollection<Row, { readonly hasWhere: true; readonly hasOrderBy: Facts['hasOrderBy'] }>;
   orderBy(
     selection: OrderSelector<Row> | ReadonlyArray<OrderSelector<Row>>,
-  ): ScopeCollection<Row, { readonly hasWhere: Facts['hasWhere']; readonly hasOrderBy: true }>;
-  limit(n: number): ScopeCollection<Row, Facts>;
-  offset(n: number): ScopeCollection<Row, Facts>;
+  ): FragmentCollection<Row, { readonly hasWhere: Facts['hasWhere']; readonly hasOrderBy: true }>;
+  limit(n: number): FragmentCollection<Row, Facts>;
+  offset(n: number): FragmentCollection<Row, Facts>;
 }
 
 type ContractFieldMultiplicity<Field> = Field extends { readonly many: infer Many }
@@ -125,7 +125,7 @@ type ContractFieldMultiplicity<Field> = Field extends { readonly many: infer Man
   : false;
 
 /** The declared fields that the model lacks, or has with another codec or nullability, as a list where the declaration has one value or the reverse, or as a list whose elements differ in nullability from the declared ones. For a union of models, the fields any of them lacks. */
-export type MissingScopeFields<
+export type MissingFragmentFields<
   TContract extends Contract<SqlStorage>,
   ModelName extends string,
   NsId extends string,
@@ -150,18 +150,18 @@ export type MissingScopeFields<
     }[keyof Fields & string]
   : never;
 
-/** What a scope for any model requires of its receiver beyond the collection's own members: nothing when the model has the declared fields, otherwise a property whose name says why it is refused. */
-export type ScopeFieldsCheck<
+/** What a fragment for any model requires of its receiver beyond the collection's own members: nothing when the model has the declared fields, otherwise a property whose name says why it is refused. */
+export type FragmentFieldsCheck<
   TContract extends Contract<SqlStorage>,
   ModelName extends string,
   NsId extends string,
   Fields extends Readonly<Record<string, AnyDeclaredField>>,
 > = string extends ModelName
-  ? { readonly 'the scope could not read the model of the collection from its type': ModelName }
-  : [MissingScopeFields<TContract, ModelName, NsId, Fields>] extends [never]
+  ? { readonly 'the fragment could not read the model of the collection from its type': ModelName }
+  : [MissingFragmentFields<TContract, ModelName, NsId, Fields>] extends [never]
     ? unknown
     : {
-        readonly 'the model has no field that matches the declaration in the scope': MissingScopeFields<
+        readonly 'the model has no field that matches the declaration in the fragment': MissingFragmentFields<
           TContract,
           ModelName,
           NsId,
@@ -169,20 +169,20 @@ export type ScopeFieldsCheck<
         >;
       };
 
-/** A collection plus the filter and order a scope's body established. */
-export type WithFacts<C, Facts extends ScopeFacts> = Facts['hasOrderBy'] extends true
+/** A collection plus the filter and order a fragment's body established. */
+export type WithFacts<C, Facts extends FragmentFacts> = Facts['hasOrderBy'] extends true
   ? Ordered<Facts['hasWhere'] extends true ? Filtered<C> : C>
   : Facts['hasWhere'] extends true
     ? Filtered<C>
     : C;
 
 /**
- * A scope made by the client's `scope` method: it accepts a collection of any model that has the declared fields, checked against the collection's own contract, model and namespace, and returns that collection with what the body established. `with` reads the result from the receiver's type and the scope's facts.
+ * A fragment made by the client's `fragment` method: it accepts a collection of any model that has the declared fields, checked against the collection's own contract, model and namespace, and returns that collection with what the body established. `with` reads the result from the receiver's type and the fragment's facts.
  */
-export interface FieldScope<
+export interface FieldFragment<
   TContract extends Contract<SqlStorage>,
   Fields extends Readonly<Record<string, AnyDeclaredField>>,
-  Facts extends ScopeFacts,
+  Facts extends FragmentFacts,
 > {
   <
     C,
@@ -194,16 +194,16 @@ export interface FieldScope<
       HasTypeState<{ readonly nsId: NsId }> & {
         readonly modelName: ModelName;
         readonly ctx: { readonly context: { readonly contract: ReceiverContract } };
-      } & ScopeFieldsCheck<ReceiverContract, ModelName, NsId, Fields>,
+      } & FragmentFieldsCheck<ReceiverContract, ModelName, NsId, Fields>,
   ): WithFacts<C, Facts>;
-  readonly [ScopeFactsType]: Facts;
+  readonly [FragmentFactsType]: Facts;
 }
 
 function nullability(nullable: boolean): string {
   return nullable ? 'may be null' : 'is never null';
 }
 
-function isFieldBuilder(value: object): value is ScopeFieldBuilder {
+function isFieldBuilder(value: object): value is FragmentFieldBuilder {
   return 'build' in value && typeof value.build === 'function';
 }
 
@@ -263,9 +263,9 @@ function declaredFieldSpec(name: string, declaration: unknown): FieldSpec {
     ) {
       throw ormError(
         'ORM.ARGUMENT_INVALID',
-        `Cannot define the scope: the field builder for ${name} names no column type`,
+        `Cannot define the fragment: the field builder for ${name} names no column type`,
         {
-          why: 'A scope for any model matches each declared field by its codec and nullability, and this builder refers to a named type instead of a column type.',
+          why: 'A fragment for any model matches each declared field by its codec and nullability, and this builder refers to a named type instead of a column type.',
           fix: 'Declare the field with a builder that has a column type, such as field.text() or field.column(textColumn), or with { codecId, nullable }.',
           meta: { field: name },
         },
@@ -275,7 +275,7 @@ function declaredFieldSpec(name: string, declaration: unknown): FieldSpec {
     if (!isMultiplicity(many)) {
       throw ormError(
         'ORM.ARGUMENT_INVALID',
-        `Cannot define the scope: the field builder for ${name} builds a many that is not false or { elementNullable }`,
+        `Cannot define the fragment: the field builder for ${name} builds a many that is not false or { elementNullable }`,
         {
           why: `A field builder's build() returns many as false or undefined for one value, or as { elementNullable } with a boolean elementNullable for a list; received ${describeReceived(many)} for ${name}.`,
           fix: FIELD_DECLARATION_FIX,
@@ -294,9 +294,9 @@ function declaredFieldSpec(name: string, declaration: unknown): FieldSpec {
   }
   throw ormError(
     'ORM.ARGUMENT_INVALID',
-    `Cannot define the scope: the declaration of field ${name} is not a field builder or { codecId, nullable }`,
+    `Cannot define the fragment: the declaration of field ${name} is not a field builder or { codecId, nullable }`,
     {
-      why: `Each field of a scope is declared with a field builder or with an object that has a string codecId, a boolean nullable and, for a list, many: { elementNullable } with a boolean elementNullable; received ${describeReceived(declaration)} for ${name}.`,
+      why: `Each field of a fragment is declared with a field builder or with an object that has a string codecId, a boolean nullable and, for a list, many: { elementNullable } with a boolean elementNullable; received ${describeReceived(declaration)} for ${name}.`,
       fix: FIELD_DECLARATION_FIX,
       meta: { field: name },
     },
@@ -307,9 +307,9 @@ function declaredFieldSpecs(declarations: unknown): ReadonlyArray<readonly [stri
   if (typeof declarations !== 'object' || declarations === null || Array.isArray(declarations)) {
     throw ormError(
       'ORM.ARGUMENT_INVALID',
-      'Cannot define the scope: the fields are not an object',
+      'Cannot define the fragment: the fields are not an object',
       {
-        why: `The first argument of scope maps the name of each field the scope needs to its declaration; received ${describeReceived(declarations)}.`,
+        why: `The first argument of fragment maps the name of each field the fragment needs to its declaration; received ${describeReceived(declarations)}.`,
         fix: FIELD_DECLARATION_FIX,
         meta: { argument: 'fields' },
       },
@@ -321,14 +321,18 @@ function declaredFieldSpecs(declarations: unknown): ReadonlyArray<readonly [stri
   ]);
 }
 
-/** Throws `ORM.ARGUMENT_INVALID` unless `body`, the body of a scope, is a function. */
-export function assertScopeBody(body: unknown): void {
+/** Throws `ORM.ARGUMENT_INVALID` unless `body`, the body of a fragment, is a function. */
+export function assertFragmentBody(body: unknown): void {
   if (typeof body !== 'function') {
-    throw ormError('ORM.ARGUMENT_INVALID', 'Cannot define the scope: the body is not a function', {
-      why: `The body of a scope is a function that receives a collection and returns one; received ${describeReceived(body)}.`,
-      fix: 'Pass a function, such as (rows) => rows.where(...).',
-      meta: { argument: 'body' },
-    });
+    throw ormError(
+      'ORM.ARGUMENT_INVALID',
+      'Cannot define the fragment: the body is not a function',
+      {
+        why: `The body of a fragment is a function that receives a collection and returns one; received ${describeReceived(body)}.`,
+        fix: 'Pass a function, such as (rows) => rows.where(...).',
+        meta: { argument: 'body' },
+      },
+    );
   }
 }
 
@@ -358,36 +362,36 @@ function isModelCollection(value: unknown): value is RuntimeModelCollection {
   );
 }
 
-/** Throws `ORM.ARGUMENT_INVALID` unless `value`, what a scope is applied to, is a collection. */
-export function assertScopeReceiver(value: unknown): asserts value is RuntimeModelCollection {
+/** Throws `ORM.ARGUMENT_INVALID` unless `value`, what a fragment is applied to, is a collection. */
+export function assertFragmentReceiver(value: unknown): asserts value is RuntimeModelCollection {
   if (!isModelCollection(value)) {
     throw ormError(
       'ORM.ARGUMENT_INVALID',
-      'Cannot apply the scope: it was not given a collection',
+      'Cannot apply the fragment: it was not given a collection',
       {
-        why: `A scope is applied to a collection, such as db.orm.public.Post; received ${describeReceived(value)}.`,
-        fix: 'Pass the scope to with on a collection: collection.with(scope).',
+        why: `A fragment is applied to a collection, such as db.orm.public.Post; received ${describeReceived(value)}.`,
+        fix: 'Pass the fragment to with on a collection: collection.with(fragment).',
         meta: { argument: 'collection' },
       },
     );
   }
 }
 
-/** Throws `ORM.ARGUMENT_INVALID` unless `value` is a collection of the model and namespace a scope for one model was made from. */
-export function assertModelScopeReceiver(
+/** Throws `ORM.ARGUMENT_INVALID` unless `value` is a collection of the model and namespace a fragment for one model was made from. */
+export function assertModelFragmentReceiver(
   source: { readonly modelName: string; readonly namespaceId: string },
   value: unknown,
 ): void {
-  assertScopeReceiver(value);
+  assertFragmentReceiver(value);
   if (value.modelName !== source.modelName || value.namespaceId !== source.namespaceId) {
     const made = `${source.namespaceId}.${source.modelName}`;
     const given = `${value.namespaceId}.${value.modelName}`;
     throw ormError(
       'ORM.ARGUMENT_INVALID',
-      `Cannot apply a scope for ${made} to a collection of ${given}`,
+      `Cannot apply a fragment for ${made} to a collection of ${given}`,
       {
-        why: `The scope was made with ${made}.scope(...), and its body was written for that model.`,
-        fix: `Apply the scope to a collection of ${made}, or make a scope from ${given}.`,
+        why: `The fragment was made with ${made}.fragment(...), and its body was written for that model.`,
+        fix: `Apply the fragment to a collection of ${made}, or make a fragment from ${given}.`,
         meta: {
           model: source.modelName,
           namespace: source.namespaceId,
@@ -407,8 +411,8 @@ export function modelLabel(collection: RuntimeModelCollection): string {
     : collection.modelName;
 }
 
-/** Throws `ORM.ARGUMENT_INVALID` unless `result`, what a scope's body returned, is a collection of the receiver's model, namespace and class. */
-export function assertScopeResult(receiver: RuntimeModelCollection, result: unknown): void {
+/** Throws `ORM.ARGUMENT_INVALID` unless `result`, what a fragment's body returned, is a collection of the receiver's model, namespace and class. */
+export function assertFragmentResult(receiver: RuntimeModelCollection, result: unknown): void {
   const sameCollection =
     isModelCollection(result) &&
     result.modelName === receiver.modelName &&
@@ -418,9 +422,9 @@ export function assertScopeResult(receiver: RuntimeModelCollection, result: unkn
     const label = modelLabel(receiver);
     throw ormError(
       'ORM.ARGUMENT_INVALID',
-      `Cannot apply the scope to ${label}: its body did not return a collection of ${label}`,
+      `Cannot apply the fragment to ${label}: its body did not return a collection of ${label}`,
       {
-        why: `The body of a scope for any model returns the collection it received, after where, orderBy, limit or offset; it returned ${isModelCollection(result) ? `a collection of ${modelLabel(result)}` : describeReceived(result)}.`,
+        why: `The body of a fragment for any model returns the collection it received, after where, orderBy, limit or offset; it returned ${isModelCollection(result) ? `a collection of ${modelLabel(result)}` : describeReceived(result)}.`,
         fix: 'Return the collection the body receives, or one made from it by calling its methods.',
         meta: {
           model: receiver.modelName,
@@ -464,7 +468,7 @@ function describeField(field: {
     : `${value} and whose elements ${elementNullability(field.many.elementNullable)}`;
 }
 
-function assertScopeFields(
+function assertFragmentFields(
   collection: RuntimeModelCollection,
   fields: ReadonlyArray<readonly [string, FieldSpec]>,
 ): void {
@@ -473,7 +477,7 @@ function assertScopeFields(
   const label = modelLabel(collection);
   const model = modelOf(contract, namespaceId, modelName);
   for (const [name, spec] of fields) {
-    const declared = `The scope was declared for models that have a ${spec.many === false ? 'field' : 'list field'} ${name} ${describeField(spec)}.`;
+    const declared = `The fragment was declared for models that have a ${spec.many === false ? 'field' : 'list field'} ${name} ${describeField(spec)}.`;
     const meta = {
       model: modelName,
       namespace: namespaceId,
@@ -486,10 +490,10 @@ function assertScopeFields(
     if (!Object.hasOwn(modelFields, name)) {
       throw ormError(
         'ORM.FIELD_UNKNOWN',
-        `Cannot apply a scope to ${label}: it has no field ${name}`,
+        `Cannot apply a fragment to ${label}: it has no field ${name}`,
         {
           why: declared,
-          fix: `Apply the scope to a model that has a field ${name}, or remove ${name} from the declaration in the scope.`,
+          fix: `Apply the fragment to a model that has a field ${name}, or remove ${name} from the declaration in the fragment.`,
           meta,
         },
       );
@@ -512,12 +516,12 @@ function assertScopeFields(
     if (!sameCodecAndNullability || !sameMultiplicity(fieldMany, spec.many)) {
       throw ormError(
         'ORM.FIELD_UNKNOWN',
-        `Cannot apply a scope to ${label}: its field ${name} does not match the declaration`,
+        `Cannot apply a fragment to ${label}: its field ${name} does not match the declaration`,
         {
           why: `${declared} ${actual}`,
           fix: sameCodecAndNullability
-            ? `Apply the scope to a model whose ${name} field ${fieldShape(spec.many)}, or declare ${name} ${declarationFor(fieldMany)}.`
-            : `Apply the scope to a model whose ${name} field has that codec and nullability, or change the declaration in the scope.`,
+            ? `Apply the fragment to a model whose ${name} field ${fieldShape(spec.many)}, or declare ${name} ${declarationFor(fieldMany)}.`
+            : `Apply the fragment to a model whose ${name} field has that codec and nullability, or change the declaration in the fragment.`,
           meta,
         },
       );
@@ -526,34 +530,40 @@ function assertScopeFields(
 }
 
 /**
- * Define a scope for any model that has the declared fields. Reached as the `scope` method of the client `orm()` returns.
+ * Define a fragment for any model that has the declared fields. Reached as the `fragment` method of the client `orm()` returns.
  */
-export function defineFieldScope<
+export function defineFieldFragment<
   TContract extends Contract<SqlStorage>,
-  const Declarations extends ScopeFieldDeclarations,
-  Facts extends ScopeFacts,
+  const Declarations extends FragmentFieldDeclarations,
+  Facts extends FragmentFacts,
 >(
   declarations: Declarations,
   body: (
-    rows: ScopeCollection<ScopeModelAccessor<TContract, DeclaredFields<Declarations>>, ScopeFacts>,
-  ) => ScopeCollection<ScopeModelAccessor<TContract, DeclaredFields<Declarations>>, Facts>,
-): FieldScope<TContract, DeclaredFields<Declarations>, Facts> {
+    rows: FragmentCollection<
+      FragmentModelAccessor<TContract, DeclaredFields<Declarations>>,
+      FragmentFacts
+    >,
+  ) => FragmentCollection<FragmentModelAccessor<TContract, DeclaredFields<Declarations>>, Facts>,
+): FieldFragment<TContract, DeclaredFields<Declarations>, Facts> {
   const fields = declaredFieldSpecs(declarations);
-  assertScopeBody(body);
+  assertFragmentBody(body);
   return blindCast<
-    FieldScope<TContract, DeclaredFields<Declarations>, Facts>,
+    FieldFragment<TContract, DeclaredFields<Declarations>, Facts>,
     'the facts are a declared property that exists only in the type'
   >((collection: unknown) => {
     const receiver: unknown = collection;
-    assertScopeReceiver(receiver);
-    assertScopeFields(receiver, fields);
+    assertFragmentReceiver(receiver);
+    assertFragmentFields(receiver, fields);
     const result: unknown = body(
       blindCast<
-        ScopeCollection<ScopeModelAccessor<TContract, DeclaredFields<Declarations>>, ScopeFacts>,
+        FragmentCollection<
+          FragmentModelAccessor<TContract, DeclaredFields<Declarations>>,
+          FragmentFacts
+        >,
         'a collection offers where, orderBy, limit and offset with these run-time shapes'
       >(collection),
     );
-    assertScopeResult(receiver, result);
+    assertFragmentResult(receiver, result);
     return result;
   });
 }

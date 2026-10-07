@@ -5,7 +5,7 @@ import { db } from '../prisma/db';
  * A scope for any model with a `createdAt` timestamp, such as `User`, `Post` and `Task`: rows created since `since`.
  */
 export function createdSince(since: Temporal.Instant) {
-  return db.orm.scope({ createdAt: field.temporal.timestamptz() }, (rows) =>
+  return db.orm.fragment({ createdAt: field.temporal.timestamptz() }, (rows) =>
     rows.where((row) => row.createdAt.gte(since)),
   );
 }
@@ -14,7 +14,7 @@ export function createdSince(since: Temporal.Instant) {
  * A scope for any model with a `userId`, such as `Post` and `Task`: rows that belong to one user.
  */
 export function ownedBy(userId: string) {
-  return db.orm.scope({ userId: field.uuidNative() }, (rows) =>
+  return db.orm.fragment({ userId: field.uuidNative() }, (rows) =>
     rows.where((row) => row.userId.eq(userId)),
   );
 }
@@ -22,6 +22,6 @@ export function ownedBy(userId: string) {
 /**
  * The fields of a post that a list of posts shows, run with `with` on any collection of posts.
  */
-export const postSummary = db.orm.public.Post.scope((posts) =>
+export const postSummary = db.orm.public.Post.fragment((posts) =>
   posts.select('id', 'title', 'createdAt').include('tags'),
 );

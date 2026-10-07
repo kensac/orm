@@ -9,7 +9,7 @@ import type { TestContract } from './helpers';
 
 const { db, plain } = createChainingOrm();
 
-const summary = db.Post.scope((posts) => posts.select('id', 'title').include('author'));
+const summary = db.Post.fragment((posts) => posts.select('id', 'title').include('author'));
 type PostSummary = CollectionRowOf<ReturnType<typeof summary>>;
 
 const inline = plain.Post.select('id', 'title').include('author');
@@ -28,9 +28,9 @@ class SummaryPostCollection extends Collection<TestContract, 'Post'> {
 
 declare const tasks: Collection<PolyContract, 'Task'>;
 declare const vehicles: Collection<Contract<SqlStorage>, 'Vehicle', Record<string, unknown>>;
-const taskTitles = tasks.scope((t) => t.select('id', 'title'));
+const taskTitles = tasks.fragment((t) => t.select('id', 'title'));
 
-describe('collection.scope', () => {
+describe('collection.fragment', () => {
   test('names the row of the body', () => {
     expectTypeOf<PostSummary>().not.toBeAny();
     expectTypeOf<PostSummary>().toEqualTypeOf<CollectionRowOf<typeof inline>>();
@@ -38,10 +38,10 @@ describe('collection.scope', () => {
   });
 
   test('types the body against the plain collection of the model, also on a custom class', () => {
-    plain.Post.scope((p) => expectTypeOf(p).toEqualTypeOf(plain.Post));
-    db.Post.scope((p) => expectTypeOf(p).toEqualTypeOf<Collection<TestContract, 'Post'>>());
+    plain.Post.fragment((p) => expectTypeOf(p).toEqualTypeOf(plain.Post));
+    db.Post.fragment((p) => expectTypeOf(p).toEqualTypeOf<Collection<TestContract, 'Post'>>());
     // @ts-expect-error published is a method of PostCollection, not of the plain Post collection
-    db.Post.scope((p) => p.published());
+    db.Post.fragment((p) => p.published());
   });
 
   test('returns the body result for a collection of the model', () => {
@@ -81,9 +81,9 @@ describe('collection.scope', () => {
   });
 
   test('the result has the default state when the body changes the row', () => {
-    // @ts-expect-error update needs a where; the scope does not record the earlier one
+    // @ts-expect-error update needs a where; the fragment does not record the earlier one
     db.Post.where({ title: 'x' }).with(summary).update({ title: 'y' });
-    // @ts-expect-error cursor needs an orderBy; the scope does not record the earlier one
+    // @ts-expect-error cursor needs an orderBy; the fragment does not record the earlier one
     db.Post.orderBy((p) => p.id.asc())
       .with(summary)
       .cursor({ id: 1 });
@@ -113,11 +113,11 @@ describe('collection.scope', () => {
   });
 
   test('types its result against the plain collection, also when the body keeps the row', () => {
-    const published = db.Post.scope((posts) => posts.where((p) => p.views.gte(100)));
+    const published = db.Post.fragment((posts) => posts.where((p) => p.views.gte(100)));
     expectTypeOf(db.Post.with(published)).toEqualTypeOf<
       Filtered<Collection<TestContract, 'Post'>>
     >();
-    // @ts-expect-error the class's own methods are not carried through a scope for one model
+    // @ts-expect-error the class's own methods are not carried through a fragment for one model
     db.Post.with(published).published();
   });
 });

@@ -9,9 +9,9 @@ import contractJson from './namespaced-accessors/fixtures/generated/contract.jso
   type: 'json',
 };
 
-describe('scopes on a contract with the same model name in two namespaces', () => {
+describe('fragments on a contract with the same model name in two namespaces', () => {
   it(
-    'type and run a scope against the namespace of the collection it is applied to',
+    'type and run a fragment against the namespace of the collection it is applied to',
     async () => {
       await withDevDatabase(async ({ connectionString }) => {
         const client = new Client({ connectionString });
@@ -30,7 +30,7 @@ describe('scopes on a contract with the same model name in two namespaces', () =
           await db.connect({ pg: client });
           const { orm } = db;
 
-          const tokens = orm.auth.User.scope((users) =>
+          const tokens = orm.auth.User.fragment((users) =>
             users.where((u) => u.token.like('tok-%')).orderBy((u) => u.id.asc()),
           );
           expectTypeOf<keyof CollectionRowOf<ReturnType<typeof tokens>>>().toEqualTypeOf<
@@ -47,7 +47,7 @@ describe('scopes on a contract with the same model name in two namespaces', () =
           void _wrongNamespace;
 
           const withToken = (token: string) =>
-            orm.scope({ token: field.text() }, (rows) => rows.where((r) => r.token.eq(token)));
+            orm.fragment({ token: field.text() }, (rows) => rows.where((r) => r.token.eq(token)));
           expect(await orm.auth.User.with(withToken('tok-2')).all()).toEqual([
             { id: 2, token: 'tok-2' },
           ]);
@@ -57,7 +57,7 @@ describe('scopes on a contract with the same model name in two namespaces', () =
           };
           void _noTokenInPublic;
           expect(() =>
-            (orm.public.User.with as (scope: unknown) => unknown)(withToken('tok-2')),
+            (orm.public.User.with as (fragment: unknown) => unknown)(withToken('tok-2')),
           ).toThrow(expect.objectContaining({ code: 'ORM.FIELD_UNKNOWN' }));
 
           await client.query(
@@ -68,20 +68,20 @@ describe('scopes on a contract with the same model name in two namespaces', () =
           );
           await client.query(`insert into "public"."notes" values (1, 'public note')`);
           await client.query(`insert into "auth"."notes" values (1, 'auth note')`);
-          const authNotes = orm.auth.Note.scope((notes) => notes.orderBy((n) => n.id.asc()));
+          const authNotes = orm.auth.Note.fragment((notes) => notes.orderBy((n) => n.id.asc()));
           expect(await orm.auth.Note.with(authNotes).all()).toEqual([{ id: 1, body: 'auth note' }]);
           const _sameFieldsOtherNamespace = () => {
-            // @ts-expect-error public.Note has the same fields, but the scope was made from auth.Note
+            // @ts-expect-error public.Note has the same fields, but the fragment was made from auth.Note
             orm.public.Note.with(authNotes);
           };
           void _sameFieldsOtherNamespace;
-          expect(() => (orm.public.Note.with as (scope: unknown) => unknown)(authNotes)).toThrow(
+          expect(() => (orm.public.Note.with as (fragment: unknown) => unknown)(authNotes)).toThrow(
             expect.objectContaining({
               code: 'ORM.ARGUMENT_INVALID',
-              message: 'Cannot apply a scope for auth.Note to a collection of public.Note',
+              message: 'Cannot apply a fragment for auth.Note to a collection of public.Note',
             }),
           );
-          const withBody = orm.scope({ body: field.text() }, (rows) =>
+          const withBody = orm.fragment({ body: field.text() }, (rows) =>
             rows.where((r) => r.body.like('%note')),
           );
           expect(await orm.public.Note.with(withBody).all()).toEqual([

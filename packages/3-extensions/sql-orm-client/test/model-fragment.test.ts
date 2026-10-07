@@ -2,10 +2,10 @@ import { blindCast } from '@internal/utils/casts';
 import { describe, expect, it } from 'vitest';
 import { createChainingOrm } from './collection-chaining-fixture';
 
-const { db: scopes } = createChainingOrm();
-const summary = scopes.Post.scope((posts) => posts.select('id', 'title').include('author'));
+const { db: fragments } = createChainingOrm();
+const summary = fragments.Post.fragment((posts) => posts.select('id', 'title').include('author'));
 
-describe('collection.scope', () => {
+describe('collection.fragment', () => {
   it('runs the body on the collection it is applied to', async () => {
     const { db, runtime } = createChainingOrm();
     await db.Post.select('id', 'title').include('author').all();
@@ -17,7 +17,7 @@ describe('collection.scope', () => {
     expect(applied?.plan.ast).not.toEqual(unchanged?.plan.ast);
   });
 
-  it('keeps a filter applied before the scope', async () => {
+  it('keeps a filter applied before the fragment', async () => {
     const { db, runtime } = createChainingOrm();
     await db.Post.where((p) => p.views.gte(100))
       .select('id', 'title')
@@ -29,7 +29,7 @@ describe('collection.scope', () => {
     expect(applied?.plan.ast).toEqual(inline?.plan.ast);
   });
 
-  it('keeps an order applied before the scope', async () => {
+  it('keeps an order applied before the fragment', async () => {
     const { db, runtime } = createChainingOrm();
     await db.Post.orderBy((p) => p.views.desc())
       .select('id', 'title')
@@ -59,14 +59,14 @@ describe('collection.scope', () => {
     ['an object', {}, 'an object'],
   ])('refuses %s as the body from a JavaScript caller', (_label, body, received) => {
     const { db } = createChainingOrm();
-    const scope = blindCast<(body: unknown) => unknown, 'a JavaScript caller'>(
-      db.Post.scope.bind(db.Post),
+    const fragment = blindCast<(body: unknown) => unknown, 'a JavaScript caller'>(
+      db.Post.fragment.bind(db.Post),
     );
-    expect(() => scope(body)).toThrow(
+    expect(() => fragment(body)).toThrow(
       expect.objectContaining({
         code: 'ORM.ARGUMENT_INVALID',
-        message: 'Cannot define the scope: the body is not a function',
-        why: `The body of a scope is a function that receives a collection and returns one; received ${received}.`,
+        message: 'Cannot define the fragment: the body is not a function',
+        why: `The body of a fragment is a function that receives a collection and returns one; received ${received}.`,
       }),
     );
   });

@@ -18,7 +18,7 @@ import type {
 } from '@internal/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'decea1c09470f585765796e517afce2670032fd65e8eb11867ac354169e76e02'>;
+  StorageHashBase<'d39a9b4215cdadba7e94f29136f37c974d752b965b3df5f11ada78595079f0d5'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -232,81 +232,81 @@ type DefaultLiteralValue<CodecId extends string, Encoded> = CodecId extends keyo
   : Encoded;
 
 export type FieldOutputTypes = {
+  readonly fragment: {
+    readonly Audit: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly message: CodecTypes['pg/text@1']['output'];
+    };
+  };
   readonly public: {
     readonly Post: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly title: CodecTypes['pg/text@1']['output'];
-    };
-  };
-  readonly scope: {
-    readonly Audit: {
-      readonly id: CodecTypes['pg/int4@1']['output'];
-      readonly message: CodecTypes['pg/text@1']['output'];
     };
   };
 };
 export type FieldInputTypes = {
+  readonly fragment: {
+    readonly Audit: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly message: CodecTypes['pg/text@1']['input'];
+    };
+  };
   readonly public: {
     readonly Post: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly title: CodecTypes['pg/text@1']['input'];
     };
   };
-  readonly scope: {
-    readonly Audit: {
-      readonly id: CodecTypes['pg/int4@1']['input'];
-      readonly message: CodecTypes['pg/text@1']['input'];
-    };
-  };
 };
 export type StorageColumnTypes = {
+  readonly fragment: {
+    readonly audits: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly message: CodecTypes['pg/text@1']['output'];
+    };
+  };
   readonly public: {
     readonly posts: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly title: CodecTypes['pg/text@1']['output'];
     };
   };
-  readonly scope: {
-    readonly audits: {
-      readonly id: CodecTypes['pg/int4@1']['output'];
-      readonly message: CodecTypes['pg/text@1']['output'];
-    };
-  };
 };
 export type StorageColumnInputTypes = {
+  readonly fragment: {
+    readonly audits: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly message: CodecTypes['pg/text@1']['input'];
+    };
+  };
   readonly public: {
     readonly posts: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly title: CodecTypes['pg/text@1']['input'];
-    };
-  };
-  readonly scope: {
-    readonly audits: {
-      readonly id: CodecTypes['pg/int4@1']['input'];
-      readonly message: CodecTypes['pg/text@1']['input'];
     };
   };
 };
 
 export namespace Models {
+  export type fragment_Audit = {
+    id: CodecTypes['pg/int4@1']['output'];
+    message: CodecTypes['pg/text@1']['output'];
+    readonly [RelationKeys]?: never;
+  };
   export type public_Post = {
     id: CodecTypes['pg/int4@1']['output'];
     title: CodecTypes['pg/text@1']['output'];
     readonly [RelationKeys]?: never;
   };
-  export type scope_Audit = {
-    id: CodecTypes['pg/int4@1']['output'];
-    message: CodecTypes['pg/text@1']['output'];
-    readonly [RelationKeys]?: never;
-  };
 }
 
 export declare const models: {
+  fragment: {
+    Audit: Models.fragment_Audit;
+  };
   public: {
     Post: Models.public_Post;
-  };
-  scope: {
-    Audit: Models.scope_Audit;
   };
 };
 
@@ -323,6 +323,38 @@ export type TypeMaps = TypeMapsType<
 type ContractBase = Omit<
   ContractType<{
     readonly namespaces: {
+      readonly fragment: {
+        readonly id: 'fragment';
+        readonly kind: 'postgres-schema';
+        readonly entries: {
+          readonly table: {
+            readonly audits: {
+              columns: {
+                readonly id: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                  readonly many: false;
+                };
+                readonly message: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [];
+              foreignKeys: readonly [];
+            };
+          };
+        };
+      };
       readonly public: {
         readonly id: 'public';
         readonly kind: 'postgres-schema';
@@ -355,38 +387,6 @@ type ContractBase = Omit<
           };
         };
       };
-      readonly scope: {
-        readonly id: 'scope';
-        readonly kind: 'postgres-schema';
-        readonly entries: {
-          readonly table: {
-            readonly audits: {
-              columns: {
-                readonly id: {
-                  readonly dataType: 'pg/int4';
-                  readonly codecId: 'pg/int4@1';
-                  readonly nullable: false;
-                  readonly default: {
-                    readonly kind: 'function';
-                    readonly expression: 'autoincrement()';
-                  };
-                  readonly many: false;
-                };
-                readonly message: {
-                  readonly dataType: 'pg/text';
-                  readonly codecId: 'pg/text@1';
-                  readonly nullable: false;
-                  readonly many: false;
-                };
-              };
-              primaryKey: { readonly columns: readonly ['id'] };
-              uniques: readonly [];
-              indexes: readonly [];
-              foreignKeys: readonly [];
-            };
-          };
-        };
-      };
     };
     readonly storageHash: StorageHash;
   }>,
@@ -395,11 +395,36 @@ type ContractBase = Omit<
   readonly target: 'postgres';
   readonly targetFamily: 'sql';
   readonly roots: {
-    readonly audits: { readonly namespace: 'scope' & NamespaceId; readonly model: 'Audit' };
+    readonly audits: { readonly namespace: 'fragment' & NamespaceId; readonly model: 'Audit' };
     readonly posts: { readonly namespace: 'public' & NamespaceId; readonly model: 'Post' };
   };
   readonly domain: {
     readonly namespaces: {
+      readonly fragment: {
+        readonly models: {
+          readonly Audit: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly message: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'audits';
+              readonly namespaceId: 'fragment';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly message: { readonly column: 'message' };
+              };
+            };
+          };
+        };
+      };
       readonly public: {
         readonly models: {
           readonly Post: {
@@ -420,31 +445,6 @@ type ContractBase = Omit<
               readonly fields: {
                 readonly id: { readonly column: 'id' };
                 readonly title: { readonly column: 'title' };
-              };
-            };
-          };
-        };
-      };
-      readonly scope: {
-        readonly models: {
-          readonly Audit: {
-            readonly fields: {
-              readonly id: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
-              };
-              readonly message: {
-                readonly nullable: false;
-                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
-              };
-            };
-            readonly relations: Record<string, never>;
-            readonly storage: {
-              readonly table: 'audits';
-              readonly namespaceId: 'scope';
-              readonly fields: {
-                readonly id: { readonly column: 'id' };
-                readonly message: { readonly column: 'message' };
               };
             };
           };

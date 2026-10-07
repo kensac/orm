@@ -8,45 +8,47 @@ import { field } from '@internal/sql-contract-ts/contract-builder';
 import { describe, expectTypeOf, test } from 'vitest';
 import { Collection } from '../src/collection';
 import type { Filtered, Ordered } from '../src/collection-types';
+import type { DeclaredField, FragmentFieldsCheck, MissingFragmentFields } from '../src/fragments';
 import type { orm } from '../src/orm';
-import type { DeclaredField, MissingScopeFields, ScopeFieldsCheck } from '../src/scopes';
 import type { CodecField, CodecListField, ModelAccessor } from '../src/types';
+import type { Contract as FragmentNamespaceContract } from './fixtures/fragment-namespace/generated/contract';
 import type { Contract as PolyContract } from './fixtures/polymorphism/generated/contract';
-import type { Contract as ScopeNamespaceContract } from './fixtures/scope-namespace/generated/contract';
 import {
-  createScopesOrm,
+  createFragmentsOrm,
   type SoftDeleteContract,
   type SoftPostCollection,
-} from './scopes-fixture';
+} from './fragments-fixture';
 
 type Contract = SoftDeleteContract;
 type DeletedAt = CodecField<Contract, 'pg/timestamptz-temporal@1', true>;
 
-const { client, db, plain } = createScopesOrm();
+const { client, db, plain } = createFragmentsOrm();
 
-const notDeleted = client.scope(
+const notDeleted = client.fragment(
   { deletedAt: field.column(timestamptzTemporalColumn).optional() },
   (rows) => rows.where((r) => r.deletedAt.isNull()),
 );
 
-const deletedLast = client.scope(
+const deletedLast = client.fragment(
   { deletedAt: { codecId: 'pg/timestamptz-temporal@1', nullable: true } },
   (rows) => rows.orderBy((r) => r.deletedAt.desc()).limit(10),
 );
 
-const liveNewestFirst = client.scope(
+const liveNewestFirst = client.fragment(
   { deletedAt: field.column(timestamptzTemporalColumn).optional() },
   (rows) => rows.where((r) => r.deletedAt.isNull()).orderBy((r) => r.deletedAt.desc()),
 );
 
 const titled = (term: string) =>
-  client.scope({ title: field.column(textColumn) }, (rows) => rows.where((r) => r.title.eq(term)));
+  client.fragment({ title: field.column(textColumn) }, (rows) =>
+    rows.where((r) => r.title.eq(term)),
+  );
 
 declare const tasks: Collection<PolyContract, 'Task'>;
 declare const anyModel: Collection<Contract, string>;
 declare const flag: boolean;
 declare const polyClient: ReturnType<typeof orm<PolyContract>>;
-declare const scopeNamespaceClient: ReturnType<typeof orm<ScopeNamespaceContract>>;
+declare const fragmentNamespaceClient: ReturnType<typeof orm<FragmentNamespaceContract>>;
 
 class LivePostCollection extends Collection<Contract, 'Post'> {
   live() {
@@ -54,9 +56,9 @@ class LivePostCollection extends Collection<Contract, 'Post'> {
   }
 }
 
-describe('client.scope', () => {
+describe('client.fragment', () => {
   test('types the body against the declared fields only', () => {
-    client.scope({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
+    client.fragment({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
       rows.where((r) => {
         expectTypeOf(r.deletedAt).toEqualTypeOf<DeletedAt>();
         expectTypeOf(r).toEqualTypeOf<{ readonly deletedAt: DeletedAt }>();
@@ -66,19 +68,19 @@ describe('client.scope', () => {
   });
 
   test('the body cannot name a field it did not declare', () => {
-    client.scope({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
+    client.fragment({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
       // @ts-expect-error title is not a declared field
       rows.where((r) => r.title.eq('x')),
     );
   });
 
   test('the body cannot select or include', () => {
-    client.scope({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
-      // @ts-expect-error select is not available in the body of a scope for any model
+    client.fragment({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
+      // @ts-expect-error select is not available in the body of a fragment for any model
       rows.select('deletedAt'),
     );
-    client.scope({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
-      // @ts-expect-error include is not available in the body of a scope for any model
+    client.fragment({ deletedAt: field.column(timestamptzTemporalColumn).optional() }, (rows) =>
+      // @ts-expect-error include is not available in the body of a fragment for any model
       rows.include('user'),
     );
   });
@@ -117,7 +119,7 @@ describe('client.scope', () => {
     plain.Post.with(notDeleted).cursor({ id: 1 });
   });
 
-  test('a scope with a parameter is a function that returns a scope', () => {
+  test('a fragment with a parameter is a function that returns a fragment', () => {
     expectTypeOf(plain.Post.with(titled('orm'))).toEqualTypeOf<Filtered<typeof plain.Post>>();
     // @ts-expect-error Comment has no title field
     plain.Comment.with(titled('orm'));
@@ -129,19 +131,21 @@ describe('client.scope', () => {
   });
 
   test('refuses a field of another column type', () => {
-    const viewsAsText = client.scope({ views: field.column(textColumn) }, (rows) => rows.limit(1));
+    const viewsAsText = client.fragment({ views: field.column(textColumn) }, (rows) =>
+      rows.limit(1),
+    );
     // @ts-expect-error Post.views is an int4 column, not text
     plain.Post.with(viewsAsText);
   });
 
   test('refuses a field of another nullability', () => {
-    const createdAtNullable = client.scope(
+    const createdAtNullable = client.fragment(
       { createdAt: field.column(timestamptzTemporalColumn).optional() },
       (rows) => rows.where((r) => r.createdAt.isNull()),
     );
     // @ts-expect-error Post.createdAt is not nullable
     plain.Post.with(createdAtNullable);
-    const deletedAtRequired = client.scope(
+    const deletedAtRequired = client.fragment(
       { deletedAt: field.column(timestamptzTemporalColumn) },
       (rows) => rows.limit(1),
     );
@@ -150,13 +154,13 @@ describe('client.scope', () => {
   });
 
   test('refuses a relation declared as a field', () => {
-    const byUser = client.scope({ user: field.column(int4Column) }, (rows) => rows.limit(1));
+    const byUser = client.fragment({ user: field.column(int4Column) }, (rows) => rows.limit(1));
     // @ts-expect-error user is a relation of Post, not a field
     plain.Post.with(byUser);
   });
 
   test('refuses a field that only a variant has', () => {
-    const bySeverity = polyClient.scope({ severity: field.column(textColumn) }, (rows) =>
+    const bySeverity = polyClient.fragment({ severity: field.column(textColumn) }, (rows) =>
       rows.where((r) => r.severity.eq('high')),
     );
     // @ts-expect-error severity is a field of the Bug variant, not of Task
@@ -167,7 +171,7 @@ describe('client.scope', () => {
 
   test('a body cannot claim a filter it may not have applied', () => {
     const deletedAt = { deletedAt: field.column(timestamptzTemporalColumn).optional() } as const;
-    client.scope(deletedAt, (rows) => {
+    client.fragment(deletedAt, (rows) => {
       let query = rows.where((r) => r.deletedAt.isNull());
       if (flag) {
         // @ts-expect-error rows has no filter, so it cannot replace a filtered query
@@ -175,15 +179,15 @@ describe('client.scope', () => {
       }
       return query;
     });
-    const maybeFiltered = client.scope(deletedAt, (rows) => {
+    const maybeFiltered = client.fragment(deletedAt, (rows) => {
       let query = rows;
       if (flag) query = query.where((r) => r.deletedAt.isNull());
       return query;
     });
     expectTypeOf(plain.Post.with(maybeFiltered)).toEqualTypeOf<typeof plain.Post>();
-    // @ts-expect-error the scope may not have filtered, so deleteAll is refused
+    // @ts-expect-error the fragment may not have filtered, so deleteAll is refused
     plain.Post.with(maybeFiltered).deleteAll();
-    client.scope<typeof deletedAt, { readonly hasWhere: true; readonly hasOrderBy: true }>(
+    client.fragment<typeof deletedAt, { readonly hasWhere: true; readonly hasOrderBy: true }>(
       deletedAt,
       // @ts-expect-error the body applied no filter, so it cannot be typed as filtering
       (rows) => rows,
@@ -191,7 +195,7 @@ describe('client.scope', () => {
   });
 
   test('the body returns the collection it received, not another one', () => {
-    client.scope(
+    client.fragment(
       { deletedAt: field.column(timestamptzTemporalColumn).optional() },
       // @ts-expect-error a Post collection is not the collection the body received
       () => plain.Post.where((p) => p.deletedAt.isNull()),
@@ -204,16 +208,16 @@ describe('client.scope', () => {
       readonly title: DeclaredField<'pg/text@1', false>;
     };
     expectTypeOf<
-      MissingScopeFields<Contract, 'Comment', 'public', Fields>
+      MissingFragmentFields<Contract, 'Comment', 'public', Fields>
     >().toEqualTypeOf<'title'>();
-    expectTypeOf<MissingScopeFields<Contract, 'Tag', 'public', Fields>>().toEqualTypeOf<
+    expectTypeOf<MissingFragmentFields<Contract, 'Tag', 'public', Fields>>().toEqualTypeOf<
       'deletedAt' | 'title'
     >();
-    expectTypeOf<MissingScopeFields<Contract, 'Post', 'public', Fields>>().toBeNever();
+    expectTypeOf<MissingFragmentFields<Contract, 'Post', 'public', Fields>>().toBeNever();
     expectTypeOf<
-      MissingScopeFields<Contract, 'Post' | 'Comment', 'public', Fields>
+      MissingFragmentFields<Contract, 'Post' | 'Comment', 'public', Fields>
     >().toEqualTypeOf<'title'>();
-    const deletedTitled = client.scope(
+    const deletedTitled = client.fragment(
       {
         deletedAt: field.column(timestamptzTemporalColumn).optional(),
         title: field.column(textColumn),
@@ -226,17 +230,17 @@ describe('client.scope', () => {
   });
 
   test('refuses a codec the contract does not have, at the declaration', () => {
-    client.scope(
+    client.fragment(
       // @ts-expect-error pg/txt@1 is not a codec of the contract
       { title: { codecId: 'pg/txt@1', nullable: false } },
       (rows) => rows.limit(1),
     );
   });
 
-  test('a contract with a namespace named scope has no scope method', () => {
-    expectTypeOf(scopeNamespaceClient.scope).toHaveProperty('Audit');
-    // @ts-expect-error scope is the namespace, not the method
-    scopeNamespaceClient.scope(
+  test('a contract with a namespace named fragment has no fragment method', () => {
+    expectTypeOf(fragmentNamespaceClient.fragment).toHaveProperty('Audit');
+    // @ts-expect-error fragment is the namespace, not the method
+    fragmentNamespaceClient.fragment(
       { title: { codecId: 'pg/text@1', nullable: false } },
       (rows: unknown) => rows,
     );
@@ -245,14 +249,14 @@ describe('client.scope', () => {
   test('a receiver whose model cannot be read from its type is refused for that reason', () => {
     type Fields = { readonly deletedAt: DeclaredField<'pg/timestamptz-temporal@1', true> };
     expectTypeOf<
-      keyof ScopeFieldsCheck<Contract, string, string, Fields>
-    >().toEqualTypeOf<'the scope could not read the model of the collection from its type'>();
+      keyof FragmentFieldsCheck<Contract, string, string, Fields>
+    >().toEqualTypeOf<'the fragment could not read the model of the collection from its type'>();
     expectTypeOf<
-      keyof ScopeFieldsCheck<Contract, 'Tag', 'public', Fields>
-    >().toEqualTypeOf<'the model has no field that matches the declaration in the scope'>();
-    // @ts-expect-error call cannot infer the scope's type parameters, so the model cannot be read
+      keyof FragmentFieldsCheck<Contract, 'Tag', 'public', Fields>
+    >().toEqualTypeOf<'the model has no field that matches the declaration in the fragment'>();
+    // @ts-expect-error call cannot infer the fragment's type parameters, so the model cannot be read
     notDeleted.call(undefined, plain.Post);
-    // @ts-expect-error with cannot infer the scope's type parameters, so the model cannot be read
+    // @ts-expect-error with cannot infer the fragment's type parameters, so the model cannot be read
     notDeleted.with(undefined, [plain.Post]);
     // @ts-expect-error the type of the collection names no single model
     anyModel.with(notDeleted);
@@ -261,28 +265,28 @@ describe('client.scope', () => {
     >();
   });
 
-  test('a union of scopes is accepted only when their facts are the same', () => {
-    const alsoNotDeleted = client.scope(
+  test('a union of fragments is accepted only when their facts are the same', () => {
+    const alsoNotDeleted = client.fragment(
       { deletedAt: field.column(timestamptzTemporalColumn).optional() },
       (rows) => rows.where((r) => r.deletedAt.isNull()),
     );
     expectTypeOf(plain.Post.with(flag ? notDeleted : alsoNotDeleted)).toEqualTypeOf<
       Filtered<typeof plain.Post>
     >();
-    // @ts-expect-error one scope filters and the other orders, so the union has no single result
+    // @ts-expect-error one fragment filters and the other orders, so the union has no single result
     plain.Post.with(flag ? notDeleted : deletedLast);
   });
 
   test('a declaration of one value does not match a list field, and a list declaration matches only a list field', () => {
-    const labelled = client.scope({ labels: field.column(textColumn) }, (rows) => rows.limit(1));
+    const labelled = client.fragment({ labels: field.column(textColumn) }, (rows) => rows.limit(1));
     // @ts-expect-error Tag.labels is a list of text values, not one
     plain.Tag.with(labelled);
-    const titles = client.scope({ title: field.column(textColumn).many() }, (rows) =>
+    const titles = client.fragment({ title: field.column(textColumn).many() }, (rows) =>
       rows.limit(1),
     );
     // @ts-expect-error Post.title holds one text value, not a list
     plain.Post.with(titles);
-    const titlesDeclared = client.scope(
+    const titlesDeclared = client.fragment(
       { title: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: false } } },
       (rows) => rows.limit(1),
     );
@@ -291,22 +295,24 @@ describe('client.scope', () => {
   });
 
   test('.many() matches a list whose elements are never null, and not one whose elements may be null', () => {
-    const labels = client.scope({ labels: field.column(textColumn).many() }, (rows) =>
+    const labels = client.fragment({ labels: field.column(textColumn).many() }, (rows) =>
       rows.limit(1),
     );
     expectTypeOf(plain.Tag.with(labels)).toEqualTypeOf<typeof plain.Tag>();
-    const notes = client.scope({ notes: field.column(textColumn).many() }, (rows) => rows.limit(1));
+    const notes = client.fragment({ notes: field.column(textColumn).many() }, (rows) =>
+      rows.limit(1),
+    );
     // @ts-expect-error the elements of Tag.notes may be null
     plain.Tag.with(notes);
   });
 
   test('.many({ elementsNullable: true }) matches a list whose elements may be null, and not one whose elements are never null', () => {
-    const notes = client.scope(
+    const notes = client.fragment(
       { notes: field.column(textColumn).many({ elementsNullable: true }) },
       (rows) => rows.limit(1),
     );
     expectTypeOf(plain.Tag.with(notes)).toEqualTypeOf<typeof plain.Tag>();
-    const labels = client.scope(
+    const labels = client.fragment(
       { labels: field.column(textColumn).many({ elementsNullable: true }) },
       (rows) => rows.limit(1),
     );
@@ -315,29 +321,29 @@ describe('client.scope', () => {
   });
 
   test('the package form declares a list with many: { elementNullable }', () => {
-    const labels = client.scope(
+    const labels = client.fragment(
       { labels: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: false } } },
       (rows) => rows.limit(1),
     );
     plain.Tag.with(labels);
-    const notesAsStrict = client.scope(
+    const notesAsStrict = client.fragment(
       { notes: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: false } } },
       (rows) => rows.limit(1),
     );
     // @ts-expect-error the elements of Tag.notes may be null
     plain.Tag.with(notesAsStrict);
-    const notes = client.scope(
+    const notes = client.fragment(
       { notes: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: true } } },
       (rows) => rows.limit(1),
     );
     plain.Tag.with(notes);
-    const labelsAsNullable = client.scope(
+    const labelsAsNullable = client.fragment(
       { labels: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: true } } },
       (rows) => rows.limit(1),
     );
     // @ts-expect-error the elements of Tag.labels are never null
     plain.Tag.with(labelsAsNullable);
-    client.scope(
+    client.fragment(
       // @ts-expect-error many: true is not a declaration; a list declares its element nullability
       { labels: { codecId: 'pg/text@1', nullable: false, many: true } },
       (rows) => rows.limit(1),
@@ -345,16 +351,16 @@ describe('client.scope', () => {
   });
 
   test('a list of value objects, stored as one jsonb value, matches a list declaration only', () => {
-    const asList = client.scope({ addresses: field.column(jsonbColumn).many() }, (rows) =>
+    const asList = client.fragment({ addresses: field.column(jsonbColumn).many() }, (rows) =>
       rows.limit(1),
     );
     expectTypeOf(plain.Tag.with(asList)).toEqualTypeOf<typeof plain.Tag>();
-    const asDeclaredList = client.scope(
+    const asDeclaredList = client.fragment(
       { addresses: { codecId: 'pg/jsonb@1', nullable: false, many: { elementNullable: false } } },
       (rows) => rows.limit(1),
     );
     expectTypeOf(plain.Tag.with(asDeclaredList)).toEqualTypeOf<typeof plain.Tag>();
-    const asOneValue = client.scope({ addresses: field.column(jsonbColumn) }, (rows) =>
+    const asOneValue = client.fragment({ addresses: field.column(jsonbColumn) }, (rows) =>
       rows.limit(1),
     );
     // @ts-expect-error Tag.addresses is a list of value objects, not one value
@@ -365,7 +371,7 @@ describe('client.scope', () => {
     type Strict = { readonly elementNullable: false };
     type NullableElements = { readonly elementNullable: true };
     expectTypeOf<
-      MissingScopeFields<
+      MissingFragmentFields<
         Contract,
         'Tag',
         'public',
@@ -373,7 +379,7 @@ describe('client.scope', () => {
       >
     >().toEqualTypeOf<'labels'>();
     expectTypeOf<
-      MissingScopeFields<
+      MissingFragmentFields<
         Contract,
         'Tag',
         'public',
@@ -381,7 +387,7 @@ describe('client.scope', () => {
       >
     >().toBeNever();
     expectTypeOf<
-      MissingScopeFields<
+      MissingFragmentFields<
         Contract,
         'Tag',
         'public',
@@ -389,7 +395,7 @@ describe('client.scope', () => {
       >
     >().toEqualTypeOf<'labels'>();
     expectTypeOf<
-      MissingScopeFields<
+      MissingFragmentFields<
         Contract,
         'Tag',
         'public',
@@ -397,7 +403,7 @@ describe('client.scope', () => {
       >
     >().toBeNever();
     expectTypeOf<
-      MissingScopeFields<
+      MissingFragmentFields<
         Contract,
         'Tag',
         'public',
@@ -408,7 +414,7 @@ describe('client.scope', () => {
 
   test('the body sees a list field whose elements include null only when the declaration says they may be null', () => {
     type TagAccessor = ModelAccessor<Contract, 'Tag', 'public'>;
-    client.scope({ labels: field.column(textColumn).many() }, (rows) =>
+    client.fragment({ labels: field.column(textColumn).many() }, (rows) =>
       rows.where((r) => {
         expectTypeOf(r.labels).toEqualTypeOf<CodecListField<Contract, 'pg/text@1'>>();
         expectTypeOf(r.labels.eq)
@@ -419,7 +425,7 @@ describe('client.scope', () => {
         return r.labels.eq(['a']);
       }),
     );
-    client.scope({ notes: field.column(textColumn).many({ elementsNullable: true }) }, (rows) =>
+    client.fragment({ notes: field.column(textColumn).many({ elementsNullable: true }) }, (rows) =>
       rows.where((r) => {
         expectTypeOf(r.notes).toEqualTypeOf<CodecListField<Contract, 'pg/text@1', false, true>>();
         expectTypeOf(r.notes.eq)
@@ -428,7 +434,7 @@ describe('client.scope', () => {
         return r.notes.eq(['a', null]);
       }),
     );
-    client.scope(
+    client.fragment(
       { notes: { codecId: 'pg/text@1', nullable: false, many: { elementNullable: true } } },
       (rows) =>
         rows.where((r) => {

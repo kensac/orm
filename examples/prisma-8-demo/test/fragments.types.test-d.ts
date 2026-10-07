@@ -10,9 +10,9 @@ import {
 import { websearchToTsquery } from '@prisma/orm-postgres/target/full-text';
 import { describe, expectTypeOf, test } from 'vitest';
 import { createOrmClient } from '../src/orm-client/client';
+import { createdSince, ownedBy, postSummary } from '../src/orm-client/fragments';
 import type { ormClientGetRecentPosts } from '../src/orm-client/get-recent-posts';
 import type { ormClientGetRecentUsers } from '../src/orm-client/get-recent-users';
-import { createdSince, ownedBy, postSummary } from '../src/orm-client/scopes';
 import type { Contract } from '../src/prisma/contract.d';
 import { db as dbFacade } from '../src/prisma/db';
 
@@ -61,7 +61,7 @@ describe('CodecField', () => {
   });
 });
 
-describe('db.orm.scope', () => {
+describe('db.orm.fragment', () => {
   test('fits every model with the field, keeps its class and records the filter', () => {
     expectTypeOf(db.User.with(createdSince(since))).toEqualTypeOf<Filtered<typeof db.User>>();
     expectTypeOf(db.Post.with(createdSince(since))).toEqualTypeOf<Filtered<typeof db.Post>>();
@@ -80,16 +80,18 @@ describe('db.orm.scope', () => {
     db.Task.with(ownedBy('u'));
     // @ts-expect-error User has no userId
     db.User.with(ownedBy('u'));
-    const titled = dbFacade.orm.scope({ title: field.text() }, (rows) =>
+    const titled = dbFacade.orm.fragment({ title: field.text() }, (rows) =>
       rows.where((r) => r.title.eq('x')),
     );
     db.Post.with(titled);
     // @ts-expect-error Post.title is not nullable
-    db.Post.with(dbFacade.orm.scope({ title: field.text().optional() }, (rows) => rows.limit(1)));
+    db.Post.with(
+      dbFacade.orm.fragment({ title: field.text().optional() }, (rows) => rows.limit(1)),
+    );
   });
 });
 
-describe('db.orm.public.Post.scope', () => {
+describe('db.orm.public.Post.fragment', () => {
   test('names the row of the summary', () => {
     expectTypeOf<PostSummary>().toEqualTypeOf<{
       id: string;
