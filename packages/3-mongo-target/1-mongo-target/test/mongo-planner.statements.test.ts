@@ -57,12 +57,15 @@ const fieldRename: ResolvedStatement = {
   to: { namespace: NAMESPACE, model: 'User', field: 'fullName' },
 };
 
-function plan(statements: readonly ResolvedStatement[]) {
+function plan(
+  statements: readonly ResolvedStatement[],
+  collections: { readonly from: string; readonly to: string } = { from: 'profiles', to: 'users' },
+) {
   return new MongoMigrationPlanner().plan({
-    contract: contractWithModel('User', 'users'),
-    schema: new MongoSchemaIR([new MongoSchemaCollection({ name: 'profiles' })]),
+    contract: contractWithModel('User', collections.to),
+    schema: new MongoSchemaIR([new MongoSchemaCollection({ name: collections.from })]),
     policy: ALL_CLASSES_POLICY,
-    fromContract: contractWithModel('Profile', 'profiles'),
+    fromContract: contractWithModel('Profile', collections.from),
     statements,
     frameworkComponents: [],
     snapshotsImportPath: '../../snapshots',
@@ -90,7 +93,7 @@ describe('MongoMigrationPlanner with statements', () => {
           kind: 'statementRejected',
           summary:
             'MongoDB does not apply rename statements in this release, so nothing was planned: rename model "Profile" to "User"',
-          why: 'Without the statement, the plan drops collection "profiles" and its documents and creates collection "users". To keep the documents, rename the collection yourself, for example with db.profiles.renameCollection("users") in mongosh, then run the command again without --rename.',
+          why: 'MongoDB cannot carry out rename statements in this release. Without the statement, a plan drops collection "profiles" with its documents and creates collection "users". To keep the documents, rename the collection by hand on each database before a plan made without the statement is applied there, for example with db.getCollection("profiles").renameCollection("users") in mongosh. A migration written by migration plan without the statement still drops "profiles" wherever it is applied, so check its operations first.',
           statement: modelRename,
         },
       ],
@@ -104,8 +107,20 @@ describe('MongoMigrationPlanner with statements', () => {
       {
         kind: 'statementRejected',
         summary: expect.stringContaining('rename field "User.name" to "User.fullName"'),
-        why: 'Without the statement, existing documents in collection "profiles" keep the field "name" and nothing moves its values to "fullName". To keep them, move them yourself with an update that uses $rename, for example db.profiles.updateMany({}, { $rename: { name: "fullName" } }) in mongosh, then run the command again without --rename.',
+        why: 'MongoDB cannot carry out rename statements in this release. Without the statement, the documents in collection "profiles" keep their values under "name", and nothing moves them to "fullName". To move them, update the documents by hand on each database, for example with db.getCollection("profiles").updateMany({}, { $rename: { "name": "fullName" } }) in mongosh, using the field names as they are stored.',
         statement: fieldRename,
+      },
+    ]);
+  });
+
+  it('says a plan without the statement keeps the documents when both models use one collection', () => {
+    const result = plan([modelRename], { from: 'posts', to: 'posts' });
+    if (result.kind !== 'failure') throw new Error('Expected failure');
+    expect(result.conflicts).toMatchObject([
+      {
+        kind: 'statementRejected',
+        why: 'MongoDB cannot carry out rename statements in this release. Both models store their documents in collection "posts", so a plan made without the statement keeps them.',
+        statement: modelRename,
       },
     ]);
   });

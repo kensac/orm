@@ -230,19 +230,34 @@ function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoor
   return typeof collection === 'string' ? collection : coordinate.model;
 }
 
+const NOT_IN_THIS_RELEASE = 'MongoDB cannot carry out rename statements in this release.';
+
+function shellString(name: string): string {
+  return JSON.stringify(name);
+}
+
+/**
+ * What a plan made without the statement does to the data, and how to keep it. Right for both
+ * `db update` and `migration plan`, since the planner does not know which command it serves.
+ * Mongo contracts key a model's fields by their stored names, so the statement's field names are
+ * the names a `$rename` needs.
+ */
 function keepTheData(
   statement: ResolvedStatement,
   fromContract: ContractWithDomain | null,
   contract: ContractWithDomain,
 ): string {
   const from = collectionOf(fromContract, statement.from);
-  if (statement.entity === 'model') {
-    const to = collectionOf(contract, statement.to);
-    return `Without the statement, the plan drops collection "${from}" and its documents and creates collection "${to}". To keep the documents, rename the collection yourself, for example with db.${from}.renameCollection("${to}") in mongosh, then run the command again without --rename.`;
+  if (statement.entity === 'field') {
+    const { field } = statement.from;
+    const newField = statement.to.field;
+    return `${NOT_IN_THIS_RELEASE} Without the statement, the documents in collection "${from}" keep their values under "${field}", and nothing moves them to "${newField}". To move them, update the documents by hand on each database, for example with db.getCollection(${shellString(from)}).updateMany({}, { $rename: { ${shellString(field)}: ${shellString(newField)} } }) in mongosh, using the field names as they are stored.`;
   }
-  const { field } = statement.from;
-  const newField = statement.to.field;
-  return `Without the statement, existing documents in collection "${from}" keep the field "${field}" and nothing moves its values to "${newField}". To keep them, move them yourself with an update that uses $rename, for example db.${from}.updateMany({}, { $rename: { ${field}: "${newField}" } }) in mongosh, then run the command again without --rename.`;
+  const to = collectionOf(contract, statement.to);
+  if (from === to) {
+    return `${NOT_IN_THIS_RELEASE} Both models store their documents in collection "${from}", so a plan made without the statement keeps them.`;
+  }
+  return `${NOT_IN_THIS_RELEASE} Without the statement, a plan drops collection "${from}" with its documents and creates collection "${to}". To keep the documents, rename the collection by hand on each database before a plan made without the statement is applied there, for example with db.getCollection(${shellString(from)}).renameCollection(${shellString(to)}) in mongosh. A migration written by migration plan without the statement still drops "${from}" wherever it is applied, so check its operations first.`;
 }
 
 function statementNotApplied(
