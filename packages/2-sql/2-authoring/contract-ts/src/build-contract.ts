@@ -1201,7 +1201,24 @@ function columnsProducingCheckPrefix(
   );
 }
 
-function assertExposureFitsModel(model: ModelNode): void {
+function assertExposureFitsModel(model: ModelNode, tableOwner: ModelNode | undefined): void {
+  if (
+    model.sharesBaseTable === true &&
+    model.unexposed !== true &&
+    tableOwner?.unexposed === true
+  ) {
+    throw contractError(
+      'CONTRACT.ARGUMENT_INVALID',
+      `Model "${model.modelName}" shares the table "${model.tableName}" of model "${tableOwner.modelName}" as a single-table variant, but "${tableOwner.modelName}" is not exposed to the ORM; a variant of an unexposed model cannot be exposed.`,
+      {
+        meta: {
+          modelName: model.modelName,
+          baseModel: tableOwner.modelName,
+          reason: 'variant-of-unexposed-model',
+        },
+      },
+    );
+  }
   if (model.unexposed !== true) return;
   if (model.sharesBaseTable === true) {
     throw contractError(
@@ -1224,6 +1241,26 @@ function assertExposureFitsModel(model: ModelNode): void {
       },
     );
   }
+}
+
+function assertJunctionExposed(
+  model: ModelNode,
+  relation: RelationNode,
+  junction: ModelNode | undefined,
+): void {
+  if (junction?.unexposed !== true) return;
+  throw contractError(
+    'CONTRACT.RELATION_INVALID',
+    `Relation "${model.modelName}.${relation.fieldName}" goes through junction model "${junction.modelName}", which is not exposed to the ORM; the ORM reads and writes a junction's columns, so the junction must be exposed.`,
+    {
+      meta: {
+        modelName: model.modelName,
+        relationName: relation.fieldName,
+        junctionModel: junction.modelName,
+        reason: 'relation-through-unexposed-model',
+      },
+    },
+  );
 }
 
 function assertRelationTargetExposed(
@@ -1297,6 +1334,11 @@ export function buildSqlContractFromDefinition(
   const modelsByCoordinate = new Map(
     definition.models.map((m) => [`${resolveNamespaceId(m)}:${m.modelName}`, m]),
   );
+  const tableOwners = new Map(
+    definition.models
+      .filter((m) => m.sharesBaseTable !== true)
+      .map((m) => [`${resolveNamespaceId(m)}:${m.tableName}`, m]),
+  );
 
   const tablesByNamespace: Record<string, Record<string, StorageTableInput>> = {};
   // Warnings collect across the whole build (seeded with the definition
@@ -1319,7 +1361,7 @@ export function buildSqlContractFromDefinition(
         ? semanticModel.namespaceId
         : defaultNamespaceId;
     modelNameToNamespaceId.set(semanticModel.modelName, namespaceId);
-    assertExposureFitsModel(semanticModel);
+    assertExposureFitsModel(semanticModel, tableOwners.get(`${namespaceId}:${tableName}`));
     // STI variants share the base table; the base model already owns this
     // table name and its root, so the variant contributes neither. An
     // unexposed model has a table but no root.
@@ -1755,6 +1797,13 @@ export function buildSqlContractFromDefinition(
             },
           );
         }
+        assertJunctionExposed(
+          semanticModel,
+          relation,
+          tableOwners.get(
+            `${relation.through.namespaceId ?? defaultNamespaceId}:${relation.through.table}`,
+          ),
+        );
         modelRelations[relation.fieldName] = {
           to,
           cardinality: 'N:M',

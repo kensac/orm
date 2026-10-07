@@ -354,4 +354,89 @@ describe('combinations the builder refuses for storage the domain does not expos
       }),
     );
   });
+
+  it('refuses a many-to-many relation through an unexposed junction model', () => {
+    expect(
+      buildModels([
+        {
+          ...user,
+          relations: [
+            {
+              fieldName: 'tags',
+              toModel: 'Tag',
+              toTable: 'tag',
+              cardinality: 'N:M',
+              on: {
+                parentTable: 'user',
+                parentColumns: ['id'],
+                childTable: 'user_tag',
+                childColumns: ['user_id'],
+              },
+              through: {
+                table: 'user_tag',
+                parentColumns: ['user_id'],
+                childColumns: ['tag_id'],
+              },
+            },
+          ],
+        },
+        {
+          modelName: 'Tag',
+          tableName: 'tag',
+          fields: [column('id', 'id', int4)],
+          id: { columns: ['id'] },
+        },
+        {
+          modelName: 'UserTag',
+          tableName: 'user_tag',
+          unexposed: true,
+          fields: [column('userId', 'user_id', int4), column('tagId', 'tag_id', int4)],
+          id: { columns: ['user_id', 'tag_id'] },
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.RELATION_INVALID',
+        message:
+          'Relation "User.tags" goes through junction model "UserTag", which is not exposed to the ORM; the ORM reads and writes a junction\'s columns, so the junction must be exposed.',
+        meta: {
+          modelName: 'User',
+          relationName: 'tags',
+          junctionModel: 'UserTag',
+          reason: 'relation-through-unexposed-model',
+        },
+      }),
+    );
+  });
+
+  it('refuses an exposed single-table variant of an unexposed model', () => {
+    expect(
+      buildModels([
+        {
+          modelName: 'Ledger',
+          tableName: 'ledger',
+          unexposed: true,
+          fields: [column('id', 'id', int4), column('kind', 'kind', text)],
+          id: { columns: ['id'] },
+        },
+        {
+          modelName: 'AuditEntry',
+          tableName: 'ledger',
+          sharesBaseTable: true,
+          fields: [],
+        },
+      ]),
+    ).toThrow(
+      expect.objectContaining({
+        code: 'CONTRACT.ARGUMENT_INVALID',
+        message:
+          'Model "AuditEntry" shares the table "ledger" of model "Ledger" as a single-table variant, but "Ledger" is not exposed to the ORM; a variant of an unexposed model cannot be exposed.',
+        meta: {
+          modelName: 'AuditEntry',
+          baseModel: 'Ledger',
+          reason: 'variant-of-unexposed-model',
+        },
+      }),
+    );
+  });
 });
