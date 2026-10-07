@@ -13,6 +13,7 @@ import type {
   ControlFamilyDescriptor,
   ControlTargetDescriptor,
   CoreSchemaView,
+  MigrationOperationSubject,
   MigrationPlannerConflict,
   MigrationPlanOperation,
   OperationPreview,
@@ -450,6 +451,12 @@ export interface DbInitFailure {
  */
 export type DbInitResult = Result<DbInitSuccess, DbInitFailure>;
 
+/** What the operations of a plan lose and whose access they widen, by position in the plan. */
+export interface PlanSubjectsReport {
+  readonly dataLoss: readonly MigrationOperationSubject[];
+  readonly accessWidening: readonly MigrationOperationSubject[];
+}
+
 /**
  * Successful dbUpdate result.
  */
@@ -489,6 +496,10 @@ export interface DbUpdateSuccess {
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
   readonly appliedStatements: readonly AppliedStatementReport[];
+  /** The operations in `plan.operations` that lose data, by position, with what each loses. */
+  readonly dataLoss: readonly MigrationOperationSubject[];
+  /** The operations in `plan.operations` that widen who can read or write data, by position. */
+  readonly accessWidening: readonly MigrationOperationSubject[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

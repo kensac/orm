@@ -174,6 +174,8 @@ export async function planMigration<TFamilyId extends string, TTargetId extends 
       destinationContract: space.contract(),
       strategy: 'declared-state',
       appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
       migrationEdges: [
         buildFabricatedMigrationEdge({
           currentMarkerStorageHash: currentMarker?.storageHash,

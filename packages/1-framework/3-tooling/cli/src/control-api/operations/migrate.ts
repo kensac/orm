@@ -509,6 +509,8 @@ function buildAtHeadResolution(args: {
     destinationContract: space.contract(),
     strategy: 'declared-state',
     appliedStatements: [],
+    dataLoss: [],
+    accessWidening: [],
     migrationEdges: [
       buildFabricatedMigrationEdge({
         currentMarkerStorageHash: liveMarker?.storageHash,

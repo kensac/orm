@@ -13,11 +13,13 @@ import {
   planFieldEventOperations,
   plannerFailure,
   planStatements,
+  planSubjects,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   AppliedMigrationStatement,
+  MigrationOperationSubject,
   MigrationPlanner,
   MigrationScaffoldContext,
   PlanOrigin,
@@ -42,6 +44,7 @@ import {
   planIssues,
 } from './issue-planner';
 import type { RenameColumnCall, RenameTableCall } from './op-factory-call';
+import { sqliteCallSubjects } from './operation-subjects';
 import {
   type SqliteMigrationDestinationInfo,
   TypeScriptRenderableSqliteMigration,
@@ -68,6 +71,8 @@ export type SqlitePlanResult =
       readonly kind: 'success';
       readonly plan: TypeScriptRenderableSqliteMigration;
       readonly appliedStatements: readonly AppliedMigrationStatement[];
+      readonly dataLoss: readonly MigrationOperationSubject[];
+      readonly accessWidening: readonly MigrationOperationSubject[];
     }
   | SqlPlannerFailureResult;
 
@@ -248,6 +253,11 @@ export class SqliteMigrationPlanner
         this.#lowerer,
       ),
       appliedStatements: statements.value.appliedStatements,
+      ...planSubjects(sqliteCallSubjects(calls), {
+        fromContract: options.fromContract,
+        contract: options.contract,
+        statements: options.statements,
+      }),
     };
   }
 

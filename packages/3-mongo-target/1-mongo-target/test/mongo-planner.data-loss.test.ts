@@ -1,0 +1,102 @@
+import { asNamespaceId } from '@internal/contract/types';
+import type { MigrationOperationPolicy } from '@internal/framework-components/control';
+import { MongoCollection, type MongoContract } from '@internal/mongo-contract';
+import { MongoSchemaCollection, MongoSchemaIndex, MongoSchemaIR } from '@internal/mongo-schema-ir';
+import { describe, expect, it } from 'vitest';
+import { MongoMigrationPlanner } from '../src/core/migrations/mongo-planner';
+import type { PlannerProducedMongoMigration } from '../src/core/migrations/planner-produced-migration';
+
+const ALL_CLASSES_POLICY: MigrationOperationPolicy = {
+  allowedOperationClasses: ['additive', 'widening', 'destructive', 'data'],
+};
+
+/** A contract whose models each store their documents in the named collection. */
+function contractWith(models: Readonly<Record<string, string>>, seed: string): MongoContract {
+  return {
+    target: 'mongo',
+    targetFamily: 'mongo',
+    profileHash: 'test-profile',
+    capabilities: {},
+    extensions: {},
+    meta: {},
+    roots: {},
+    domain: {
+      namespaces: {
+        __unbound__: {
+          models: Object.fromEntries(
+            Object.entries(models).map(([model, collection]) => [
+              model,
+              { fields: {}, relations: {}, storage: { collection } },
+            ]),
+          ),
+        },
+      },
+    },
+    storage: {
+      storageHash: `storage-${seed}`,
+      namespaces: {
+        __unbound__: {
+          id: '__unbound__',
+          kind: 'mongo-namespace',
+          entries: {
+            collection: Object.fromEntries(
+              Object.values(models).map((collection) => [collection, new MongoCollection({})]),
+            ),
+          },
+        },
+      },
+    },
+  } as unknown as MongoContract;
+}
+
+function plan(fromContract: MongoContract | null) {
+  const result = new MongoMigrationPlanner().plan({
+    contract: contractWith({ User: 'users' }, 'to'),
+    schema: new MongoSchemaIR([
+      new MongoSchemaCollection({ name: 'users' }),
+      new MongoSchemaCollection({
+        name: 'events',
+        indexes: [new MongoSchemaIndex({ keys: [{ field: 'at', direction: 1 }] })],
+      }),
+    ]),
+    policy: ALL_CLASSES_POLICY,
+    fromContract,
+    origin: null,
+    statements: [],
+    frameworkComponents: [],
+    snapshotsImportPath: '../../snapshots',
+  });
+  if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
+  return {
+    operations: (result.plan as PlannerProducedMongoMigration).operations.map(
+      (operation) => operation.label,
+    ),
+    dataLoss: result.dataLoss,
+    accessWidening: result.accessWidening,
+  };
+}
+
+describe('MongoDB planner, data loss', () => {
+  it('names the model whose collection a drop loses, and only the collection drop', () => {
+    const planned = plan(contractWith({ User: 'users', Event: 'events' }, 'from'));
+    const dropIndex = planned.operations.findIndex((label) => label.startsWith('Drop index'));
+    const dropCollection = planned.operations.indexOf('Drop collection events');
+
+    expect({ dropIndex: dropIndex >= 0, ...planned }).toMatchObject({
+      dropIndex: true,
+      dataLoss: [
+        {
+          operationIndex: dropCollection,
+          subject: { kind: 'model', namespaceId: asNamespaceId('__unbound__'), model: 'Event' },
+        },
+      ],
+      accessWidening: [],
+    });
+  });
+
+  it('names the collection by its name when the plan has no origin contract', () => {
+    expect(plan(null).dataLoss).toEqual([
+      { operationIndex: expect.any(Number), subject: { kind: 'storage', name: 'events' } },
+    ]);
+  });
+});

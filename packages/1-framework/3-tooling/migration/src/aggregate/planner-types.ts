@@ -5,6 +5,7 @@ import type {
   ControlAdapterInstance,
   ControlFamilyInstance,
   MigrationOperationPolicy,
+  MigrationOperationSubject,
   MigrationPlan,
   MigrationPlannerConflict,
   MigrationPlanOperation,
@@ -155,6 +156,10 @@ export interface PerSpacePlan {
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied; empty for a space planned without statements. */
   readonly appliedStatements: readonly AppliedMigrationStatement[];
+  /** The operations of `plan` that lose data, with what each loses; empty for a recorded path. */
+  readonly dataLoss: readonly MigrationOperationSubject[];
+  /** The operations of `plan` that widen access, with what each is about; empty for a recorded path. */
+  readonly accessWidening: readonly MigrationOperationSubject[];
   /**
    * Per-edge breakdown of the chain. `resolve-recorded-path` plans carry
    * one entry per authored edge; `plan-from-diff` and `declared-state`

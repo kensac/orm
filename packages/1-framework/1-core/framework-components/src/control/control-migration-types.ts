@@ -20,7 +20,11 @@ import type {
   ControlFamilyInstance,
 } from './control-instances';
 import type { OperationContext } from './control-operation-results';
-import type { AppliedMigrationStatement, ResolvedMigrationStatement } from './migration-statements';
+import type {
+  AppliedMigrationStatement,
+  MigrationOperationSubject,
+  ResolvedMigrationStatement,
+} from './migration-statements';
 
 // ============================================================================
 // Migration Package Metadata
@@ -314,6 +318,10 @@ export interface MigrationPlannerSuccessResult {
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied, one per statement it was given, in order. */
   readonly appliedStatements: readonly AppliedMigrationStatement[];
+  /** Each operation that loses data, in plan order, with what it loses. */
+  readonly dataLoss: readonly MigrationOperationSubject[];
+  /** Each operation that widens who can read or write data, in plan order, with what it is about. */
+  readonly accessWidening: readonly MigrationOperationSubject[];
 }
 
 /**

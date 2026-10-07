@@ -74,6 +74,8 @@ const RENAME_OP: MigrationPlanOperation = {
   operationClass: 'widening',
 };
 
+const LOST = { kind: 'storage', name: 'audit_log' } as const;
+
 function markerAt(storageHash: string): ContractMarkerRecord {
   return {
     storageHash,
@@ -111,6 +113,8 @@ const migrations = {
         statement,
         operationIndexes: [0],
       })),
+      dataLoss: [{ operationIndex: 0, subject: LOST }],
+      accessWidening: [{ operationIndex: 0, subject: LOST }],
       plan: {
         targetId: 'postgres',
         origin: options.origin,
@@ -207,5 +211,16 @@ describe('executeDbUpdate statement positions', () => {
         applied.operationIndexes.map((index) => operations[index]?.id),
       ),
     ).toEqual([[RENAME_OP.id]]);
+    expect(
+      [result.value.dataLoss, result.value.accessWidening].map((entries) =>
+        entries.map(({ operationIndex, subject }) => ({
+          operation: operations[operationIndex]?.id,
+          subject,
+        })),
+      ),
+    ).toEqual([
+      [{ operation: RENAME_OP.id, subject: LOST }],
+      [{ operation: RENAME_OP.id, subject: LOST }],
+    ]);
   });
 });

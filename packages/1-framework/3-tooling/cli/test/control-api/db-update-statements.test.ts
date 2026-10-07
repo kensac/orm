@@ -106,6 +106,8 @@ function recordingMigrations(operationClass: 'additive' | 'destructive' = 'addit
         const renamed = options.statements.length > 0;
         return {
           kind: 'success',
+          dataLoss: [],
+          accessWidening: [],
           appliedStatements: options.statements.map((statement) => ({
             statement,
             operationIndexes: [0],

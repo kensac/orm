@@ -96,7 +96,13 @@ describe('planMigration', () => {
       app: makeSpace({ spaceId: 'app' }),
     });
     const stubPlan = makeSyntheticPlan('placeholder-target-id-from-stub');
-    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan, appliedStatements: [] });
+    const planner = makeStubPlanner({
+      kind: 'success',
+      plan: stubPlan,
+      appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
+    });
 
     const result = await planMigration({
       aggregate,
@@ -140,6 +146,8 @@ describe('planMigration', () => {
           kind: 'success',
           plan: makeSyntheticPlan('postgres'),
           appliedStatements: [applied],
+          dataLoss: [],
+          accessWidening: [],
         };
       },
       emptyMigration: () => {
@@ -174,7 +182,13 @@ describe('planMigration', () => {
     const planner: MigrationPlanner<'sql', 'postgres'> = {
       plan: () => {
         planned = true;
-        return { kind: 'success', plan: makeSyntheticPlan('postgres'), appliedStatements: [] };
+        return {
+          kind: 'success',
+          plan: makeSyntheticPlan('postgres'),
+          appliedStatements: [],
+          dataLoss: [],
+          accessWidening: [],
+        };
       },
       emptyMigration: () => {
         throw new Error('not used');
@@ -220,7 +234,13 @@ describe('planMigration', () => {
           fromContract: options.fromContract,
           statements: options.statements,
         });
-        return { kind: 'success', plan: makeSyntheticPlan('postgres'), appliedStatements: [] };
+        return {
+          kind: 'success',
+          plan: makeSyntheticPlan('postgres'),
+          appliedStatements: [],
+          dataLoss: [],
+          accessWidening: [],
+        };
       },
       emptyMigration: () => {
         throw new Error('not used');
@@ -259,7 +279,13 @@ describe('planMigration', () => {
     });
 
     const stubPlan = makeSyntheticPlan('postgres');
-    const planner = makeStubPlanner({ kind: 'success', plan: stubPlan, appliedStatements: [] });
+    const planner = makeStubPlanner({
+      kind: 'success',
+      plan: stubPlan,
+      appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
+    });
 
     const result = await planMigration({
       aggregate,
@@ -305,6 +331,8 @@ describe('planMigration', () => {
         kind: 'success',
         plan: makeSyntheticPlan('postgres'),
         appliedStatements: [],
+        dataLoss: [],
+        accessWidening: [],
       }),
     );
     const planner: MigrationPlanner<'sql', 'postgres'> = {
@@ -364,6 +392,8 @@ describe('planMigration', () => {
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
       appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
     });
 
     const result = await planMigration({
@@ -404,6 +434,8 @@ describe('planMigration', () => {
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
       appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
     });
 
     const result = await planMigration({
@@ -460,6 +492,8 @@ describe('planMigration', () => {
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
       appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
     });
 
     const result = await planMigration({
@@ -514,6 +548,8 @@ describe('planMigration', () => {
       kind: 'success',
       plan: makeSyntheticPlan('postgres'),
       appliedStatements: [],
+      dataLoss: [],
+      accessWidening: [],
     });
 
     const result = await planMigration({

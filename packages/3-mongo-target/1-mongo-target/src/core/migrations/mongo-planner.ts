@@ -1,14 +1,16 @@
-import type { Contract, ContractWithDomain } from '@internal/contract/types';
+import { asNamespaceId, type Contract, type ContractWithDomain } from '@internal/contract/types';
 import { contractToMongoSchemaIR } from '@internal/family-mongo/control';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import {
   describeMigrationStatement,
   type MigrationOperationPolicy,
+  type MigrationOperationSubject,
   type MigrationPlanner,
   type MigrationPlannerConflict,
   type MigrationPlannerResult,
   type MigrationPlanWithAuthoringSurface,
   type MigrationScaffoldContext,
+  type MigrationStatementSubject,
   type ModelCoordinate,
   type PlanOrigin,
   type ResolvedMigrationStatement,
@@ -128,6 +130,36 @@ function collectionOf(contract: ContractWithDomain | null, coordinate: ModelCoor
       'collection'
     ];
   return typeof collection === 'string' ? collection : coordinate.model;
+}
+
+/** The model of `fromContract` that stores its documents in `collection`, if any. */
+function modelStoredIn(
+  fromContract: ContractWithDomain,
+  collection: string,
+): ModelCoordinate | undefined {
+  for (const [namespaceId, namespace] of Object.entries(fromContract.domain.namespaces)) {
+    for (const model of Object.keys(namespace.models)) {
+      const coordinate = { namespaceId: asNamespaceId(namespaceId), model };
+      if (collectionOf(fromContract, coordinate) === collection) return coordinate;
+    }
+  }
+  return undefined;
+}
+
+/** Each collection drop of the plan, with the model whose documents it loses. */
+function collectionDrops(
+  calls: readonly OpFactoryCall[],
+  fromContract: ContractWithDomain | null,
+): readonly MigrationOperationSubject[] {
+  return calls.flatMap((call, operationIndex) => {
+    if (!(call instanceof DropCollectionCall)) return [];
+    const model = fromContract === null ? undefined : modelStoredIn(fromContract, call.collection);
+    const subject: MigrationStatementSubject =
+      model === undefined
+        ? { kind: 'storage', name: call.collection }
+        : { kind: 'model', ...model };
+    return [{ operationIndex, subject }];
+  });
 }
 
 const NOT_IN_THIS_RELEASE = 'MongoDB cannot carry out rename statements in this release.';
@@ -357,6 +389,8 @@ export class MongoMigrationPlanner implements MigrationPlanner<'mongo', 'mongo'>
         options.snapshotsImportPath,
       ),
       appliedStatements: [],
+      dataLoss: collectionDrops(result.calls, options.fromContract),
+      accessWidening: [],
     };
   }
 

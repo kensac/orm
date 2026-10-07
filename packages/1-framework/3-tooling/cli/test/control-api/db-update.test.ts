@@ -61,6 +61,8 @@ function createMockMigrations(overrides?: {
 }) {
   const planResult: MigrationPlannerResult = overrides?.planResult ?? {
     kind: 'success',
+    dataLoss: [],
+    accessWidening: [],
     appliedStatements: [],
     plan: {
       targetId: 'postgres',
@@ -176,6 +178,8 @@ describe('executeDbUpdate', () => {
     const migrations = createMockMigrations({
       planResult: {
         kind: 'success',
+        dataLoss: [],
+        accessWidening: [],
         appliedStatements: [],
         plan: {
           targetId: 'postgres',
@@ -328,6 +332,8 @@ describe('executeDbUpdate', () => {
       migrations: createMockMigrations({
         planResult: {
           kind: 'success',
+          dataLoss: [],
+          accessWidening: [],
           appliedStatements: [],
           plan: {
             targetId: 'postgres',
@@ -367,6 +373,8 @@ describe('executeDbUpdate', () => {
     const migrations = createMockMigrations({
       planResult: {
         kind: 'success',
+        dataLoss: [],
+        accessWidening: [],
         appliedStatements: [],
         plan: {
           targetId: 'postgres',
@@ -415,6 +423,8 @@ describe('executeDbUpdate', () => {
   it('allows additive, widening, and destructive operation classes', async () => {
     const planFn = vi.fn().mockReturnValue({
       kind: 'success',
+      dataLoss: [],
+      accessWidening: [],
       appliedStatements: [],
       plan: {
         targetId: 'postgres',
@@ -468,6 +478,8 @@ describe('executeDbUpdate', () => {
       return createMockMigrations({
         planResult: {
           kind: 'success',
+          dataLoss: [],
+          accessWidening: [],
           appliedStatements: [],
           plan: {
             targetId: 'postgres',
@@ -641,6 +653,8 @@ describe('executeDbUpdate', () => {
       createPlanner: () => ({
         plan: vi.fn().mockReturnValue({
           kind: 'success',
+          dataLoss: [],
+          accessWidening: [],
           appliedStatements: [],
           plan: {
             targetId: 'postgres',

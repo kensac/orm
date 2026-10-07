@@ -10,6 +10,7 @@ import type {
   ControlExtensionDescriptor,
   ControlFamilyInstance,
   MigrationOperationPolicy,
+  MigrationOperationSubject,
   MigrationPlannerConflict,
   MigrationPlanOperation,
   OperationPreview,
@@ -55,6 +56,7 @@ import type {
   DbUpdateSuccess,
   OnControlProgress,
   PerSpaceExecutionEntry,
+  PlanSubjectsReport,
 } from '../types';
 import {
   type BuildAggregateInputs,
@@ -280,6 +282,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
           operationsBefore(orderedResolutions, aggregate.app.spaceId),
         )
       : undefined;
+  const subjects = action === 'dbUpdate' ? planSubjects(orderedResolutions) : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -298,6 +301,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       perSpace,
       summary,
       appliedStatements,
+      subjects,
       ...ifDefined('warnings', plannerWarnings),
     });
   }
@@ -368,6 +372,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     perSpace: applied.value.perSpace,
     summary,
     appliedStatements,
+    subjects,
     ...ifDefined('warnings', plannerWarnings),
   });
 }
@@ -426,6 +431,28 @@ function operationsBefore(
   return orderedResolutions
     .slice(0, position)
     .reduce((count, resolution) => count + resolution.entry.displayOps.length, 0);
+}
+
+/**
+ * What the planned operations lose and whose access they widen, across every space, each at its
+ * position in the operations the result reports.
+ */
+function planSubjects(orderedResolutions: readonly OrderedResolution[]): PlanSubjectsReport {
+  const offset =
+    (resolution: OrderedResolution) => (entries: readonly MigrationOperationSubject[]) =>
+      entries.map((entry) => ({
+        ...entry,
+        operationIndex:
+          entry.operationIndex + operationsBefore(orderedResolutions, resolution.spaceId),
+      }));
+  return {
+    dataLoss: orderedResolutions.flatMap((resolution) =>
+      offset(resolution)(resolution.entry.dataLoss),
+    ),
+    accessWidening: orderedResolutions.flatMap((resolution) =>
+      offset(resolution)(resolution.entry.accessWidening),
+    ),
+  };
 }
 
 function aggregatePlannerWarnings(
@@ -530,11 +557,14 @@ function wrapPlanResult(args: {
   readonly summary: string;
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
+  /** `undefined` for `db init`, which reports no data loss. */
+  readonly subjects: PlanSubjectsReport | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'plan',
     ...ifDefined('appliedStatements', args.appliedStatements),
+    ...args.subjects,
     plan: {
       operations: stripOperations(args.operations),
       ...ifDefined('preview', args.preview),
@@ -559,11 +589,14 @@ function wrapApplyResult(args: {
   readonly summary: string;
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
+  /** `undefined` for `db init`, which reports no data loss. */
+  readonly subjects: PlanSubjectsReport | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
     mode: 'apply',
     ...ifDefined('appliedStatements', args.appliedStatements),
+    ...args.subjects,
     plan: { operations: stripOperations(args.operations) },
     destination: {
       storageHash: args.destination.storageHash,

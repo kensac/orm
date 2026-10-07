@@ -719,6 +719,8 @@ describe('ControlClient progress emission', () => {
           plan: () => ({
             kind: 'success',
             appliedStatements: [],
+            dataLoss: [],
+            accessWidening: [],
             plan: {
               targetId: 'postgres',
               destination: { storageHash: 'dest' },
