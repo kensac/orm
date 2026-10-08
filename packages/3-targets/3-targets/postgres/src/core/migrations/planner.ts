@@ -16,8 +16,8 @@ import {
   planFieldEventCalls,
   plannerFailure,
   planStatements,
-  planSubjects,
   sqlTypeLookupsOf,
+  subjectsOfCalls,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -464,7 +464,7 @@ export class PostgresMigrationPlanner implements MigrationPlanner<'sql', 'postgr
         this.#lowerer,
       ),
       appliedStatements: statements.value.appliedStatements,
-      ...planSubjects(
+      ...subjectsOfCalls(
         postgresCallSubjects(calls, {
           contract: options.fromContract ?? options.contract,
           fieldEvents: new Map(fieldEventCalls.map((fieldEvent) => [fieldEvent.call, fieldEvent])),

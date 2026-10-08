@@ -2,11 +2,11 @@ import { asNamespaceId } from '@internal/contract/types';
 import { ok } from '@internal/utils/result';
 import { describe, expect, it } from 'vitest';
 import {
-  answerPlanQuestions,
+  askPlanQuestions,
   type PlannedQuestions,
   type PlannedSubject,
   type PlanQuestion,
-} from '../../../src/control-api/statements/data-loss-questions';
+} from '../../../src/control-api/statements/plan-questions';
 import { contractOf } from './statement-fixtures';
 
 const origin = contractOf({ app: { models: { T: { fields: ['id', 'ratio'] } } } });
@@ -35,7 +35,7 @@ function run(replanned: PlannedQuestions, typed: readonly (readonly string[])[])
   let round = 0;
   return {
     asked,
-    result: answerPlanQuestions({
+    result: askPlanQuestions({
       plan: planWith(dropRatio),
       askAccess: false,
       renames: [],

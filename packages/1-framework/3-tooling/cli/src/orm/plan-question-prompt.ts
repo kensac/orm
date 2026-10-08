@@ -1,8 +1,5 @@
 import type { PromptSurface } from '@prisma/cli-engine';
-import type {
-  AnswerPlanQuestions,
-  PlanAnswer,
-} from '../control-api/statements/data-loss-questions';
+import type { AnswerPlanQuestions, PlanAnswer } from '../control-api/statements/plan-questions';
 
 /**
  * Asks a plan's questions through the engine's statement prompt, all in one batch that refuses a

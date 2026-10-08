@@ -1,8 +1,9 @@
 import type { ContractWithDomain } from '@internal/contract/types';
 import type { CliStructuredError } from '@internal/errors/control';
 import {
-  type MigrationStatementSubject,
+  type MigrationSubject,
   type ModelCoordinate,
+  migrationSubjectKey,
   modelDisplayName,
   type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
@@ -54,7 +55,7 @@ export type AnswerPlanQuestions = (
 export interface PlannedSubject {
   readonly operationIndex: number | undefined;
   readonly label: string;
-  readonly subject: MigrationStatementSubject;
+  readonly subject: MigrationSubject;
 }
 
 /** What a plan would lose, and whose access it would widen. */
@@ -103,10 +104,7 @@ function renamedModel(
  * field of a model the plan renames is named through the model's new name, as a rename of the
  * field is written.
  */
-export function subjectText(
-  subject: MigrationStatementSubject,
-  contracts: StatementContracts,
-): string {
+export function subjectText(subject: MigrationSubject, contracts: StatementContracts): string {
   switch (subject.kind) {
     case 'model':
       return modelText(contracts.origin, subject);
@@ -126,13 +124,13 @@ export function subjectText(
 /** The statement's description, written as its question names the subject: `delete field "User.nickname"`. */
 export function consentDescription(
   verb: ConsentVerb,
-  subject: MigrationStatementSubject,
+  subject: MigrationSubject,
   text: string,
 ): string {
   return `${verb} ${subject.kind} "${text}"`;
 }
 
-function lossText(subject: MigrationStatementSubject, text: string, originKnown: boolean): string {
+function lossText(subject: MigrationSubject, text: string, originKnown: boolean): string {
   switch (subject.kind) {
     case 'model':
       return `would lose the data of model "${text}"`;
@@ -145,10 +143,7 @@ function lossText(subject: MigrationStatementSubject, text: string, originKnown:
   }
 }
 
-function sameCoordinate(
-  statement: ResolvedMigrationStatement,
-  subject: MigrationStatementSubject,
-): boolean {
+function sameCoordinate(statement: ResolvedMigrationStatement, subject: MigrationSubject): boolean {
   if (subject.kind === 'storage') return false;
   const { from } = statement;
   if (from.namespaceId !== subject.namespaceId || from.model !== subject.model) return false;
@@ -164,7 +159,7 @@ function namesSubject(verb: ConsentVerb, subject: string) {
 
 /** Whether the destination still has the subject's model or field, under the name a rename gives it. */
 function inDestination(
-  subject: MigrationStatementSubject,
+  subject: MigrationSubject,
   contracts: StatementContracts & { readonly destination: ContractWithDomain },
 ): boolean {
   if (subject.kind === 'storage') return false;
@@ -235,11 +230,11 @@ export function accessWideningQuestion(
 /** A subject the user consented to, with the statement's text as its question wrote it. */
 export interface ConsentedSubject {
   readonly verb: ConsentVerb;
-  readonly subject: MigrationStatementSubject;
+  readonly subject: MigrationSubject;
   readonly text: string;
 }
 
-const keyOf = (planned: PlannedSubject) => JSON.stringify(planned.subject);
+const keyOf = (planned: PlannedSubject) => migrationSubjectKey(planned.subject);
 
 function checkAnswers(questions: readonly PlanQuestion[], answers: readonly PlanAnswer[]): void {
   if (answers.length !== questions.length) {
@@ -278,7 +273,7 @@ function checkAnswers(questions: readonly PlanQuestion[], answers: readonly Plan
  * is asked in the next round. The first round asks even when nothing is in question, so a statement no question consumed is
  * refused before anything is done.
  */
-export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailure>(input: {
+export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>(input: {
   readonly plan: TPlan;
   readonly askAccess: boolean;
   readonly renames: readonly StatementText[];

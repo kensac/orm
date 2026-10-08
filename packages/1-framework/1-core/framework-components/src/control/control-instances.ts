@@ -27,10 +27,7 @@ export interface ControlFamilyInstance<TFamilyId extends string, TSchemaIR>
    */
   deserializeContract(contractJson: unknown): Contract;
 
-  /**
-   * The name the database knows the object an operation is about by, for an operation of a
-   * recorded migration that no planner mapped to a model.
-   */
+  /** The name the database knows the object an operation acts on by. */
   storageNameOf(operation: MigrationPlanOperation): string;
 
   verify(options: {

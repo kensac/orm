@@ -11,7 +11,7 @@ import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok } from '@internal/utils/result';
 import { describe, expect, it, vi } from 'vitest';
 import { executeDbUpdate } from '../../src/control-api/operations/db-update';
-import type { PlanQuestion } from '../../src/control-api/statements/data-loss-questions';
+import type { PlanQuestion } from '../../src/control-api/statements/plan-questions';
 import type { ControlProgressEvent } from '../../src/control-api/types';
 
 const FAKE_MIGRATIONS_DIR = '/tmp/__test-db-update-migrations';

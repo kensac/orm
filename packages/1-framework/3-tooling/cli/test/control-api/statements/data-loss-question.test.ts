@@ -1,6 +1,6 @@
 import { asNamespaceId } from '@internal/contract/types';
 import { describe, expect, it } from 'vitest';
-import { dataLossQuestion } from '../../../src/control-api/statements/data-loss-questions';
+import { dataLossQuestion } from '../../../src/control-api/statements/plan-questions';
 import { contractOf } from './statement-fixtures';
 
 const origin = contractOf({ app: { models: { User: { fields: ['email'] } } } });

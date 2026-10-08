@@ -9,6 +9,7 @@ import {
   createControlStack,
   hasOperationPreview,
   type MigrationPlanOperation,
+  migrationSubjectKey,
   type OperationPreview,
   planOriginOf,
   type ResolvedMigrationStatement,
@@ -50,10 +51,10 @@ import { createProjectSpecifierResolver } from '../../utils/project-import-root'
 import { snapshotVerifierFor } from '../../utils/snapshot-content-verification';
 import {
   type AnswerPlanQuestions,
-  answerPlanQuestions,
+  askPlanQuestions,
   type PlannedSubject,
   subjectText,
-} from '../statements/data-loss-questions';
+} from '../statements/plan-questions';
 import {
   type AppliedStatementReport,
   reportAppliedStatements,
@@ -316,7 +317,7 @@ async function answerPlannedDataLoss(input: {
     dataLoss: [...(input.baseline?.dataLoss ?? []), ...(delta?.dataLoss ?? [])],
     accessWidening: [],
   });
-  const answered = await answerPlanQuestions({
+  const answered = await askPlanQuestions({
     plan: legs(input.delta),
     askAccess: false,
     renames: input.renames,
@@ -338,7 +339,9 @@ async function answerPlannedDataLoss(input: {
     reportConsentStatement(
       consented,
       (delta?.dataLoss ?? [])
-        .filter((loss) => JSON.stringify(loss.subject) === JSON.stringify(consented.subject))
+        .filter(
+          (loss) => migrationSubjectKey(loss.subject) === migrationSubjectKey(consented.subject),
+        )
         .flatMap(({ operationIndex }) => (operationIndex === undefined ? [] : [operationIndex])),
     ),
   );

@@ -124,13 +124,13 @@ export {
 } from '../control/control-stack';
 export type {
   AppliedMigrationStatement,
-  DeleteMigrationStatement,
   FieldCoordinate,
   FieldCoordinateJson,
   MigrationOperationSubject,
+  MigrationPlanSubjects,
   MigrationStatementJson,
-  MigrationStatementSubject,
-  MigrationStatementSubjectJson,
+  MigrationSubject,
+  MigrationSubjectJson,
   ModelCoordinate,
   ModelCoordinateJson,
   ResolvedFieldRenameStatement,
@@ -140,7 +140,8 @@ export type {
 export {
   describeMigrationStatement,
   migrationStatementJson,
-  migrationStatementSubjectJson,
+  migrationSubjectJson,
+  migrationSubjectKey,
   modelDisplayName,
 } from '../control/migration-statements';
 export { orderIssuesByDependencies } from '../control/order-issues-by-dependencies';

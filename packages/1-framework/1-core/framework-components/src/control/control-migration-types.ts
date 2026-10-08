@@ -22,7 +22,7 @@ import type {
 import type { OperationContext } from './control-operation-results';
 import type {
   AppliedMigrationStatement,
-  MigrationOperationSubject,
+  MigrationPlanSubjects,
   ResolvedMigrationStatement,
 } from './migration-statements';
 
@@ -312,16 +312,12 @@ export interface MigrationPlannerConflict {
  * The plan is typed as `MigrationPlanWithAuthoringSurface` so the CLI can
  * uniformly ask any plan to render itself to TypeScript.
  */
-export interface MigrationPlannerSuccessResult {
+export interface MigrationPlannerSuccessResult extends MigrationPlanSubjects {
   readonly kind: 'success';
   readonly plan: MigrationPlanWithAuthoringSurface;
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied, one per statement it was given, in order. */
   readonly appliedStatements: readonly AppliedMigrationStatement[];
-  /** Each operation that loses data, in plan order, with what it loses. */
-  readonly dataLoss: readonly MigrationOperationSubject[];
-  /** Each operation that widens who can read or write data, in plan order, with what it is about. */
-  readonly accessWidening: readonly MigrationOperationSubject[];
 }
 
 /**

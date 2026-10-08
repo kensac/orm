@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   describeMigrationStatement,
   migrationStatementJson,
-  migrationStatementSubjectJson,
+  migrationSubjectJson,
+  migrationSubjectKey,
   modelDisplayName,
   type ResolvedMigrationStatement,
 } from '../src/control/migration-statements';
@@ -99,54 +100,18 @@ describe('describeMigrationStatement', () => {
   });
 });
 
-describe('describeMigrationStatement for a delete', () => {
-  it('names the model, the field or the storage the statement deletes', () => {
-    const contract = contractWith({ app: ['Legacy', 'User'] });
-    expect([
-      describeMigrationStatement(
-        { kind: 'delete', subject: { kind: 'model', namespaceId: app, model: 'Legacy' } },
-        contract,
-        contract,
-      ),
-      describeMigrationStatement(
-        {
-          kind: 'delete',
-          subject: { kind: 'field', namespaceId: app, model: 'User', field: 'name' },
-        },
-        contract,
-        contract,
-      ),
-      describeMigrationStatement(
-        { kind: 'delete', subject: { kind: 'storage', name: 'audit_log' } },
-        contract,
-        contract,
-      ),
-    ]).toEqual(['delete model "Legacy"', 'delete field "User.name"', 'delete storage "audit_log"']);
-  });
-
-  it('names a deleted model through its namespace when the origin contract has several', () => {
-    expect(
-      describeMigrationStatement(
-        { kind: 'delete', subject: { kind: 'model', namespaceId: app, model: 'Legacy' } },
-        contractWith({ app: ['Legacy'], billing: ['Bill'] }),
-        contractWith({ billing: ['Bill'] }),
-      ),
-    ).toBe('delete model "app.Legacy"');
-  });
-});
-
-describe('migrationStatementSubjectJson', () => {
+describe('migrationSubjectJson', () => {
   it('leaves namespaceId out for the unbound namespace and keeps it otherwise', () => {
     const unbound = asNamespaceId(UNBOUND_NAMESPACE_ID);
     expect([
-      migrationStatementSubjectJson({
+      migrationSubjectJson({
         kind: 'field',
         namespaceId: unbound,
         model: 'User',
         field: 'name',
       }),
-      migrationStatementSubjectJson({ kind: 'model', namespaceId: app, model: 'Legacy' }),
-      migrationStatementSubjectJson({ kind: 'storage', name: 'audit_log' }),
+      migrationSubjectJson({ kind: 'model', namespaceId: app, model: 'Legacy' }),
+      migrationSubjectJson({ kind: 'storage', name: 'audit_log' }),
     ]).toEqual([
       { kind: 'field', model: 'User', field: 'name' },
       { kind: 'model', namespaceId: 'app', model: 'Legacy' },
@@ -189,5 +154,24 @@ describe('migrationStatementJson', () => {
         to: { namespaceId: 'app', model: 'User' },
       },
     ]);
+  });
+});
+
+describe('migrationSubjectKey', () => {
+  it('is equal for subjects that name the same thing, whatever their key order', () => {
+    const app = asNamespaceId('app');
+    expect(
+      migrationSubjectKey({ kind: 'field', namespaceId: app, model: 'User', field: 'name' }),
+    ).toBe(migrationSubjectKey({ field: 'name', model: 'User', namespaceId: app, kind: 'field' }));
+  });
+
+  it('differs between a model, a field and a storage name that share a name', () => {
+    const app = asNamespaceId('app');
+    const keys = new Set([
+      migrationSubjectKey({ kind: 'model', namespaceId: app, model: 'User' }),
+      migrationSubjectKey({ kind: 'field', namespaceId: app, model: 'User', field: 'User' }),
+      migrationSubjectKey({ kind: 'storage', name: 'User' }),
+    ]);
+    expect(keys.size).toBe(3);
   });
 });

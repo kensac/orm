@@ -3,27 +3,27 @@ import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { describe, expect, it } from 'vitest';
 import {
   type CallSubjects,
-  fieldEventTarget,
-  planSubjects,
-  type SubjectTarget,
+  fieldEventStorage,
+  type SubjectStorage,
+  subjectsOfCalls,
   unknownCallNames,
 } from '../src/core/migrations/operation-subjects';
 import { contractOf, renameField, renameModel } from './statement-fixtures';
 
 const app = asNamespaceId('app');
 
-function table(name: string, storageName = name): SubjectTarget {
+function table(name: string, storageName = name): SubjectStorage {
   return { storageName, table: { namespaceId: 'app', table: name, column: undefined } };
 }
 
-function column(tableName: string, columnName: string): SubjectTarget {
+function column(tableName: string, columnName: string): SubjectStorage {
   return {
     storageName: `${tableName}.${columnName}`,
     table: { namespaceId: 'app', table: tableName, column: columnName },
   };
 }
 
-function losing(...targets: readonly SubjectTarget[]): CallSubjects {
+function losing(...targets: readonly SubjectStorage[]): CallSubjects {
   return { operationCount: 1, dataLoss: targets, accessWidening: [] };
 }
 
@@ -34,10 +34,10 @@ const origin = contractOf({
   User: { table: 'user', fields: { id: 'id', name: 'full_name' } },
 });
 
-describe('planSubjects', () => {
+describe('subjectsOfCalls', () => {
   it('names the model of a dropped table and the field of a dropped column', () => {
     expect(
-      planSubjects([unchanged, losing(table('legacy')), losing(column('user', 'full_name'))], {
+      subjectsOfCalls([unchanged, losing(table('legacy')), losing(column('user', 'full_name'))], {
         fromContract: origin,
         contract: contractOf({ User: { table: 'user', fields: { id: 'id' } } }),
         statements: [],
@@ -56,7 +56,7 @@ describe('planSubjects', () => {
 
   it('counts every operation of a call with companions before the next call', () => {
     expect(
-      planSubjects(
+      subjectsOfCalls(
         [{ operationCount: 3, dataLoss: [], accessWidening: [] }, losing(table('legacy'))],
         { fromContract: origin, contract: origin, statements: [] },
       ).dataLoss,
@@ -73,7 +73,7 @@ describe('planSubjects', () => {
       User: { table: 'user', fields: { id: 'id', name: 'full_name' } },
     });
     expect(
-      planSubjects([losing(column('account', 'display_name'))], {
+      subjectsOfCalls([losing(column('account', 'display_name'))], {
         fromContract: from,
         contract: destination,
         statements: [
@@ -91,11 +91,14 @@ describe('planSubjects', () => {
 
   it('names storage the origin contract does not declare by its storage name', () => {
     expect(
-      planSubjects([losing(table('audit_log', 'public.audit_log'), column('user', 'nickname'))], {
-        fromContract: origin,
-        contract: origin,
-        statements: [],
-      }).dataLoss,
+      subjectsOfCalls(
+        [losing(table('audit_log', 'public.audit_log'), column('user', 'nickname'))],
+        {
+          fromContract: origin,
+          contract: origin,
+          statements: [],
+        },
+      ).dataLoss,
     ).toEqual([
       { operationIndex: 0, subject: { kind: 'storage', name: 'public.audit_log' } },
       { operationIndex: 0, subject: { kind: 'storage', name: 'user.nickname' } },
@@ -104,7 +107,7 @@ describe('planSubjects', () => {
 
   it('names every subject by its storage name when the plan has no origin contract', () => {
     expect(
-      planSubjects([losing(table('legacy'), column('user', 'full_name'))], {
+      subjectsOfCalls([losing(table('legacy'), column('user', 'full_name'))], {
         fromContract: null,
         contract: origin,
         statements: [],
@@ -117,7 +120,7 @@ describe('planSubjects', () => {
 
   it('names a subject with no table, such as a type, by its storage name', () => {
     expect(
-      planSubjects([losing({ storageName: 'public.mood', table: undefined })], {
+      subjectsOfCalls([losing({ storageName: 'public.mood', table: undefined })], {
         fromContract: origin,
         contract: origin,
         statements: [],
@@ -127,7 +130,7 @@ describe('planSubjects', () => {
 
   it('lists access-widening operations with the model of their table', () => {
     expect(
-      planSubjects(
+      subjectsOfCalls(
         [unchanged, { operationCount: 1, dataLoss: [], accessWidening: [table('user')] }],
         { fromContract: origin, contract: origin, statements: [] },
       ),
@@ -148,7 +151,7 @@ describe('planSubjects', () => {
 
     it('names the root model of a dropped table, and the model with a field for a dropped column', () => {
       expect(
-        planSubjects([losing(table('users')), losing(column('users', 'email'))], {
+        subjectsOfCalls([losing(table('users')), losing(column('users', 'email'))], {
           fromContract: sharing,
           contract: sharing,
           statements: [],
@@ -161,7 +164,7 @@ describe('planSubjects', () => {
 
     it('names a field only a variant has through the variant', () => {
       expect(
-        planSubjects([losing(column('users', 'level'))], {
+        subjectsOfCalls([losing(column('users', 'level'))], {
           fromContract: sharing,
           contract: sharing,
           statements: [],
@@ -186,13 +189,13 @@ describe('unknownCallNames', () => {
   });
 });
 
-describe('fieldEventTarget', () => {
+describe('fieldEventStorage', () => {
   it('names the field event column, qualified by its namespace outside the unbound one', () => {
-    const subjects = planSubjects(
+    const subjects = subjectsOfCalls(
       [
         losing(
-          fieldEventTarget({ namespaceId: 'app', tableName: 'user', columnName: 'full_name' }),
-          fieldEventTarget({ namespaceId: 'app', tableName: 'user', columnName: 'nickname' }),
+          fieldEventStorage({ namespaceId: 'app', tableName: 'user', columnName: 'full_name' }),
+          fieldEventStorage({ namespaceId: 'app', tableName: 'user', columnName: 'nickname' }),
         ),
       ],
       { fromContract: origin, contract: origin, statements: [] },
@@ -202,7 +205,7 @@ describe('fieldEventTarget', () => {
       { kind: 'storage', name: 'app.user.nickname' },
     ]);
     expect(
-      fieldEventTarget({ namespaceId: UNBOUND_NAMESPACE_ID, tableName: 'user', columnName: 'bio' })
+      fieldEventStorage({ namespaceId: UNBOUND_NAMESPACE_ID, tableName: 'user', columnName: 'bio' })
         .storageName,
     ).toBe('user.bio');
   });

@@ -1,6 +1,6 @@
 import type {
   MigrationPlannerConflict,
-  MigrationStatementSubjectJson,
+  MigrationSubjectJson,
   OperationPreview,
 } from '@internal/framework-components/control';
 import type { AppliedStatementReport } from '../../control-api/statements/report-applied-statements';
@@ -49,7 +49,7 @@ export function previewBlockHeader(preview: OperationPreview): string {
 /** An operation of a plan, by its position in `plan.operations`, and its subject. */
 export interface PlannedSubjectJson {
   readonly operationIndex: number;
-  readonly subject: MigrationStatementSubjectJson;
+  readonly subject: MigrationSubjectJson;
   /** The subject as the apply's question writes it, and as `--delete` or `--allow` takes it. */
   readonly text: string;
 }

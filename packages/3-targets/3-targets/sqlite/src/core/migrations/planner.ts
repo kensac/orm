@@ -13,7 +13,7 @@ import {
   planFieldEventCalls,
   plannerFailure,
   planStatements,
-  planSubjects,
+  subjectsOfCalls,
 } from '@internal/family-sql/control';
 import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter';
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
@@ -254,7 +254,7 @@ export class SqliteMigrationPlanner
         this.#lowerer,
       ),
       appliedStatements: statements.value.appliedStatements,
-      ...planSubjects(
+      ...subjectsOfCalls(
         sqliteCallSubjects(
           calls,
           new Map(fieldEventCalls.map((fieldEvent) => [fieldEvent.call, fieldEvent])),

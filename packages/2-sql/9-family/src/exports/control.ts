@@ -48,12 +48,11 @@ export {
 export { storageNameOfOperation } from '../core/migrations/operation-storage-name';
 export type {
   CallSubjects,
-  PlanSubjects,
-  SubjectTarget,
+  SubjectStorage,
 } from '../core/migrations/operation-subjects';
 export {
-  fieldEventTarget,
-  planSubjects,
+  fieldEventStorage,
+  subjectsOfCalls,
   unknownCallNames,
 } from '../core/migrations/operation-subjects';
 export {

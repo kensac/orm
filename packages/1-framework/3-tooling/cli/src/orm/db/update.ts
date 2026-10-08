@@ -1,5 +1,5 @@
 import { ormConfigSection } from '@internal/config-loader';
-import { migrationStatementSubjectJson } from '@internal/framework-components/control';
+import { migrationSubjectJson } from '@internal/framework-components/control';
 import { ifDefined } from '@internal/utils/defined';
 import { isStructuredError } from '@internal/utils/structured-error';
 import type { Block, Presentations } from '@prisma/cli-engine';
@@ -70,7 +70,7 @@ function updatePresentations(inputs: {
 function subjectEntryJson(entry: AskedSubject) {
   return {
     operationIndex: entry.operationIndex,
-    subject: migrationStatementSubjectJson(entry.subject),
+    subject: migrationSubjectJson(entry.subject),
     text: entry.text,
   };
 }

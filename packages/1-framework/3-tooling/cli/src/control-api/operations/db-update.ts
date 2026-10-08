@@ -9,7 +9,7 @@ import type {
 } from '@internal/framework-components/control';
 import type { SnapshotContentVerifier } from '@internal/migration-tools/contract-snapshot-store';
 import { ifDefined } from '@internal/utils/defined';
-import type { AnswerPlanQuestions } from '../statements/data-loss-questions';
+import type { AnswerPlanQuestions } from '../statements/plan-questions';
 import type { StatementText } from '../statements/statement-text';
 import type { DbUpdateResult, OnControlProgress } from '../types';
 import { executeRun } from './db-run';

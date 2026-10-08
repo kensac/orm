@@ -1,5 +1,5 @@
 import { asNamespaceId, type Contract, coreHash, profileHash } from '@internal/contract/types';
-import { type FieldEventCall, planSubjects } from '@internal/family-sql/control';
+import { type FieldEventCall, subjectsOfCalls } from '@internal/family-sql/control';
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
@@ -66,7 +66,7 @@ function destructiveCall(factoryName: string): OpFactoryCall {
 }
 
 function subjectsOf(calls: readonly OpFactoryCall[], fieldEvents: readonly FieldEventCall[]) {
-  return planSubjects(
+  return subjectsOfCalls(
     sqliteCallSubjects(
       calls,
       new Map(fieldEvents.map((fieldEvent) => [fieldEvent.call, fieldEvent])),

@@ -2,8 +2,8 @@ import type { Contract } from '@internal/contract/types';
 import {
   type CallSubjects,
   type FieldEventCall,
-  fieldEventTarget,
-  type SubjectTarget,
+  fieldEventStorage,
+  type SubjectStorage,
   storageNameOfOperation,
   unknownCallNames,
 } from '@internal/family-sql/control';
@@ -44,14 +44,14 @@ function target(
   schemaName: string,
   table: string,
   column: string | undefined,
-): SubjectTarget {
+): SubjectStorage {
   return {
     storageName: qualified(schemaName, column === undefined ? table : `${table}.${column}`),
     table: { namespaceId: storageNamespaceId(locator, schemaName), table, column },
   };
 }
 
-function rawSqlTarget(locator: Locator, call: RawSqlCall): SubjectTarget {
+function rawSqlTarget(locator: Locator, call: RawSqlCall): SubjectStorage {
   const details = call.op.target.details;
   if (details === undefined) return { storageName: call.op.id, table: undefined };
   if (details.objectType === 'table')
@@ -62,7 +62,7 @@ function rawSqlTarget(locator: Locator, call: RawSqlCall): SubjectTarget {
   return { storageName: storageNameOfOperation(call.op), table: undefined };
 }
 
-function knownTarget(locator: Locator, call: OpFactoryCall): SubjectTarget | undefined {
+function knownTarget(locator: Locator, call: OpFactoryCall): SubjectStorage | undefined {
   if (call instanceof DropTableCall) {
     return target(locator, call.schemaName, call.tableName, undefined);
   }
@@ -71,7 +71,7 @@ function knownTarget(locator: Locator, call: OpFactoryCall): SubjectTarget | und
   }
   if (call instanceof RawSqlCall) return rawSqlTarget(locator, call);
   const fieldEvent = locator.fieldEvents.get(call);
-  return fieldEvent === undefined ? undefined : fieldEventTarget(fieldEvent);
+  return fieldEvent === undefined ? undefined : fieldEventStorage(fieldEvent);
 }
 
 /**
@@ -100,7 +100,7 @@ function accessWideningOf(
   locator: Locator,
   call: OpFactoryCall,
   replaced: ReadonlySet<string>,
-): readonly SubjectTarget[] {
+): readonly SubjectStorage[] {
   if (call instanceof DisableRowLevelSecurityCall) {
     return [target(locator, call.schemaName, call.tableName, undefined)];
   }

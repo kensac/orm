@@ -142,6 +142,12 @@ export type {
   RenderContractDtsResult,
   RenderContractDtsSuccess,
 } from '../control-api/render-contract-dts';
+export type {
+  AnswerPlanQuestions,
+  PlanAnswer,
+  PlanQuestion,
+  PlanQuestionVerb,
+} from '../control-api/statements/plan-questions';
 export type { AppliedStatementReport } from '../control-api/statements/report-applied-statements';
 export {
   type ResolveStatementsInput,

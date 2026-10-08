@@ -10,7 +10,7 @@ import { createTestCli } from '@prisma/cli-engine/testing';
 import { basename, dirname, join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeMigrationPlanCommand } from '../../src/control-api/operations/migration-plan';
-import type { AnswerPlanQuestions } from '../../src/control-api/statements/data-loss-questions';
+import type { AnswerPlanQuestions } from '../../src/control-api/statements/plan-questions';
 import type { StatementText } from '../../src/control-api/statements/statement-text';
 import { BIN_GROUPS } from '../../src/orm/cli';
 import { errorUnfilledPlaceholder } from '../../src/utils/cli-errors';

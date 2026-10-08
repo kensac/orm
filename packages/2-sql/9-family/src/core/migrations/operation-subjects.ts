@@ -1,7 +1,8 @@
 import { asNamespaceId, type ContractWithDomain } from '@internal/contract/types';
 import type {
   MigrationOperationSubject,
-  MigrationStatementSubject,
+  MigrationPlanSubjects,
+  MigrationSubject,
   ModelCoordinate,
   ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
@@ -18,7 +19,7 @@ import {
  * column of one, in a storage namespace, or neither, such as a type. `storageName` names the
  * subject when no model of the origin contract stores it.
  */
-export interface SubjectTarget {
+export interface SubjectStorage {
   readonly storageName: string;
   readonly table:
     | {
@@ -30,11 +31,11 @@ export interface SubjectTarget {
 }
 
 /** The target of a codec hook's call: the column of the field event it was returned for. */
-export function fieldEventTarget(field: {
+export function fieldEventStorage(field: {
   readonly namespaceId: string;
   readonly tableName: string;
   readonly columnName: string;
-}): SubjectTarget {
+}): SubjectStorage {
   const qualifier = field.namespaceId === UNBOUND_NAMESPACE_ID ? [] : [field.namespaceId];
   return {
     storageName: [...qualifier, field.tableName, field.columnName].join('.'),
@@ -66,14 +67,9 @@ export function unknownCallNames<TCall extends { readonly factoryName: string }>
 export interface CallSubjects {
   readonly operationCount: number;
   /** What the call's operation loses, one entry per model, field or storage name. */
-  readonly dataLoss: readonly SubjectTarget[];
+  readonly dataLoss: readonly SubjectStorage[];
   /** What the call's operation widens access to. */
-  readonly accessWidening: readonly SubjectTarget[];
-}
-
-export interface PlanSubjects {
-  readonly dataLoss: readonly MigrationOperationSubject[];
-  readonly accessWidening: readonly MigrationOperationSubject[];
+  readonly accessWidening: readonly SubjectStorage[];
 }
 
 interface SubjectContext {
@@ -148,8 +144,8 @@ function modelsStoring(
   );
 }
 
-function subjectOf(target: SubjectTarget, context: SubjectContext): MigrationStatementSubject {
-  const storage: MigrationStatementSubject = { kind: 'storage', name: target.storageName };
+function subjectOf(target: SubjectStorage, context: SubjectContext): MigrationSubject {
+  const storage: MigrationSubject = { kind: 'storage', name: target.storageName };
   const { fromContract } = context;
   if (target.table === undefined || fromContract === null) return storage;
   const withOrigin = { ...context, fromContract };
@@ -173,10 +169,10 @@ function subjectOf(target: SubjectTarget, context: SubjectContext): MigrationSta
  * the plan. A subject is a model or a field of the origin contract when one stores it, found under
  * its origin name when a rename statement renamed its table or column earlier in the plan.
  */
-export function planSubjects(
+export function subjectsOfCalls(
   calls: readonly CallSubjects[],
   context: SubjectContext,
-): PlanSubjects {
+): MigrationPlanSubjects {
   const dataLoss: MigrationOperationSubject[] = [];
   const accessWidening: MigrationOperationSubject[] = [];
   let operationIndex = 0;

@@ -13,7 +13,7 @@ import type {
   MigrationOperationSubject,
   MigrationPlannerConflict,
   MigrationPlanOperation,
-  MigrationStatementSubject,
+  MigrationPlanSubjects,
   OperationPreview,
   ResolvedMigrationStatement,
   TargetMigrationsCapability,
@@ -22,6 +22,7 @@ import {
   CONTRACT_SNAPSHOTS_DIRNAME,
   hasOperationPreview,
   isStorageHashHex,
+  migrationSubjectKey,
 } from '@internal/framework-components/control';
 import type { ContractMarkerRecordLike } from '@internal/migration-tools/aggregate';
 import {
@@ -45,12 +46,12 @@ import { join } from 'pathe';
 import { CliStructuredError } from '../../utils/cli-errors';
 import {
   type AnswerPlanQuestions,
-  answerPlanQuestions,
+  askPlanQuestions,
   type ConsentedSubject,
   type PlannedQuestions,
   refuseUnusedConsents,
   subjectText,
-} from '../statements/data-loss-questions';
+} from '../statements/plan-questions';
 import {
   type AppliedStatementReport,
   reportAppliedStatements,
@@ -59,7 +60,7 @@ import {
 import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
 import type { StatementText } from '../statements/statement-text';
 import type {
-  AskedSubjectsReport,
+  AskedSubject,
   DbInitFailure,
   DbInitResult,
   DbInitSuccess,
@@ -68,7 +69,6 @@ import type {
   DbUpdateSuccess,
   OnControlProgress,
   PerSpaceExecutionEntry,
-  PlanSubjectsReport,
 } from '../types';
 import {
   type BuildAggregateInputs,
@@ -286,7 +286,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     }
     onProgress?.({ action, kind: 'spanEnd', spanId: SPAN_IDS.plan, outcome: 'ok' });
     const orderedResolutions = collectOrdered(planned.value.applyOrder, planned.value.perSpace);
-    const subjects: PlanSubjectsReport =
+    const subjects: MigrationPlanSubjects =
       action === 'dbUpdate'
         ? subjectsAcrossSpaces(orderedResolutions)
         : { dataLoss: [], accessWidening: [] };
@@ -317,7 +317,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
   // and whether each that would widen access may run, before it applies anything. A dry run asks
   // nothing and lists them.
   if (options.action === 'dbUpdate' && mode === 'apply') {
-    const answered = await answerPlanQuestions({
+    const answered = await askPlanQuestions({
       plan: run,
       askAccess: true,
       renames: renameTexts,
@@ -366,7 +366,6 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     );
   }
   const appPlan = appResolution.entry.plan;
-  const subjectKey = (subject: MigrationStatementSubject) => JSON.stringify(subject);
   const appliedStatements =
     action === 'dbUpdate'
       ? [
@@ -380,7 +379,10 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
             reportConsentStatement(
               entry,
               (entry.verb === 'delete' ? run.subjects.dataLoss : run.subjects.accessWidening)
-                .filter(({ subject }) => subjectKey(subject) === subjectKey(entry.subject))
+                .filter(
+                  ({ subject }) =>
+                    migrationSubjectKey(subject) === migrationSubjectKey(entry.subject),
+                )
                 .map(({ operationIndex }) => operationIndex),
             ),
           ),
@@ -479,7 +481,7 @@ const EMPTY_ORIGIN = { domain: { namespaces: {} } };
 interface PlannedRun extends PlannedQuestions {
   readonly planned: AggregatePlan;
   readonly orderedResolutions: readonly OrderedResolution[];
-  readonly subjects: PlanSubjectsReport;
+  readonly subjects: MigrationPlanSubjects;
 }
 
 /**
@@ -544,7 +546,7 @@ function operationsBefore(
  */
 function subjectsAcrossSpaces(
   orderedResolutions: readonly OrderedResolution[],
-): PlanSubjectsReport {
+): MigrationPlanSubjects {
   const offset = (resolution: OrderedResolution, entries: readonly MigrationOperationSubject[]) =>
     entries.map((entry) => ({
       ...entry,
@@ -664,7 +666,7 @@ function wrapPlanResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: AskedSubjectsReport | undefined;
+  readonly subjects: MigrationPlanSubjects<AskedSubject> | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
@@ -696,7 +698,7 @@ function wrapApplyResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: AskedSubjectsReport | undefined;
+  readonly subjects: MigrationPlanSubjects<AskedSubject> | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {

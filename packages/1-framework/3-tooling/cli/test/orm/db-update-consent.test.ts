@@ -9,7 +9,7 @@ import {
   dataLossQuestion,
   type PlanAnswer,
   type PlanQuestion,
-} from '../../src/control-api/statements/data-loss-questions';
+} from '../../src/control-api/statements/plan-questions';
 import type { ControlClient, DbUpdateOptions } from '../../src/control-api/types';
 import { BIN_GROUPS, createBinCommands } from '../../src/orm/cli';
 import { createOrmTestCli } from '../helpers/orm-test-cli';

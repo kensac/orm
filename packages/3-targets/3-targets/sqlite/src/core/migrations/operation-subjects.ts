@@ -1,8 +1,8 @@
 import {
   type CallSubjects,
   type FieldEventCall,
-  fieldEventTarget,
-  type SubjectTarget,
+  fieldEventStorage,
+  type SubjectStorage,
   storageNameOfOperation,
   unknownCallNames,
 } from '@internal/family-sql/control';
@@ -10,14 +10,14 @@ import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { DropColumnCall, DropTableCall, RawSqlCall, RecreateTableCall } from './op-factory-call';
 
-function tableTarget(table: string): SubjectTarget {
+function tableTarget(table: string): SubjectStorage {
   return {
     storageName: table,
     table: { namespaceId: UNBOUND_NAMESPACE_ID, table, column: undefined },
   };
 }
 
-function columnTarget(table: string, column: string): SubjectTarget {
+function columnTarget(table: string, column: string): SubjectStorage {
   return {
     storageName: `${table}.${column}`,
     table: { namespaceId: UNBOUND_NAMESPACE_ID, table, column },
@@ -84,11 +84,11 @@ export function sqliteCallSubjects(
       return { operationCount, dataLoss: [], accessWidening: [] };
     }
     const fieldEvent = fieldEvents.get(call);
-    const lossTarget: SubjectTarget =
+    const lossTarget: SubjectStorage =
       call instanceof RawSqlCall
         ? { storageName: storageNameOfOperation(call.op), table: undefined }
         : fieldEvent !== undefined
-          ? fieldEventTarget(fieldEvent)
+          ? fieldEventStorage(fieldEvent)
           : { storageName: unknownNames.get(call) ?? call.factoryName, table: undefined };
     return { operationCount, dataLoss: [lossTarget], accessWidening: [] };
   });

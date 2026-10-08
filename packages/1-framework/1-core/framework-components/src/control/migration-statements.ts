@@ -42,23 +42,40 @@ export type ResolvedMigrationStatement =
 /**
  * What an operation of a plan is about, in the contract's terms where the family can say: a model
  * or a field of the origin contract, or, when no model of the origin contract stores it, the name
- * the database knows it by.
+ * the database knows it by. Told apart by `kind`, not by a statement's `entity`, because a storage
+ * name is not an entity of the contract.
  */
-export type MigrationStatementSubject =
+export type MigrationSubject =
   | ({ readonly kind: 'model' } & ModelCoordinate)
   | ({ readonly kind: 'field' } & FieldCoordinate)
   | { readonly kind: 'storage'; readonly name: string };
 
+/** A key that is equal for two subjects exactly when they name the same thing. */
+export function migrationSubjectKey(subject: MigrationSubject): string {
+  switch (subject.kind) {
+    case 'model':
+      return JSON.stringify(['model', subject.namespaceId, subject.model]);
+    case 'field':
+      return JSON.stringify(['field', subject.namespaceId, subject.model, subject.field]);
+    case 'storage':
+      return JSON.stringify(['storage', subject.name]);
+  }
+}
+
 /** An operation of a plan, by its position in the plan's `operations`, and its subject. */
 export interface MigrationOperationSubject {
   readonly operationIndex: number;
-  readonly subject: MigrationStatementSubject;
+  readonly subject: MigrationSubject;
 }
 
-/** A statement that consents to losing the data of its subject. It never reaches a planner. */
-export interface DeleteMigrationStatement {
-  readonly kind: 'delete';
-  readonly subject: MigrationStatementSubject;
+/** What the operations of a plan lose and whose access they widen, each by its position in the plan. */
+export interface MigrationPlanSubjects<
+  TEntry extends MigrationOperationSubject = MigrationOperationSubject,
+> {
+  /** Each operation that loses data, in plan order, with what it loses. */
+  readonly dataLoss: readonly TEntry[];
+  /** Each operation that widens who can read or write data, in plan order, with what it is about. */
+  readonly accessWidening: readonly TEntry[];
 }
 
 /**
@@ -115,7 +132,7 @@ export type MigrationStatementJson =
     };
 
 /** A subject in JSON output: `namespaceId` is left out for the unbound namespace. */
-export type MigrationStatementSubjectJson =
+export type MigrationSubjectJson =
   | ({ readonly kind: 'model' } & ModelCoordinateJson)
   | ({ readonly kind: 'field' } & FieldCoordinateJson)
   | { readonly kind: 'storage'; readonly name: string };
@@ -138,9 +155,7 @@ export function migrationStatementJson(
 }
 
 /** The subject as JSON output writes it. */
-export function migrationStatementSubjectJson(
-  subject: MigrationStatementSubject,
-): MigrationStatementSubjectJson {
+export function migrationSubjectJson(subject: MigrationSubject): MigrationSubjectJson {
   switch (subject.kind) {
     case 'model':
       return {
@@ -161,32 +176,16 @@ export function migrationStatementSubjectJson(
   }
 }
 
-function describeDelete(
-  subject: MigrationStatementSubject,
-  fromContract: ContractWithDomain,
-): string {
-  switch (subject.kind) {
-    case 'model':
-      return `delete model "${modelName(fromContract, subject)}"`;
-    case 'field':
-      return `delete field "${modelName(fromContract, subject)}.${subject.field}"`;
-    case 'storage':
-      return `delete storage "${subject.name}"`;
-  }
-}
-
 /**
  * The text that reports a statement, in domain names: a model or field is named with its
  * namespace only when its contract has more than one. A renamed field is named through its model as
- * the destination contract names it, as the statement itself is written; a deleted model or field
- * as the origin contract names it.
+ * the destination contract names it, as the statement itself is written.
  */
 export function describeMigrationStatement(
-  statement: ResolvedMigrationStatement | DeleteMigrationStatement,
+  statement: ResolvedMigrationStatement,
   fromContract: ContractWithDomain,
   contract: ContractWithDomain,
 ): string {
-  if (statement.kind === 'delete') return describeDelete(statement.subject, fromContract);
   if (statement.entity === 'model') {
     return `rename model "${modelName(fromContract, statement.from)}" to "${modelName(contract, statement.to)}"`;
   }

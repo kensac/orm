@@ -16,6 +16,7 @@ import type {
   MigrationOperationSubject,
   MigrationPlannerConflict,
   MigrationPlanOperation,
+  MigrationPlanSubjects,
   OperationPreview,
   VerifyDatabaseResult,
   VerifyDatabaseSchemaResult,
@@ -25,7 +26,7 @@ import type { Result } from '@internal/utils/result';
 import type { ExecuteDbSignResult } from './operations/db-sign';
 import type { ExecuteDbVerifyResult } from './operations/db-verify';
 import type { RenderContractDtsOptions, RenderContractDtsResult } from './render-contract-dts';
-import type { AnswerPlanQuestions } from './statements/data-loss-questions';
+import type { AnswerPlanQuestions } from './statements/plan-questions';
 import type { AppliedStatementReport } from './statements/report-applied-statements';
 import type { StatementText } from './statements/statement-text';
 
@@ -448,27 +449,15 @@ export interface DbInitFailure {
  */
 export type DbInitResult = Result<DbInitSuccess, DbInitFailure>;
 
-/** What the operations of a plan lose and whose access they widen, by position in the plan. */
-export interface PlanSubjectsReport {
-  readonly dataLoss: readonly MigrationOperationSubject[];
-  readonly accessWidening: readonly MigrationOperationSubject[];
-}
-
 /** An operation an apply asks about, with its subject written as the question writes it: `User.nickname`. */
 export interface AskedSubject extends MigrationOperationSubject {
   readonly text: string;
 }
 
-/** The operations an apply asks about, each with its subject as the question writes it. */
-export interface AskedSubjectsReport {
-  readonly dataLoss: readonly AskedSubject[];
-  readonly accessWidening: readonly AskedSubject[];
-}
-
 /**
  * Successful dbUpdate result.
  */
-export interface DbUpdateSuccess {
+export interface DbUpdateSuccess extends MigrationPlanSubjects<AskedSubject> {
   readonly mode: 'plan' | 'apply';
   readonly plan: {
     readonly operations: ReadonlyArray<{
@@ -504,10 +493,6 @@ export interface DbUpdateSuccess {
   readonly perSpace?: ReadonlyArray<PerSpaceExecutionEntry>;
   /** The statements the application space's plan applied, in order; empty when none were given. */
   readonly appliedStatements: readonly AppliedStatementReport[];
-  /** The operations in `plan.operations` that lose data, by position, with what each loses. */
-  readonly dataLoss: readonly AskedSubject[];
-  /** The operations in `plan.operations` that widen who can read or write data, by position. */
-  readonly accessWidening: readonly AskedSubject[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

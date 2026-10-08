@@ -10,7 +10,7 @@ import {
   type MigrationPlannerResult,
   type MigrationPlanWithAuthoringSurface,
   type MigrationScaffoldContext,
-  type MigrationStatementSubject,
+  type MigrationSubject,
   type ModelCoordinate,
   type PlanOrigin,
   type ResolvedMigrationStatement,
@@ -160,7 +160,7 @@ function collectionDrops(
   return calls.flatMap((call, operationIndex) => {
     if (!(call instanceof DropCollectionCall)) return [];
     const model = fromContract === null ? undefined : modelStoredIn(fromContract, call.collection);
-    const subject: MigrationStatementSubject =
+    const subject: MigrationSubject =
       model === undefined
         ? { kind: 'storage', name: call.collection }
         : { kind: 'model', ...model };

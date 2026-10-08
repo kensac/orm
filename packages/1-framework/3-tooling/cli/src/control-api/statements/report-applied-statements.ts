@@ -3,17 +3,17 @@ import {
   type AppliedMigrationStatement,
   describeMigrationStatement,
   type MigrationStatementJson,
-  type MigrationStatementSubjectJson,
+  type MigrationSubjectJson,
   migrationStatementJson,
-  migrationStatementSubjectJson,
+  migrationSubjectJson,
 } from '@internal/framework-components/control';
-import { type ConsentedSubject, consentDescription } from './data-loss-questions';
 import type { ConsentVerb } from './parse-consent';
+import { type ConsentedSubject, consentDescription } from './plan-questions';
 
 /** A delete or allow statement in JSON output: the subject whose data or access it consents to. */
 export interface ConsentStatementJson {
   readonly kind: ConsentVerb;
-  readonly subject: MigrationStatementSubjectJson;
+  readonly subject: MigrationSubjectJson;
 }
 
 /**
@@ -61,7 +61,7 @@ export function reportConsentStatement(
 ): AppliedStatementReport {
   return {
     verb: consented.verb,
-    statement: { kind: consented.verb, subject: migrationStatementSubjectJson(consented.subject) },
+    statement: { kind: consented.verb, subject: migrationSubjectJson(consented.subject) },
     operationIndexes,
     description: consentDescription(consented.verb, consented.subject, consented.text),
   };
