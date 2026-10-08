@@ -196,6 +196,40 @@ describe('db update questions', () => {
     expect(actions).not.toContain('--delete User');
   });
 
+  it('gives a value the subject it equals when another subject is its prefix', async () => {
+    mocks.dbUpdate.mockImplementation(
+      askThenApply(() => [
+        dataLossQuestion(
+          {
+            operationIndex: 0,
+            label: 'Drop table "Legacy"',
+            subject: { kind: 'model', namespaceId: asNamespaceId('app'), model: 'Legacy' },
+          },
+          contracts,
+        ),
+        dataLossQuestion(
+          {
+            operationIndex: 1,
+            label: 'Drop table "Legacy:x"',
+            subject: { kind: 'storage', name: 'Legacy:x' },
+          },
+          contracts,
+        ),
+      ]),
+    );
+
+    const run = await harness().run(
+      ['db', 'update', '--delete', 'Legacy:x', '--delete', 'Legacy', '--json'],
+      { cwd: projectDir },
+    );
+
+    expect(run.exitCode).toBe(0);
+    expect(answers).toEqual([
+      { verb: 'delete', text: 'Legacy' },
+      { verb: 'delete', text: 'Legacy:x' },
+    ]);
+  });
+
   it('applies once every question is answered with flags', async () => {
     const run = await harness().run(
       ['db', 'update', '--delete', 'audit_old', '--delete', 'Legacy', '--allow', 'User', '--json'],
