@@ -631,6 +631,38 @@ export function errorStatementDidNotResolveLoss(
 }
 
 /**
+ * `delete` or `allow` statements given to a programmatic call match no question the plan asks,
+ * so they consent to nothing.
+ */
+export function errorStatementAnswersNoQuestion(
+  statements: readonly WrittenStatement[],
+  subjects: readonly string[],
+): ActionableCliError {
+  const written = statements.map(({ verb, text }) => `"--${verb} ${text}"`);
+  const listed =
+    written.length === 1
+      ? `Statement ${written[0]} answers`
+      : `Statements ${written.slice(0, -1).join(', ')} and ${written.at(-1)} answer`;
+  const fix =
+    subjects.length === 0
+      ? 'Leave the statements out: the plan asks no question.'
+      : `Leave them out, or name a subject the plan asks about: ${subjects.join(', ')}.`;
+  return new ActionableCliError(
+    'MIGRATION.STATEMENT_ANSWERS_NO_QUESTION',
+    `${listed} no question of the plan`,
+    {
+      why: 'A delete or allow statement consents to an operation the plan asks about, and these name no subject the plan would lose data from or widen access to.',
+      fix,
+      nextActions: [chooseAction(fix)],
+      meta: {
+        statements: statements.map(({ verb, text }) => ({ verb, text })),
+        subjects,
+      },
+    },
+  );
+}
+
+/**
  * Without statements, `db update` drops a renamed table or column and creates it again under the
  * new name, so any advice to run without them says so.
  */

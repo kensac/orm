@@ -6,8 +6,12 @@ import {
   modelDisplayName,
   type ResolvedMigrationStatement,
 } from '@internal/framework-components/control';
+import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok, type Result } from '@internal/utils/result';
-import { errorStatementDidNotResolveLoss } from '../../utils/cli-errors';
+import {
+  errorStatementAnswersNoQuestion,
+  errorStatementDidNotResolveLoss,
+} from '../../utils/cli-errors';
 import type { ConsentVerb } from './parse-consent';
 import { resolveStatements } from './resolve-statements';
 import type { StatementText } from './statement-text';
@@ -34,7 +38,9 @@ export interface PlanAnswer {
 
 /**
  * Asks every question at once and returns one answer per question, in question order, with a verb
- * and text the question accepts. To refuse, throw.
+ * and text the question accepts. To refuse, throw. It is called at least once per apply, with an
+ * empty list when nothing is in question, including under `acceptDataLoss: true`; return `[]`
+ * then.
  */
 export type AnswerPlanQuestions = (
   questions: readonly PlanQuestion[],
@@ -219,21 +225,27 @@ const keyOf = (planned: PlannedSubject) => JSON.stringify(planned.subject);
 function checkAnswers(questions: readonly PlanQuestion[], answers: readonly PlanAnswer[]): void {
   if (answers.length !== questions.length) {
     const noun = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
-    throw new Error(
+    throw new InternalError(
       `answerQuestions gave ${noun(answers.length, 'answer')} for ${noun(questions.length, 'question')}; answer each question in order, or throw to refuse.`,
+      { cause: { questions: questions.map(({ subject }) => subject), answers } },
     );
   }
   questions.forEach((question, index) => {
     const answer = answers[index];
     if (answer === undefined) return;
+    const cause = { cause: { question: question.subject, verbs: question.verbs, answer } };
     if (!question.verbs.includes(answer.verb)) {
-      throw new Error(
+      throw new InternalError(
         `answerQuestions answered "${question.question}" with ${answer.verb}, which it does not accept; it accepts ${question.verbs.join(' or ')}.`,
+        cause,
       );
     }
     const rejected = question.validate(answer.verb, answer.text);
     if (rejected !== undefined) {
-      throw new Error(`answerQuestions answered "${question.question}" wrongly: ${rejected}`);
+      throw new InternalError(
+        `answerQuestions answered "${question.question}" wrongly: ${rejected}`,
+        cause,
+      );
     }
   });
 }
@@ -270,6 +282,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   let plan = input.plan;
   let renames = input.renames;
   const consented = new Map<string, ConsentedSubject>();
+  const usedPreAnswers = new Set<StatementText>();
   for (let round = 0; ; round += 1) {
     const contracts = {
       origin: input.origin,
@@ -295,10 +308,11 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
     ] as const) {
       for (const entry of entries) {
         const text = subjectText(entry.subject, contracts);
-        const given = input.preAnswers.some(
+        const given = input.preAnswers.filter(
           (statement) => statement.verb === verb && statement.text === text,
         );
-        if (input.consentAll || given) consent(verb, entry, text);
+        for (const statement of given) usedPreAnswers.add(statement);
+        if (input.consentAll || given.length > 0) consent(verb, entry, text);
       }
     }
     const losses = pending('delete', plan.dataLoss);
@@ -336,6 +350,14 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
         ),
       );
     }
+  }
+  const unused = input.preAnswers.filter((statement) => !usedPreAnswers.has(statement));
+  if (unused.length > 0) {
+    const contracts = { origin: input.origin, destination: input.destination, renames };
+    const subjects = [...plan.dataLoss, ...(input.askAccess ? plan.accessWidening : [])].map(
+      (entry) => subjectText(entry.subject, contracts),
+    );
+    return notOk(errorStatementAnswersNoQuestion(unused, [...new Set(subjects)]));
   }
   return ok({ plan, renames, consented: [...consented.values()] });
 }

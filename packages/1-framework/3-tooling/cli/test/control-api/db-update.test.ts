@@ -7,6 +7,7 @@ import type {
   MigrationRunnerResult,
   TargetMigrationsCapability,
 } from '@internal/framework-components/control';
+import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok } from '@internal/utils/result';
 import { describe, expect, it, vi } from 'vitest';
 import { executeDbUpdate } from '../../src/control-api/operations/db-update';
@@ -620,6 +621,34 @@ describe('executeDbUpdate', () => {
       expect(answerQuestions).toHaveBeenCalledWith([]);
     });
 
+    it('refuses delete and allow statements that answer no question, before applying', async () => {
+      const execute = vi.fn();
+      const error = await executeDbUpdate(
+        applyInputs({
+          migrations: createDestructiveMigrations(execute),
+          statements: [
+            { verb: 'delete', text: 'user.nickname' },
+            { verb: 'delete', text: 'Nope' },
+            { verb: 'allow', text: 'user' },
+            { verb: 'allow', text: 'post' },
+          ],
+        }),
+      ).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'MIGRATION.STATEMENT_ANSWERS_NO_QUESTION',
+        message: 'Statements "--delete Nope" and "--allow post" answer no question of the plan',
+        meta: {
+          statements: [
+            { verb: 'delete', text: 'Nope' },
+            { verb: 'allow', text: 'post' },
+          ],
+          subjects: ['user.nickname', 'user'],
+        },
+      });
+      expect(execute).not.toHaveBeenCalled();
+    });
+
     it('answers every question with acceptDataLoss: true', async () => {
       const answerQuestions = vi.fn(noQuestions);
       const result = await executeDbUpdate(applyInputs({ acceptDataLoss: true, answerQuestions }));
@@ -630,34 +659,41 @@ describe('executeDbUpdate', () => {
 
     it('rejects an answer callback that leaves a question unanswered, before applying', async () => {
       const execute = vi.fn();
-      await expect(
-        executeDbUpdate(
-          applyInputs({
-            migrations: createDestructiveMigrations(execute),
-            answerQuestions: async () => [{ verb: 'delete', text: 'user.nickname' }],
-          }),
-        ),
-      ).rejects.toThrow(
-        'answerQuestions gave 1 answer for 2 questions; answer each question in order, or throw to refuse.',
-      );
+      const answers = [{ verb: 'delete', text: 'user.nickname' }] as const;
+      const error = await executeDbUpdate(
+        applyInputs({
+          migrations: createDestructiveMigrations(execute),
+          answerQuestions: async () => answers,
+        }),
+      ).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(InternalError);
+      expect(error).toMatchObject({
+        message:
+          'answerQuestions gave 1 answer for 2 questions; answer each question in order, or throw to refuse.',
+        cause: { questions: ['user.nickname', 'user'], answers },
+      });
       expect(execute).not.toHaveBeenCalled();
     });
 
     it('rejects an answer the question does not accept, before applying', async () => {
       const execute = vi.fn();
-      await expect(
-        executeDbUpdate(
-          applyInputs({
-            migrations: createDestructiveMigrations(execute),
-            answerQuestions: async () => [
-              { verb: 'delete', text: 'user.nickname' },
-              { verb: 'delete', text: 'user' },
-            ],
-          }),
-        ),
-      ).rejects.toThrow(
-        'answerQuestions answered "Disable row-level security on user would widen who can read and write its rows." with delete, which it does not accept; it accepts allow.',
-      );
+      const error = await executeDbUpdate(
+        applyInputs({
+          migrations: createDestructiveMigrations(execute),
+          answerQuestions: async () => [
+            { verb: 'delete', text: 'user.nickname' },
+            { verb: 'delete', text: 'user' },
+          ],
+        }),
+      ).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(InternalError);
+      expect(error).toMatchObject({
+        message:
+          'answerQuestions answered "Disable row-level security on user would widen who can read and write its rows." with delete, which it does not accept; it accepts allow.',
+        cause: { question: 'user', verbs: ['allow'], answer: { verb: 'delete', text: 'user' } },
+      });
       expect(execute).not.toHaveBeenCalled();
     });
 
