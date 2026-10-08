@@ -23,6 +23,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
+import { statementFlag } from '../../control-api/statements/statement-flag';
 import type { StatementText } from '../../control-api/statements/statement-text';
 import type { AskedSubject, CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
@@ -46,6 +47,7 @@ function updatePresentations(inputs: {
   readonly database: string | undefined;
   readonly to: string | undefined;
   readonly dryRun: boolean;
+  readonly statements: readonly StatementText[];
 }): Presentations {
   const { document, database, dryRun } = inputs;
   return {
@@ -64,16 +66,21 @@ function updatePresentations(inputs: {
       ...migrationResultBlocks(document),
     ],
     json: () => document,
-    next: () => migrationResultNextActions(document, '{bin} db update'),
+    next: () =>
+      migrationResultNextActions(
+        document,
+        ['{bin} db update', ...inputs.statements.map(statementFlag)].join(' '),
+      ),
   };
 }
 
-function subjectEntryJson(entry: AskedSubject) {
-  return {
+function subjectEntryJson(verb: 'delete' | 'allow', given: readonly StatementText[]) {
+  return (entry: AskedSubject) => ({
     operationIndex: entry.operationIndex,
     subject: migrationSubjectJson(entry.subject),
     text: entry.text,
-  };
+    answered: given.some((statement) => statement.verb === verb && statement.text === entry.text),
+  });
 }
 
 function updateDocument(inputs: {
@@ -82,6 +89,8 @@ function updateDocument(inputs: {
   readonly advancedRef: { readonly name: string; readonly hash: string } | null;
   readonly plannedAdvanceRef: { readonly name: string; readonly hash: string } | null;
   readonly startedAt: number;
+  /** The statements the run was given, which a dry run's questions are marked answered by. */
+  readonly statements: readonly StatementText[];
 }): MigrationCommandResult {
   const { value } = inputs;
   return {
@@ -120,8 +129,8 @@ function updateDocument(inputs: {
     appliedStatements: value.appliedStatements,
     ...(value.mode === 'plan'
       ? {
-          dataLoss: value.dataLoss.map(subjectEntryJson),
-          accessWidening: value.accessWidening.map(subjectEntryJson),
+          dataLoss: value.dataLoss.map(subjectEntryJson('delete', inputs.statements)),
+          accessWidening: value.accessWidening.map(subjectEntryJson('allow', inputs.statements)),
         }
       : {}),
     ...ifDefined('warnings', value.warnings),
@@ -298,6 +307,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
           advancedRef: advanced.value.advancedRef,
           plannedAdvanceRef: advanced.value.plannedAdvanceRef,
           startedAt,
+          statements: previewConsents,
         });
       } catch (error) {
         // A refused, mistyped or cancelled answer is the engine's own error, and
@@ -345,6 +355,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
             database: prepared.value.database,
             to: args.flags.to,
             dryRun: args.flags.dryRun,
+            statements: [...renames, ...previewConsents],
           }),
         ),
       );

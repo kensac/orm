@@ -52,6 +52,8 @@ export interface PlannedSubjectJson {
   readonly subject: MigrationSubjectJson;
   /** The subject as the apply's question writes it, and as `--delete` or `--allow` takes it. */
   readonly text: string;
+  /** Whether a `--delete` or `--allow` the dry run was given answers this question. */
+  readonly answered: boolean;
 }
 
 export interface MigrationCommandResult {

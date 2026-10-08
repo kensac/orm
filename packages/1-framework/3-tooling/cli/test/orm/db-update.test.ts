@@ -236,6 +236,44 @@ describe('db update --rename', () => {
     });
   });
 
+  it('marks the questions the flags of a dry run answer, and repeats the flags in the apply it suggests', async () => {
+    const legacy = { kind: 'model', namespaceId: 'app', model: 'Legacy' } as const;
+    const audit = { kind: 'storage', name: "audit log's" } as const;
+    mocks.dbUpdate.mockResolvedValue(
+      ok({
+        ...planSuccess(),
+        dataLoss: [
+          { operationIndex: 0, subject: legacy, text: 'Legacy' },
+          { operationIndex: 0, subject: audit, text: "audit log's" },
+        ],
+      }),
+    );
+    const run = await harness().run(
+      ['db', 'update', '--dry-run', '--rename', 'Profile:User', '--delete', 'Legacy'],
+      { cwd: projectDir, isTty: { stdout: true } },
+    );
+
+    expect(run.presented?.presentation.human).toContainEqual({
+      kind: 'tree',
+      roots: [
+        {
+          label: 'An apply asks about',
+          children: [
+            { label: 'drop relation legacy: --delete Legacy (answered)' },
+            { label: "drop relation legacy: --delete 'audit log'\\''s'" },
+          ],
+        },
+      ],
+    });
+    expect(run.presented?.presentation.next).toEqual([
+      {
+        kind: 'run-command',
+        label: 'Apply the planned operations',
+        command: 'prisma-test db update --rename Profile:User --delete Legacy',
+      },
+    ]);
+  });
+
   it('lists the applied statements on a dry run', async () => {
     mocks.dbUpdate.mockResolvedValue(
       ok({ ...planSuccess(), appliedStatements: [{ ...PROFILE_TO_USER, operationIndexes: [] }] }),

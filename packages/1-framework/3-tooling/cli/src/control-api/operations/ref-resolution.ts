@@ -17,6 +17,7 @@ import {
   mapRefResolutionError,
   requireLiveDatabase,
 } from '../../utils/cli-errors';
+import { statementFlag } from '../statements/statement-flag';
 import type { StatementText } from '../statements/statement-text';
 
 export interface RefResolutionContext {
@@ -77,7 +78,7 @@ export function retryCommandFor(args: {
     ...(suggestsOffline ? ['--from <contract>'] : []),
     ...(args.to === undefined ? [] : [`--to ${args.to}`]),
     ...(args.advanceRef === undefined ? [] : [`--advance-ref ${args.advanceRef}`]),
-    ...(args.statements ?? []).map((statement) => `--${statement.verb} ${statement.text}`),
+    ...(args.statements ?? []).map(statementFlag),
     ...(needsConnection ? ['--db $DATABASE_URL'] : []),
   ].join(' ');
 }

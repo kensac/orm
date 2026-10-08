@@ -1,6 +1,7 @@
 import type { OperationPreview } from '@internal/framework-components/control';
 import type { Block, TreeNode } from '@prisma/cli-engine';
 import type { NextAction } from '@prisma/cli-engine/protocol';
+import { statementFlag } from '../../control-api/statements/statement-flag';
 import type { PerSpaceExecutionEntry } from '../../control-api/types';
 import {
   type MigrationCommandResult,
@@ -159,8 +160,8 @@ function applySummaryText(result: MigrationCommandResult): string {
  */
 function questionBlocks(result: MigrationCommandResult): readonly Block[] {
   const entries = [
-    ...(result.dataLoss ?? []).map((entry) => ({ entry, verb: 'delete' })),
-    ...(result.accessWidening ?? []).map((entry) => ({ entry, verb: 'allow' })),
+    ...(result.dataLoss ?? []).map((entry) => ({ entry, verb: 'delete' as const })),
+    ...(result.accessWidening ?? []).map((entry) => ({ entry, verb: 'allow' as const })),
   ];
   if (entries.length === 0) {
     return [];
@@ -172,7 +173,7 @@ function questionBlocks(result: MigrationCommandResult): readonly Block[] {
         {
           label: 'An apply asks about',
           children: entries.map(({ entry, verb }) => ({
-            label: `${result.plan.operations[entry.operationIndex]?.label ?? 'an operation'}: --${verb} ${entry.text}`,
+            label: `${result.plan.operations[entry.operationIndex]?.label ?? 'an operation'}: ${statementFlag({ verb, text: entry.text })}${entry.answered ? ' (answered)' : ''}`,
           })),
         },
       ],
