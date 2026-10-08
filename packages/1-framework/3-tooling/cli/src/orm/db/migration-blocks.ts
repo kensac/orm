@@ -1,7 +1,4 @@
-import type {
-  MigrationStatementSubjectJson,
-  OperationPreview,
-} from '@internal/framework-components/control';
+import type { OperationPreview } from '@internal/framework-components/control';
 import type { Block, TreeNode } from '@prisma/cli-engine';
 import type { NextAction } from '@prisma/cli-engine/protocol';
 import type { PerSpaceExecutionEntry } from '../../control-api/types';
@@ -156,13 +153,6 @@ function applySummaryText(result: MigrationCommandResult): string {
   return `Applied ${executed} operation(s)${across}`;
 }
 
-function subjectDisplay(subject: MigrationStatementSubjectJson): string {
-  if (subject.kind === 'storage') return subject.name;
-  const model =
-    subject.namespaceId === undefined ? subject.model : `${subject.namespaceId}.${subject.model}`;
-  return subject.kind === 'field' ? `${model}.${subject.field}` : model;
-}
-
 /**
  * The questions an apply would ask, as a dry run lists them: each operation that would lose data,
  * answered by `--delete` or `--rename`, and each that would widen access, answered by `--allow`.
@@ -182,7 +172,7 @@ function questionBlocks(result: MigrationCommandResult): readonly Block[] {
         {
           label: 'An apply asks about',
           children: entries.map(({ entry, verb }) => ({
-            label: `${result.plan.operations[entry.operationIndex]?.label ?? 'an operation'}: --${verb} ${subjectDisplay(entry.subject)}`,
+            label: `${result.plan.operations[entry.operationIndex]?.label ?? 'an operation'}: --${verb} ${entry.text}`,
           })),
         },
       ],

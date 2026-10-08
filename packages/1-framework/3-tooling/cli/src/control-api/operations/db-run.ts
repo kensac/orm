@@ -49,6 +49,7 @@ import {
   type ConsentedSubject,
   type PlannedQuestions,
   refuseUnusedConsents,
+  subjectText,
 } from '../statements/data-loss-questions';
 import {
   type AppliedStatementReport,
@@ -58,6 +59,7 @@ import {
 import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
 import type { StatementText } from '../statements/statement-text';
 import type {
+  AskedSubjectsReport,
   DbInitFailure,
   DbInitResult,
   DbInitSuccess,
@@ -381,7 +383,20 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
           ),
         ]
       : undefined;
-  const subjects = action === 'dbUpdate' ? run.subjects : undefined;
+  const contractsAsked = {
+    origin: fromContract ?? EMPTY_ORIGIN,
+    destination: contract,
+    renames: renameTexts,
+  };
+  const asked = (entries: readonly MigrationOperationSubject[]) =>
+    entries.map((entry) => ({ ...entry, text: subjectText(entry.subject, contractsAsked) }));
+  const subjects =
+    action === 'dbUpdate'
+      ? {
+          dataLoss: asked(run.subjects.dataLoss),
+          accessWidening: asked(run.subjects.accessWidening),
+        }
+      : undefined;
 
   // 4. Plan-mode: surface aggregate operations without applying.
   if (mode === 'plan') {
@@ -663,7 +678,7 @@ function wrapPlanResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: PlanSubjectsReport | undefined;
+  readonly subjects: AskedSubjectsReport | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
@@ -695,7 +710,7 @@ function wrapApplyResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: PlanSubjectsReport | undefined;
+  readonly subjects: AskedSubjectsReport | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {

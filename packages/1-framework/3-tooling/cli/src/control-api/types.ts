@@ -452,6 +452,17 @@ export interface PlanSubjectsReport {
   readonly accessWidening: readonly MigrationOperationSubject[];
 }
 
+/** An operation an apply asks about, with its subject written as the question writes it: `User.nickname`. */
+export interface AskedSubject extends MigrationOperationSubject {
+  readonly text: string;
+}
+
+/** The operations an apply asks about, each with its subject as the question writes it. */
+export interface AskedSubjectsReport {
+  readonly dataLoss: readonly AskedSubject[];
+  readonly accessWidening: readonly AskedSubject[];
+}
+
 /**
  * Successful dbUpdate result.
  */
@@ -492,9 +503,9 @@ export interface DbUpdateSuccess {
   /** The statements the application space's plan applied, in order; empty when none were given. */
   readonly appliedStatements: readonly AppliedStatementReport[];
   /** The operations in `plan.operations` that lose data, by position, with what each loses. */
-  readonly dataLoss: readonly MigrationOperationSubject[];
+  readonly dataLoss: readonly AskedSubject[];
   /** The operations in `plan.operations` that widen who can read or write data, by position. */
-  readonly accessWidening: readonly MigrationOperationSubject[];
+  readonly accessWidening: readonly AskedSubject[];
   readonly summary: string;
   readonly warnings?: ReadonlyArray<MigrationPlannerConflict>;
 }

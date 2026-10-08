@@ -1,8 +1,5 @@
 import { ormConfigSection } from '@internal/config-loader';
-import {
-  type MigrationOperationSubject,
-  migrationStatementSubjectJson,
-} from '@internal/framework-components/control';
+import { migrationStatementSubjectJson } from '@internal/framework-components/control';
 import { ifDefined } from '@internal/utils/defined';
 import { isStructuredError } from '@internal/utils/structured-error';
 import type { Block, Presentations } from '@prisma/cli-engine';
@@ -26,7 +23,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
-import type { CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
+import type { AskedSubject, CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
 import { closeQuietly } from '../../utils/command-helpers';
 import { RECORDED_CONTRACT_REF_FORMS } from '../../utils/contract-ref-forms';
@@ -69,10 +66,11 @@ function updatePresentations(inputs: {
   };
 }
 
-function subjectEntryJson(entry: MigrationOperationSubject) {
+function subjectEntryJson(entry: AskedSubject) {
   return {
     operationIndex: entry.operationIndex,
     subject: migrationStatementSubjectJson(entry.subject),
+    text: entry.text,
   };
 }
 

@@ -213,7 +213,7 @@ describe('db update --rename', () => {
   it('lists what an apply would ask about on a dry run, in its output and its JSON', async () => {
     const legacy = { kind: 'model', namespaceId: 'app', model: 'Legacy' } as const;
     mocks.dbUpdate.mockResolvedValue(
-      ok({ ...planSuccess(), dataLoss: [{ operationIndex: 0, subject: legacy }] }),
+      ok({ ...planSuccess(), dataLoss: [{ operationIndex: 0, subject: legacy, text: 'Legacy' }] }),
     );
     const human = await harness().run(['db', 'update', '--dry-run'], {
       cwd: projectDir,
@@ -226,12 +226,12 @@ describe('db update --rename', () => {
       roots: [
         {
           label: 'An apply asks about',
-          children: [{ label: 'drop relation legacy: --delete app.Legacy' }],
+          children: [{ label: 'drop relation legacy: --delete Legacy' }],
         },
       ],
     });
     expect(json.presented?.data).toMatchObject({
-      dataLoss: [{ operationIndex: 0, subject: legacy }],
+      dataLoss: [{ operationIndex: 0, subject: legacy, text: 'Legacy' }],
       accessWidening: [],
     });
   });

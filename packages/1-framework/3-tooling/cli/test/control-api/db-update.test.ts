@@ -742,8 +742,8 @@ describe('executeDbUpdate', () => {
           accessWidening: result.value.accessWidening,
         },
       ).toEqual({
-        dataLoss: [{ operationIndex: 0, subject: NICKNAME }],
-        accessWidening: [{ operationIndex: 2, subject: USER }],
+        dataLoss: [{ operationIndex: 0, subject: NICKNAME, text: 'user.nickname' }],
+        accessWidening: [{ operationIndex: 2, subject: USER, text: 'user' }],
       });
     });
   });

@@ -361,12 +361,14 @@ withTempDir(({ createTempDir }) => {
 
         const dryRun = await runDbUpdate(ctx, ['--dry-run', '--json']);
         expect(dryRun.exitCode, `S4.04: dry run: ${dryRun.stderr}`).toBe(0);
-        expect(
-          parseJsonOutput<{ accessWidening: readonly { subject: unknown }[] }>(dryRun)
-            .accessWidening,
-          'S4.04: the dry run lists the widening without asking',
-        ).toEqual([
-          expect.objectContaining({ subject: expect.objectContaining({ model: 'User' }) }),
+        const listed = parseJsonOutput<{ accessWidening: readonly { text: string }[] }>(
+          dryRun,
+        ).accessWidening;
+        expect(listed, 'S4.04: the dry run lists the widening as --allow takes it').toEqual([
+          expect.objectContaining({
+            subject: expect.objectContaining({ model: 'User' }),
+            text: 'User',
+          }),
         ]);
 
         const refused = await runDbUpdate(ctx, ['--no-interactive', '--json']);
@@ -383,7 +385,10 @@ withTempDir(({ createTempDir }) => {
         );
         expect(kept.rows, 'S4.05: the policy is still there').toEqual([{ policies: 1 }]);
 
-        const allowed = await runDbUpdate(ctx, ['--allow', 'User', '--json']);
+        const allowed = await runDbUpdate(ctx, [
+          ...listed.flatMap(({ text }) => ['--allow', text]),
+          '--json',
+        ]);
         expect(allowed.exitCode, `S4.06: db update --allow User: ${allowed.stderr}`).toBe(0);
         const dropped = await sql(
           db.connectionString,

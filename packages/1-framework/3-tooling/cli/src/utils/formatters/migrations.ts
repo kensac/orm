@@ -50,6 +50,8 @@ export function previewBlockHeader(preview: OperationPreview): string {
 export interface PlannedSubjectJson {
   readonly operationIndex: number;
   readonly subject: MigrationStatementSubjectJson;
+  /** The subject as the apply's question writes it, and as `--delete` or `--allow` takes it. */
+  readonly text: string;
 }
 
 export interface MigrationCommandResult {
