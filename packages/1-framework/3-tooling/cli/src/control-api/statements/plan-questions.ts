@@ -316,11 +316,12 @@ function givenFor(
   return first === undefined ? [] : [first];
 }
 
-/** A `delete` answers for its subject; an `allow` for its one operation. */
+/**
+ * A `delete` answers for its subject; an `allow` for its one operation, known by its label and
+ * subject, since a re-plan moves every operation's position.
+ */
 function questionKey(verb: ConsentVerb, entry: PlannedSubject): string {
-  return verb === 'allow'
-    ? `allow:${entry.operationIndex}:${entry.label}:${keyOf(entry)}`
-    : `delete:${keyOf(entry)}`;
+  return verb === 'allow' ? `allow:${entry.label}:${keyOf(entry)}` : `delete:${keyOf(entry)}`;
 }
 
 function checkAnswers(questions: readonly PlanQuestion[], answers: readonly PlanAnswer[]): void {
@@ -353,9 +354,11 @@ function checkAnswers(questions: readonly PlanQuestion[], answers: readonly Plan
 
 function withRecoveryOnFirstStorageQuestion(
   asked: readonly { readonly loss: PlannedSubject; readonly question: PlanQuestion }[],
-  originKnown: boolean,
+  recoveryApplies: boolean,
 ): readonly PlanQuestion[] {
-  const first = originKnown ? -1 : asked.findIndex(({ loss }) => loss.subject.kind === 'storage');
+  const first = recoveryApplies
+    ? asked.findIndex(({ loss }) => loss.subject.kind === 'storage')
+    : -1;
   return asked.map(({ question }, index) =>
     index === first
       ? { ...question, question: `${question.question} ${ORIGIN_SNAPSHOT_RECOVERY}` }
@@ -440,7 +443,7 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
     const questions = [
       ...withRecoveryOnFirstStorageQuestion(
         losses.map((loss) => ({ loss, question: dataLossQuestion(loss, contracts) })),
-        input.originKnown,
+        !input.originKnown && input.keepDataByHand === undefined,
       ),
       ...widenings.map((widening) => accessWideningQuestion(widening, contracts)),
     ];
@@ -462,6 +465,15 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
     const replanned = await input.replan(renames);
     if (!replanned.ok) return replanned;
     plan = replanned.value;
+    for (const entry of plan.accessWidening) {
+      const allowed = consented.get(questionKey('allow', entry));
+      if (allowed !== undefined) {
+        consented.set(questionKey('allow', entry), {
+          ...allowed,
+          operationIndex: entry.operationIndex,
+        });
+      }
+    }
     const operationOf = (entry: PlannedSubject) => `${entry.label}:${keyOf(entry)}`;
     const stillPlanned = new Set(plan.dataLoss.map(operationOf));
     const unresolved = typedRenames.find(({ loss }) => stillPlanned.has(operationOf(loss)));

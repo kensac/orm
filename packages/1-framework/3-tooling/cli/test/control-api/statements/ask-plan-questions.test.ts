@@ -239,3 +239,76 @@ describe('allow statements given as pre-answers', () => {
     });
   });
 });
+
+describe('an access change consented before a typed rename', () => {
+  it('is asked once, and reported at its position in the new plan', async () => {
+    const t = { kind: 'model', namespaceId: asNamespaceId('app'), model: 'T' } as const;
+    const policyDrop = { label: 'Drop RLS policy "readers" on "T"', subject: t, widens: false };
+    let rounds = 0;
+    const result = await askPlanQuestions({
+      plan: {
+        dataLoss: [{ ...dropRatio, operationIndex: 0, subject: ratio }],
+        accessWidening: [{ ...policyDrop, operationIndex: 1 }],
+      },
+      askAccess: true,
+      renames: [],
+      preAnswers: [],
+      consentAll: { delete: false, allow: false },
+      origin,
+      originKnown: true,
+      keepDataByHand: undefined,
+      destination,
+      answer: async (questions) => {
+        rounds += 1;
+        return questions.map(({ subject, verbs }) =>
+          verbs.includes('allow')
+            ? { verb: 'allow', text: subject }
+            : { verb: 'rename', text: 'T.ratio:T.ratio2' },
+        );
+      },
+      replan: async () =>
+        ok({ dataLoss: [], accessWidening: [{ ...policyDrop, operationIndex: 3 }] }),
+    });
+
+    expect(rounds).toBe(1);
+    expect(
+      result.ok &&
+        result.value.consented.map(({ verb, operationIndex }) => ({ verb, operationIndex })),
+    ).toEqual([{ verb: 'allow', operationIndex: 3 }]);
+  });
+});
+
+describe('questions about storage on a target that carries out no rename', () => {
+  it('say how to keep the data by hand, without the steps that make a rename possible', async () => {
+    const asked: string[] = [];
+    await askPlanQuestions({
+      plan: {
+        dataLoss: [
+          {
+            operationIndex: 0,
+            label: 'Drop collection events',
+            subject: { kind: 'storage', name: 'events' },
+          },
+        ],
+        accessWidening: [],
+      },
+      askAccess: false,
+      renames: [],
+      preAnswers: [],
+      consentAll: { delete: false, allow: false },
+      origin,
+      originKnown: false,
+      keepDataByHand: () => 'Rename the collection by hand first.',
+      destination,
+      answer: async (questions) => {
+        asked.push(...questions.map(({ question }) => question));
+        return questions.map(({ subject }) => ({ verb: 'delete', text: subject }));
+      },
+      replan: async () => ok({ dataLoss: [], accessWidening: [] }),
+    });
+
+    expect(asked).toEqual([
+      'Drop collection events would lose the data in "events", named by its storage name because the origin contract is unknown; --delete loses its rows. Rename the collection by hand first.',
+    ]);
+  });
+});
