@@ -152,13 +152,13 @@ describe('keepDataByHand', () => {
         contractWith({ Event: 'events' }, 'from'),
       ),
     ).toBe(
-      'If it was renamed, keep its documents instead: rename collection "events" by hand on each database, for example with db.getCollection("events").renameCollection("<new collection>") in mongosh, then run this command again, which then drops nothing.',
+      'If it was renamed, keep its documents instead: rename collection "events" by hand on each database before a plan that drops it is applied there, for example with db.getCollection("events").renameCollection("<new collection>") in mongosh. db update then drops nothing; a migration written by migration plan still drops "events", so remove that operation from its migration.ts, or do not apply it where the collection was renamed.',
     );
   });
 
   it('names a collection no model stores by its name', () => {
     expect(keepDataByHand({ kind: 'storage', name: 'audit' }, contractWith({}, 'from'))).toBe(
-      'If it was renamed, keep its documents instead: rename collection "audit" by hand on each database, for example with db.getCollection("audit").renameCollection("<new collection>") in mongosh, then run this command again, which then drops nothing.',
+      'If it was renamed, keep its documents instead: rename collection "audit" by hand on each database before a plan that drops it is applied there, for example with db.getCollection("audit").renameCollection("<new collection>") in mongosh. db update then drops nothing; a migration written by migration plan still drops "audit", so remove that operation from its migration.ts, or do not apply it where the collection was renamed.',
     );
   });
 });

@@ -76,7 +76,7 @@ Pass `storageNameOf` to each `planMigration({ ... })` and `resolveRecordedPath({
 
 A `ControlFamilyInstance` implementation adds `storageNameOf(operation: MigrationPlanOperation): string`. The aggregate planner calls it to name what a destructive operation of a recorded migration loses, since no planner mapped it to a model. A SQL family returns the name from the operation's target details, `schema.table.column` for a column and `schema.name` for anything else; `storageNameOfOperation` from `@prisma/orm-family-sql/family/control` does that. A test double returns any stable name.
 
-A target whose planner carries out no rename statement sets `renameStatements: { refused: true, keepDataByHand(subject, fromContract) }` on its `migrations` capability. The CLI then offers no `--rename` in a data-loss question, and ends the question with the text `keepDataByHand` returns: how to keep the subject's data by hand before running the command again. MongoDB's target sets it in this release, and its text says to rename the collection in `mongosh`.
+A target whose planner carries out no rename statement sets `renameStatements: { refused: true, keepDataByHand(subject, fromContract) }` on its `migrations` capability. The CLI then offers no `--rename` in a data-loss question, and ends the question with the text `keepDataByHand` returns: how to keep the subject's data by hand before running the command again. MongoDB's target sets it in this release, and its text says to rename the collection in `mongosh` before a plan that drops it is applied, and that a migration written by `migration plan` still drops it.
 
 ## `operation-classes-and-calls`
 

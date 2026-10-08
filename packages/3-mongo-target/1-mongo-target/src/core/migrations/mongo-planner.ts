@@ -176,7 +176,9 @@ function shellString(name: string): string {
 
 /**
  * How to keep the documents of a subject a plan would drop, since the planner carries out no
- * rename: rename the collection by hand, after which the plan finds nothing to drop.
+ * rename: rename the collection by hand before a plan that drops it is applied. Right for both
+ * `db update`, which then finds nothing to drop, and `migration plan`, whose written migration
+ * still drops it.
  */
 export function keepDataByHand(
   subject: MigrationSubject,
@@ -184,7 +186,7 @@ export function keepDataByHand(
 ): string {
   const collection =
     subject.kind === 'storage' ? subject.name : collectionOf(fromContract, subject);
-  return `If it was renamed, keep its documents instead: rename collection "${collection}" by hand on each database, for example with db.getCollection(${shellString(collection)}).renameCollection("<new collection>") in mongosh, then run this command again, which then drops nothing.`;
+  return `If it was renamed, keep its documents instead: rename collection "${collection}" by hand on each database before a plan that drops it is applied there, for example with db.getCollection(${shellString(collection)}).renameCollection("<new collection>") in mongosh. db update then drops nothing; a migration written by migration plan still drops "${collection}", so remove that operation from its migration.ts, or do not apply it where the collection was renamed.`;
 }
 
 /**
