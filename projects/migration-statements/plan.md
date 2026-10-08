@@ -46,7 +46,7 @@ Four slices. The first three stack: the statement surface with renames, then the
 
 **Outcome.** The Mongo planner takes the same resolved statements: collection rename, document rewrites for field and value object field renames, drops and unsets for deletes, a data transform scaffold for convert, under the slice 2 refusal and consent model. No family vocabulary enters the framework.
 
-**Builds on.** Slice 2.
+**Builds on.** Slice 2. Slice 2 left a temporary member for it: `TargetMigrationsCapability.refusesRenameStatements`, set by MongoDB so a data-loss question offers no `rename` there. Slice 4 deletes the member, its one CLI read and its doc mention when the Mongo planner carries out renames.
 
 **Hands to.** Project close-out for Mongo.
 
