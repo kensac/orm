@@ -298,6 +298,24 @@ export interface ConsentedSubject {
 
 const keyOf = (planned: PlannedSubject) => migrationSubjectKey(planned.subject);
 
+/**
+ * The pre-answers that answer a question about `text`: every `delete` of the subject, or the
+ * first `allow` of it no earlier question took, since an `allow` answers one operation.
+ */
+function givenFor(
+  verb: ConsentVerb,
+  text: string,
+  preAnswers: readonly StatementText[],
+  taken: ReadonlySet<StatementText>,
+): readonly StatementText[] {
+  const matching = preAnswers.filter(
+    (statement) => statement.verb === verb && statement.text === text,
+  );
+  if (verb === 'delete') return matching;
+  const first = matching.find((statement) => !taken.has(statement));
+  return first === undefined ? [] : [first];
+}
+
 /** A `delete` answers for its subject; an `allow` for its one operation. */
 function questionKey(verb: ConsentVerb, entry: PlannedSubject): string {
   return verb === 'allow'
@@ -411,9 +429,7 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
     ] as const) {
       for (const entry of entries) {
         const text = subjectText(entry.subject, contracts);
-        const given = input.preAnswers.filter(
-          (statement) => statement.verb === verb && statement.text === text,
-        );
+        const given = givenFor(verb, text, input.preAnswers, usedPreAnswers);
         for (const statement of given) usedPreAnswers.add(statement);
         if (input.consentAll[verb] || given.length > 0) consent(verb, entry, text);
       }
@@ -491,12 +507,18 @@ export function refuseUnusedConsents(input: {
   readonly contracts: StatementContracts;
 }): Result<void, CliStructuredError> {
   const subjects = questionSubjects(input.plan, true, input.contracts);
-  const matches = (statement: StatementText, entries: readonly PlannedSubject[]) =>
-    entries.some((entry) => subjectText(entry.subject, input.contracts) === statement.text);
+  const used = new Set<StatementText>();
+  for (const [verb, entries] of [
+    ['delete', input.plan.dataLoss],
+    ['allow', input.plan.accessWidening],
+  ] as const) {
+    for (const entry of entries) {
+      const text = subjectText(entry.subject, input.contracts);
+      for (const statement of givenFor(verb, text, input.statements, used)) used.add(statement);
+    }
+  }
   const unused = input.statements.filter(
-    (statement) =>
-      (statement.verb === 'delete' && !matches(statement, input.plan.dataLoss)) ||
-      (statement.verb === 'allow' && !matches(statement, input.plan.accessWidening)),
+    (statement) => statement.verb !== 'rename' && !used.has(statement),
   );
   return unused.length === 0
     ? ok(undefined)

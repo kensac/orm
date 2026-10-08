@@ -176,3 +176,66 @@ describe('questions about access', () => {
     ]);
   });
 });
+
+describe('allow statements given as pre-answers', () => {
+  const t = { kind: 'model', namespaceId: asNamespaceId('app'), model: 'T' } as const;
+  const plan = {
+    dataLoss: [],
+    accessWidening: [
+      { operationIndex: 0, label: 'Drop RLS policy "readers" on "T"', subject: t, widens: false },
+      { operationIndex: 1, label: 'Disable row-level security on "T"', subject: t, widens: true },
+    ],
+  };
+  const ask = (preAnswers: readonly { verb: 'allow'; text: string }[]) => {
+    const asked: string[] = [];
+    const result = askPlanQuestions({
+      plan,
+      askAccess: true,
+      renames: [],
+      preAnswers,
+      consentAll: { delete: false, allow: false },
+      origin,
+      originKnown: true,
+      keepDataByHand: undefined,
+      destination,
+      answer: async (questions) => {
+        asked.push(...questions.map(({ question }) => question));
+        return questions.map(({ subject }) => ({ verb: 'allow', text: subject }));
+      },
+      replan: async () => ok({ dataLoss: [], accessWidening: [] }),
+    });
+    return { asked, result };
+  };
+
+  it('answer one operation each, in order, and leave the rest to be asked', async () => {
+    const { asked, result } = ask([{ verb: 'allow', text: 'T' }]);
+
+    expect((await result).ok).toBe(true);
+    expect(asked).toEqual([
+      'Disable row-level security on "T" would widen who can read and write its rows.',
+    ]);
+  });
+
+  it('answer every operation when there is one per operation', async () => {
+    const { asked, result } = ask([
+      { verb: 'allow', text: 'T' },
+      { verb: 'allow', text: 'T' },
+    ]);
+
+    expect((await result).ok).toBe(true);
+    expect(asked).toEqual([]);
+  });
+
+  it('refuse an allow left over once each operation has one', async () => {
+    const { result } = ask([
+      { verb: 'allow', text: 'T' },
+      { verb: 'allow', text: 'T' },
+      { verb: 'allow', text: 'T' },
+    ]);
+
+    const outcome = await result;
+    expect(!outcome.ok && outcome.failure).toMatchObject({
+      code: 'MIGRATION.STATEMENT_ANSWERS_NO_QUESTION',
+    });
+  });
+});
