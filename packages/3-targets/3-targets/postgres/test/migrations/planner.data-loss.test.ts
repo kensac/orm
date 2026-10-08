@@ -9,6 +9,7 @@ import {
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { applicationDomainOf } from '@repo/test-utils';
+import { expectDataLossMatchesDestructive } from '@repo/test-utils/data-loss-expectations';
 import { describe, expect, it } from 'vitest';
 import { createPostgresMigrationPlanner } from '../../src/core/migrations/planner';
 import { postgresContractToSchema } from '../../src/core/migrations/postgres-contract-to-schema';
@@ -149,6 +150,12 @@ async function planned(
   });
   if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
   const settled = await Promise.allSettled(result.plan.operations);
+  expectDataLossMatchesDestructive(
+    result,
+    settled.map((entry) =>
+      entry.status === 'fulfilled' ? entry.value : { operationClass: 'data' },
+    ),
+  );
   const labels = settled.map((entry) =>
     entry.status === 'fulfilled' ? entry.value.label : 'placeholder',
   );

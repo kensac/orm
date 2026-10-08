@@ -2,6 +2,7 @@ import { asNamespaceId } from '@internal/contract/types';
 import type { MigrationOperationPolicy } from '@internal/framework-components/control';
 import { MongoCollection, type MongoContract } from '@internal/mongo-contract';
 import { MongoSchemaCollection, MongoSchemaIndex, MongoSchemaIR } from '@internal/mongo-schema-ir';
+import { expectDataLossMatchesDestructive } from '@repo/test-utils/data-loss-expectations';
 import { describe, expect, it } from 'vitest';
 import { MongoMigrationPlanner } from '../src/core/migrations/mongo-planner';
 import type { PlannerProducedMongoMigration } from '../src/core/migrations/planner-produced-migration';
@@ -78,6 +79,10 @@ function plan(fromContract: MongoContract | null) {
     snapshotsImportPath: '../../snapshots',
   });
   if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
+  expectDataLossMatchesDestructive(
+    result,
+    (result.plan as PlannerProducedMongoMigration).operations,
+  );
   return {
     operations: (result.plan as PlannerProducedMongoMigration).operations.map(
       (operation) => operation.label,

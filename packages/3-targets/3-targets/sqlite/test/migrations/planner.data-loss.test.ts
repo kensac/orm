@@ -8,6 +8,7 @@ import {
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import { SqlStorage, StorageTable } from '@internal/sql-contract/types';
 import { applicationDomainOf } from '@repo/test-utils';
+import { expectDataLossMatchesDestructive } from '@repo/test-utils/data-loss-expectations';
 import { describe, expect, it } from 'vitest';
 import { sqliteContractToSchema } from '../../src/core/migrations/diff-database-schema';
 import { createSqliteMigrationPlanner } from '../../src/core/migrations/planner';
@@ -112,6 +113,7 @@ async function planned(
   });
   if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
   const operations = await Promise.all(result.plan.operations);
+  expectDataLossMatchesDestructive(result, operations);
   const labels = operations.map((op) => op.label);
   return {
     labels,
