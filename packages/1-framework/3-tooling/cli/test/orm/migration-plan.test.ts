@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm } from 'node:fs/promises';
+import type { PrismaNextConfig } from '@internal/config/config-types';
 import { contractSnapshotDir } from '@internal/migration-tools/contract-snapshot-store';
 import { computeMigrationHash } from '@internal/migration-tools/hash';
 import { writeRef } from '@internal/migration-tools/refs';
@@ -8,6 +9,9 @@ import { structuredError } from '@internal/utils/structured-error';
 import { createTestCli } from '@prisma/cli-engine/testing';
 import { basename, dirname, join } from 'pathe';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { executeMigrationPlanCommand } from '../../src/control-api/operations/migration-plan';
+import type { AnswerPlanQuestions } from '../../src/control-api/statements/data-loss-questions';
+import type { StatementText } from '../../src/control-api/statements/statement-text';
 import { BIN_GROUPS } from '../../src/orm/cli';
 import { errorUnfilledPlaceholder } from '../../src/utils/cli-errors';
 import { createOrmTestCli } from '../helpers/orm-test-cli';
@@ -483,6 +487,79 @@ describe('migration plan', () => {
         | undefined;
       return terminal?.kind === 'result' ? terminal.envelope : undefined;
     }
+
+    function planThroughControlApi(
+      project: OfflineProject,
+      statements: readonly StatementText[],
+      answerQuestions: AnswerPlanQuestions,
+    ) {
+      return executeMigrationPlanCommand(
+        {
+          config: {
+            ...offlineConfig({
+              project,
+              script: {
+                operations: [ADDITIVE_OP, DESTRUCTIVE_OP, DROP_AUDIT_OP],
+                dataLoss: [LEGACY_LOSS, AUDIT_LOSS],
+              },
+            }),
+            baseDir: project.dir,
+          } as unknown as PrismaNextConfig,
+          cwd: project.dir,
+          projectDir: project.dir,
+          statements,
+          answerQuestions,
+          client: { renderContractDts: renderContractDtsMock },
+        },
+        Date.now(),
+      );
+    }
+
+    it('takes delete statements given to the control API as answers', async () => {
+      const project = await losingProject();
+      const answerQuestions = vi.fn(async () => []);
+
+      const result = await planThroughControlApi(
+        project,
+        [
+          { verb: 'delete', text: 'Legacy' },
+          { verb: 'delete', text: 'audit_log' },
+        ],
+        answerQuestions,
+      );
+
+      expect(result.ok && result.value.appliedStatements).toMatchObject([
+        { verb: 'delete', description: 'delete model "Legacy"' },
+        { verb: 'delete', description: 'delete storage "audit_log"' },
+      ]);
+      expect(answerQuestions).toHaveBeenCalledWith([]);
+    });
+
+    it('refuses delete and allow statements given to the control API that answer no question', async () => {
+      const project = await losingProject();
+
+      const result = await planThroughControlApi(
+        project,
+        [
+          { verb: 'delete', text: 'Legacy' },
+          { verb: 'delete', text: 'audit_log' },
+          { verb: 'delete', text: 'Nope' },
+          { verb: 'allow', text: 'User' },
+        ],
+        async () => [],
+      );
+
+      expect(!result.ok && result.failure.toEnvelope()).toMatchObject({
+        code: 'MIGRATION.STATEMENT_ANSWERS_NO_QUESTION',
+        meta: {
+          statements: [
+            { verb: 'delete', text: 'Nope' },
+            { verb: 'allow', text: 'User' },
+          ],
+        },
+      });
+      expect(await plannedDirs(project)).toEqual(['20260101T0000_initial']);
+    });
 
     it('refuses where nobody can answer, listing every operation with the flags that answer it', async () => {
       const project = await losingProject();

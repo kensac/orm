@@ -88,9 +88,11 @@ export interface MigrationPlanOptions {
   readonly from?: string;
   readonly to?: string;
   /**
-   * The rename statements as the user wrote them, in the order given. They
-   * resolve against the origin and destination contracts before anything is
-   * written.
+   * The statements as the user wrote them, in the order given. A `rename`
+   * resolves against the origin and destination contracts before anything is
+   * written; a `delete` answers the question about the subject it names, and
+   * one that answers no question, or an `allow`, which `migration plan` never
+   * asks for, fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`.
    */
   readonly statements?: readonly StatementText[];
   /**
@@ -291,6 +293,7 @@ async function answerPlannedDataLoss(input: {
   readonly baseline: PlannerSuccess | undefined;
   readonly delta: PlannerSuccess | undefined;
   readonly renames: readonly StatementText[];
+  readonly consents: readonly StatementText[];
   readonly origin: ContractWithDomain;
   readonly originKnown: boolean;
   readonly destination: ContractWithDomain;
@@ -316,7 +319,7 @@ async function answerPlannedDataLoss(input: {
     plan: legs(input.delta),
     askAccess: false,
     renames: input.renames,
-    preAnswers: [],
+    preAnswers: input.consents,
     consentAll: false,
     origin: input.origin,
     originKnown: input.originKnown,
@@ -738,7 +741,8 @@ async function executeMigrationPlanCommandInner(
       answerPlannedDataLoss({
         baseline,
         delta,
-        renames: statementTexts,
+        renames: statementTexts.filter((statement) => statement.verb === 'rename'),
+        consents: statementTexts.filter((statement) => statement.verb !== 'rename'),
         origin: fromContract ?? EMPTY_ORIGIN,
         originKnown: true,
         destination: toContract,
