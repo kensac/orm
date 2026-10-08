@@ -94,6 +94,8 @@ export interface PlannerInput<TFamilyId extends string, TTargetId extends string
    * in `callerPolicy.ignoreGraphFor`; otherwise the planner refuses them with `policyConflict`.
    */
   readonly appSpace: AppSpacePlanningInputs;
+  /** The name the database knows the object an operation acts on by; names what a recorded drop loses. */
+  readonly storageNameOf: (operation: MigrationPlanOperation) => string;
 }
 
 /** See {@link PlannerInput.appSpace}. */
@@ -156,9 +158,15 @@ export interface PerSpacePlan {
   readonly warnings?: readonly MigrationPlannerConflict[];
   /** The statements the plan applied; empty for a space planned without statements. */
   readonly appliedStatements: readonly AppliedMigrationStatement[];
-  /** The operations of `plan` that lose data, with what each loses; empty for a recorded path. */
+  /**
+   * The operations of `plan` that lose data, with what each loses. A recorded path names each
+   * destructive operation by its storage name, since no planner mapped it to a model.
+   */
   readonly dataLoss: readonly MigrationOperationSubject[];
-  /** The operations of `plan` that widen access, with what each is about; empty for a recorded path. */
+  /**
+   * The operations of `plan` that widen access, with what each is about. Empty for a recorded path:
+   * a written migration is reviewed before it runs.
+   */
   readonly accessWidening: readonly MigrationOperationSubject[];
   /**
    * Per-edge breakdown of the chain. `resolve-recorded-path` plans carry

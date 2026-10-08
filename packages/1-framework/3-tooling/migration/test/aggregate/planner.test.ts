@@ -116,6 +116,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(true);
@@ -164,6 +165,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: origin, statements: [statement] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(received).toEqual({ fromContract: origin, statements: [statement] });
@@ -204,6 +206,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set() },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [statement] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.assertNotOk()).toEqual({
@@ -256,6 +259,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app', 'cipherstash']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: origin, statements: [statement] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(true);
@@ -299,6 +303,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(true);
@@ -354,6 +359,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set() },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(true);
@@ -410,6 +416,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app', 'cipherstash']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(false);
@@ -452,6 +459,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(false);
@@ -508,6 +516,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(false);
@@ -564,6 +573,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(true);
@@ -595,6 +605,7 @@ describe('planMigration', () => {
       callerPolicy: { ignoreGraphFor: new Set(['app']) },
       operationPolicy: POLICY,
       appSpace: { fromContract: null, statements: [] },
+      storageNameOf: (operation) => operation.id,
     });
 
     expect(result.ok).toBe(false);

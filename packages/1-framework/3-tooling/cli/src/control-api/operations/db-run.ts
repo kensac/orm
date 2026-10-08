@@ -277,6 +277,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       callerPolicy: { ignoreGraphFor: new Set([aggregate.app.spaceId]) },
       operationPolicy: policy,
       appSpace: { fromContract, statements: resolved },
+      storageNameOf: (operation) => familyInstance.storageNameOf(operation),
     });
     if (!planned.ok) {
       onProgress?.({ action, kind: 'spanEnd', spanId: SPAN_IDS.plan, outcome: 'error' });
@@ -286,7 +287,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     const orderedResolutions = collectOrdered(planned.value.applyOrder, planned.value.perSpace);
     const subjects: PlanSubjectsReport =
       action === 'dbUpdate'
-        ? planSubjects(orderedResolutions, (operation) => familyInstance.storageNameOf(operation))
+        ? subjectsAcrossSpaces(orderedResolutions)
         : { dataLoss: [], accessWidening: [] };
     const operations = orderedResolutions.flatMap((r) => r.entry.displayOps);
     const labelled = (entries: readonly MigrationOperationSubject[]) =>
@@ -536,28 +537,11 @@ function operationsBefore(
 }
 
 /**
- * Each destructive operation of a space applied from recorded migrations, which no planner mapped
- * to a model, named as the database knows it.
- */
-function recordedDataLoss(
-  resolution: OrderedResolution,
-  storageNameOf: (operation: MigrationPlanOperation) => string,
-): readonly MigrationOperationSubject[] {
-  if (resolution.entry.strategy === 'plan-from-diff') return resolution.entry.dataLoss;
-  return resolution.entry.displayOps.flatMap((operation, operationIndex) =>
-    operation.operationClass === 'destructive'
-      ? [{ operationIndex, subject: { kind: 'storage', name: storageNameOf(operation) } }]
-      : [],
-  );
-}
-
-/**
  * What the planned operations lose and whose access they widen, across every space, each at its
  * position in the operations the result reports.
  */
-function planSubjects(
+function subjectsAcrossSpaces(
   orderedResolutions: readonly OrderedResolution[],
-  storageNameOf: (operation: MigrationPlanOperation) => string,
 ): PlanSubjectsReport {
   const offset = (resolution: OrderedResolution, entries: readonly MigrationOperationSubject[]) =>
     entries.map((entry) => ({
@@ -567,7 +551,7 @@ function planSubjects(
     }));
   return {
     dataLoss: orderedResolutions.flatMap((resolution) =>
-      offset(resolution, recordedDataLoss(resolution, storageNameOf)),
+      offset(resolution, resolution.entry.dataLoss),
     ),
     accessWidening: orderedResolutions.flatMap((resolution) =>
       offset(resolution, resolution.entry.accessWidening),
