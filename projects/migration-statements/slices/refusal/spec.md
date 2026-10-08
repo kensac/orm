@@ -21,7 +21,7 @@ With `--delete Legacy` the plan is written, and `Drop table "Legacy"` is listed 
   (delete, or rename Legacy:<new name>) › delete
 ```
 
-`prisma db update` behaves the same way against a live database. `--confirm <database>` no longer consents to data loss on either command, and there is no blanket consent: each operation that loses data has its own statement. Before `db update` drops a row-level-security policy or disables row-level security on a table, it asks the same way with the verb `allow`: `--allow User` consents to widening who can read or write `User`'s rows.
+`prisma db update` behaves the same way against a live database. `--confirm <database>` no longer consents to data loss on either command, and there is no blanket consent: each operation that loses data has its own statement. Before `db update` drops a row-level-security policy or disables row-level security on a table, it asks the same way with the verb `allow`: `--allow User` consents to one operation that changes who can read or write `User`'s rows.
 
 ## Chosen design
 
@@ -56,7 +56,7 @@ The CLI turns each entry into one engine question (`ctx.prompt.statements`): que
 
 ### Access widening (`allow`)
 
-`db update` asks before applying an operation that widens who can read or write rows: dropping a row-level-security policy and disabling row-level security. Both stay `widening`. The family's success result lists them in `accessWidening: readonly { operationIndex, subject }[]` with the model as subject; the CLI asks with verb `allow` only (`--allow User`). `migration plan` does not ask: the written migration is reviewed before it runs. The transient DROP in a policy replacement (DROP then CREATE of a changed policy) is not listed.
+`db update` asks before applying an operation that changes who can read or write rows: disabling row-level security (which widens access) and dropping a row-level-security policy (which changes it; dropping a permissive policy narrows). Both stay `widening` as operation classes, and each operation is its own question, answered by its own `--allow <Model>`. The family's success result lists them in `accessWidening: readonly { operationIndex, subject }[]` with the model as subject; the CLI asks with verb `allow` only (`--allow User`). `migration plan` does not ask: the written migration is reviewed before it runs. The transient DROP in a policy replacement (DROP then CREATE of a changed policy) is not listed.
 
 ### Output
 
