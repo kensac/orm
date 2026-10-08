@@ -19,6 +19,10 @@ Next to the `rename-statements-migration*` journeys, one Postgres file, one SQLi
 
 Add the planner test the review asked for: a codec hook that emits a destructive call, proving the hook-call-to-field match survives the control-policy partitions (`../plan.md` open items).
 
+## Carried from dispatch 4's review (D4-6)
+
+A programmatic dry run (`mode: 'plan'`) ignores a `delete` or `allow` statement that matches no subject, where apply mode fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`. Check them in plan mode too, without asking, so both modes refuse; test it. The new code goes in the app upgrade fragment's control-API list.
+
 ## Docs and skills
 
 - `skills/prisma-8/references/migrations.md`, `debug.md` and `SKILL.md`: replace `MIGRATION.DESTRUCTIVE_CHANGES` and `--confirm <database>` with the statements and the refusal; the error-code table lists `CLI.CONSENT_REQUIRED`, `CLI.CONSENT_UNUSED` and `MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS`; `skills/journey-tests/*` that mention `--confirm` for these commands.
