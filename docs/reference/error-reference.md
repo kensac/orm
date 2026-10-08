@@ -1648,6 +1648,10 @@ A `--from` reference cannot produce a contract: either a ref name has no pointer
 
 SQLite twin of `MIGRATION.POSTGRES_CONTROL_STACK_MISSING`: a `SqliteMigration` operation needing the control adapter was invoked on an instance constructed without a control stack (only introspection is valid in that form). Payload: `operation`.
 
+### MIGRATION.STATEMENT_ANSWERS_NO_QUESTION
+
+A program called the control API's `dbUpdate` with `delete` or `allow` statements in `statements`, and some of them name no subject the plan asks about: no operation would lose that subject's data or widen access to its rows. Such a statement would consent to nothing, so the apply fails before anything is applied. The CLI never raises it; there an unused `--delete` or `--allow` is the engine's `CLI.CONSENT_UNUSED`. Leave the statements out, or name a subject the plan asks about. Payload: `statements` (each `{ verb, text }` that answered nothing), `subjects` (the subjects the plan asks about).
+
 ### MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS
 
 A `rename` typed at `migration plan`'s data-loss question was planned with the plan's other renames, and the plan still loses the data of the subject the question was about: the rename resolves, but it does not keep that data, for example because it renames a different model or field. Nothing is written. Answer the question with `--delete <subject>` if the data may be lost, or with a rename whose old name stores that data. Payload: `statement` (the rename's text), `verb` (`rename`), `subject`.
