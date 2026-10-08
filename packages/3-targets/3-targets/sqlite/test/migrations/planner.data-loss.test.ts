@@ -113,7 +113,21 @@ async function planned(
   });
   if (result.kind !== 'success') throw new Error(JSON.stringify(result.conflicts));
   const operations = await Promise.all(result.plan.operations);
-  expectDataLossMatchesDestructive(result, operations);
+  const originModel = (table: string) =>
+    (options.statements ?? []).find(
+      (statement) => statement.entity === 'model' && statement.to.model === table,
+    )?.from.model ?? table;
+  expectDataLossMatchesDestructive(result, operations, {
+    subjectOf: ({ target }) =>
+      target.details?.objectType === 'column' && target.details.table !== undefined
+        ? {
+            kind: 'field',
+            namespaceId: unbound,
+            model: originModel(target.details.table),
+            field: target.details.name,
+          }
+        : undefined,
+  });
   const labels = operations.map((op) => op.label);
   return {
     labels,
