@@ -122,12 +122,12 @@ Both commands share the same flag surface:
 | `--config <path>` | Path to `prisma.config.ts` |
 | `--dry-run` | Preview planned operations without applying |
 | `-y, --yes` | Accept the declared default of every prompt. It answers none of `db update`'s questions |
-
-`db update` also takes statements, each repeatable, which answer the questions it asks before an apply: `--rename <old>:<new>` keeps a model's or field's data under a new name, `--delete <subject>` lets the update lose a model's, field's or storage name's data, and `--allow <subject>` lets it widen who can read or write a model's rows. Without them, an apply that would lose data or widen access asks in a terminal, and fails with `CLI.CONSENT_REQUIRED` elsewhere. `--confirm` answers none of them. See the CLI README's `db update` section.
 | `--json [format]` | Output as JSON (`object` format only) |
 | `-q, --quiet` | Quiet mode: errors only |
 | `-v, --verbose` | Verbose output: debug info, timings |
 | `--no-color` | Disable color output |
+
+`db update` also takes statements, each repeatable, which answer the questions it asks before an apply: `--rename <old>:<new>` keeps a model's or field's data under a new name, `--delete <subject>` lets the update lose a model's, field's or storage name's data, and `--allow <subject>` lets it change who can read or write a model's rows, one operation per flag. Without them, an apply that would lose data or change access asks in a terminal, and fails with `CLI.CONSENT_REQUIRED` elsewhere. `--confirm` answers none of them. See the CLI README's `db update` section.
 
 ## Programmatic API
 
