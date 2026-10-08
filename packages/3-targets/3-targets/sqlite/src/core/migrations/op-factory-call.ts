@@ -314,9 +314,6 @@ export function indexReplacementCalls(
 
 export class RenameTableCall extends SqliteOpFactoryCallNode {
   readonly factoryName = 'renameTable' as const;
-  // `widening`: a rename is neither additive creation nor destructive, and the
-  // class vocabulary has no neutral middle class, so this is the class that
-  // plans under every allowance set except additive-only init.
   readonly operationClass = 'widening' as const;
   readonly oldTableName: string;
   /** The new name: the table's contract-side identity after the rename. */

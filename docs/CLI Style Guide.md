@@ -117,7 +117,7 @@ The CLI checks `process.stdout.isTTY` once at startup to determine the output mo
 
 ### Destructive operation confirmation
 
-Destructive operations (drops, type changes, overwriting generated files, overwriting an existing signature marker, …) require **explicit consent**. Consent takes one of two forms:
+Operations that lose data (dropping a table or a column, a type change that can change values), operations that widen who can read or write rows, overwriting generated files, and overwriting an existing signature marker require **explicit consent**. Dropping an object that holds no data, such as an index or a constraint, is `widening` and asks nothing. Consent takes one of two forms:
 
 - **Statements**, for a plan that would lose data or widen access. The command asks one question per model, field or storage name at stake, and each is answered with a statement naming it: `--delete <subject>`, `--rename <subject>:<new name>` or `--allow <subject>`. `migration plan` and `db update` use this form.
 - **A consent token**, for a command with one thing at stake. The user types the name of the thing being changed, or passes that name as `--confirm <token>`. `init` uses this form.

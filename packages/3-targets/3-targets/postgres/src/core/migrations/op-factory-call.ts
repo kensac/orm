@@ -389,10 +389,6 @@ export type RenameCompanionCall = RenameConstraintCall | RenameIndexCall;
 
 export class RenameTableCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameTable' as const;
-  // `widening` for the same reason as `RenameConstraintCall`: a rename is
-  // neither additive creation nor destructive, and the class vocabulary has no
-  // neutral middle class, so this is the class that plans under every
-  // allowance set except additive-only init.
   readonly operationClass = 'widening' as const;
   readonly schemaName: string;
   readonly oldTableName: string;
@@ -1214,10 +1210,6 @@ export class DropConstraintCall extends PostgresOpFactoryCallNode {
 
 export class RenameConstraintCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameConstraint' as const;
-  // `widening` is chosen so the rename plans under every allowance set except
-  // additive-only init — a rename is neither additive-creation nor
-  // destructive, and the class vocabulary has no neutral middle class. It is
-  // NOT that a rename widens anything; this is the accepted typology tradeoff.
   readonly operationClass = 'widening' as const;
   readonly schemaName: string;
   readonly tableName: string;
@@ -1469,10 +1461,6 @@ export class CreateIndexCall extends PostgresOpFactoryCallNode {
 
 export class RenameIndexCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameIndex' as const;
-  // `widening` is chosen so the rename plans under every allowance set except
-  // additive-only init — a rename is neither additive-creation nor
-  // destructive, and the class vocabulary has no neutral middle class. It is
-  // NOT that a rename widens anything; this is the accepted typology tradeoff.
   readonly operationClass = 'widening' as const;
   readonly schemaName: string;
   readonly tableName: string;
@@ -2095,10 +2083,6 @@ export class DisableRowLevelSecurityCall extends PostgresOpFactoryCallNode {
 
 export class RenamePostgresRlsPolicyCall extends PostgresOpFactoryCallNode {
   readonly factoryName = 'renameRlsPolicy' as const;
-  // `widening` is chosen so the rename plans under every allowance set except
-  // additive-only init — a rename is neither additive-creation nor
-  // destructive, and the class vocabulary has no neutral middle class. It is
-  // NOT that a rename widens anything; this is the accepted typology tradeoff.
   readonly operationClass = 'widening' as const;
   readonly schemaName: string;
   readonly tableName: string;

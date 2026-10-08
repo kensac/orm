@@ -72,7 +72,8 @@ export interface MigrationMetadata {
 // ============================================================================
 
 /**
- * What an operation does to the data. Only `destructive` can lose a row or a value.
+ * What an operation does to the data. Of the classes a planner chooses, only `destructive` loses
+ * data by itself; a `data` operation runs what its author wrote, which may lose data by design.
  * - 'additive': adds structure and leaves existing structure and data as they are.
  * - 'widening': changes existing structure without losing data. An operation that cannot keep
  *   every value fails instead, so a tightened constraint is widening: `SET NOT NULL` fails on a
@@ -82,7 +83,7 @@ export interface MigrationMetadata {
  *   disabling row-level security widens who can read and write rows.
  * - 'destructive': can lose rows or values: dropping a table, a column or a collection, or a type
  *   change that can change values.
- * - 'data': reads and writes rows, such as a backfill or a type conversion.
+ * - 'data': reads and writes rows, such as a backfill or a type conversion, as its author wrote.
  */
 export type MigrationOperationClass = 'additive' | 'widening' | 'destructive' | 'data';
 
