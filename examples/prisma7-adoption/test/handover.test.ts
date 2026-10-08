@@ -221,7 +221,30 @@ describe('Prisma 8 taking over migrations from the Prisma 7 schema', () => {
           editSchema('edit-2.prisma');
           await v8('contract', 'emit');
           const destructiveHash = storageHash(dir);
-          const destructivePlan = await v8('migration', 'plan', '--name', 'drop-bio');
+          const refused = await runAllowingFailure(dir, connectionString, 'prisma', [
+            'migration',
+            'plan',
+            '--name',
+            'drop-bio',
+          ]);
+          expect(refused.status, refused.output).toBe(2);
+          expect(resultEnvelope(refused.output)).toMatchObject({
+            ok: false,
+            error: {
+              code: 'CLI.CONSENT_REQUIRED',
+              nextActions: expect.arrayContaining([
+                expect.objectContaining({ label: 'Run the command again with --delete User.bio' }),
+              ]),
+            },
+          });
+          const destructivePlan = await v8(
+            'migration',
+            'plan',
+            '--name',
+            'drop-bio',
+            '--delete',
+            'User.bio',
+          );
           expect(destructivePlan).toMatchObject({ from: additiveHash, to: destructiveHash });
           expect(destructivePlan['baselineDir']).toBeUndefined();
           const destructive = readBundle(dir, String(destructivePlan['dir']));
