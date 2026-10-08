@@ -103,7 +103,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@prisma/cli-engine": "https://pkg.pr.new/@prisma/cli-engine@c560ced",
+      "@prisma/cli-engine": "https://pkg.pr.new/@prisma/cli-engine@adb07a8",
       "hono": "4.11.4",
       "js-yaml": "3.14.2",
       "lodash": "4.17.23",
