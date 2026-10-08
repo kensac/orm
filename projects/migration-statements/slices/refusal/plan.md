@@ -26,7 +26,7 @@ Dispatches 1 and 2 do not touch the prompt and start before the engine ships. Di
 
 ### 3 — The engine pin, the verbs, and the refusal on `migration plan`
 
-**Outcome.** `@prisma/cli-engine` 0.7 pinned; the ORM command family registers the verbs `rename`, `delete`, `allow`; `migration plan` plans, turns every `dataLoss` entry into a `ctx.prompt.statements` question, re-plans with any `rename` answers, matches `delete` answers, and writes only when nothing is left unanswered. The auto-baseline consent (`refuseUnconsentedDestructiveBaseline`, `consentToken`, the plan-hash round trip) is gone; `MIGRATION.DESTRUCTIVE_CHANGES` and `CONSENT_PLAN_MISMATCH` are retired from this command; `MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS` is new. `Statements applied` and JSON `appliedStatements` carry `delete` lines with `verb`. Statement order comes from the engine's ordered verb-flag list.
+**Outcome.** `@prisma/cli-engine` 0.7 pinned; each command declares its verbs from one shared table (`rename`, `delete`, and on `db update` `allow`); `migration plan` plans, turns every `dataLoss` entry into a `ctx.prompt.statements` question, re-plans with any `rename` answers, matches `delete` answers, and writes only when nothing is left unanswered. The auto-baseline consent (`refuseUnconsentedDestructiveBaseline`, `consentToken`, the plan-hash round trip) is gone; `MIGRATION.DESTRUCTIVE_CHANGES` and `CONSENT_PLAN_MISMATCH` are retired from this command; `MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS` is new. `Statements applied` and JSON `appliedStatements` carry `delete` lines with `verb`. Statement order comes from the engine's ordered verb-flag list.
 
 **Builds on.** Dispatch 2 and the engine.
 
