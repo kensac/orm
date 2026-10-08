@@ -175,6 +175,19 @@ function shellString(name: string): string {
 }
 
 /**
+ * How to keep the documents of a subject a plan would drop, since the planner carries out no
+ * rename: rename the collection by hand, after which the plan finds nothing to drop.
+ */
+export function keepDataByHand(
+  subject: MigrationSubject,
+  fromContract: ContractWithDomain,
+): string {
+  const collection =
+    subject.kind === 'storage' ? subject.name : collectionOf(fromContract, subject);
+  return `If it was renamed, keep its documents instead: rename collection "${collection}" by hand on each database, for example with db.getCollection(${shellString(collection)}).renameCollection("<new collection>") in mongosh, then run this command again, which then drops nothing.`;
+}
+
+/**
  * What a plan made without the statement does to the data, and how to keep it. Right for both
  * `db update` and `migration plan`, since the planner does not know which command it serves.
  * Mongo contracts key a model's fields by their stored names, so the statement's field names are

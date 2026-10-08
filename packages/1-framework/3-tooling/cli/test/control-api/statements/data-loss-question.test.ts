@@ -18,7 +18,7 @@ describe('dataLossQuestion for data no model names', () => {
       destination,
       renames: [],
       originKnown: true,
-      renamesPlannable: true,
+      keepDataByHand: undefined,
     });
 
     expect({ question: question.question, verbs: question.verbs }).toEqual({
@@ -34,7 +34,7 @@ describe('dataLossQuestion for data no model names', () => {
       destination,
       renames: [],
       originKnown: false,
-      renamesPlannable: true,
+      keepDataByHand: undefined,
     });
 
     expect(question.question).toBe(
@@ -50,15 +50,25 @@ describe('dataLossQuestion verbs', () => {
   });
   const withNickname = contractOf({ app: { models: { User: { fields: ['email', 'nickname'] } } } });
 
-  function verbsFor(field: string, destination: typeof origin, renamesPlannable: boolean) {
+  const keepByHand = () => 'Rename it by hand first.';
+
+  function questionFor(
+    field: string,
+    destination: typeof origin,
+    keepDataByHand: (() => string) | undefined,
+  ) {
     return dataLossQuestion(
       {
         operationIndex: 0,
         label: 'An operation',
         subject: { kind: 'field', namespaceId: unbound, model: 'User', field },
       },
-      { origin: withNickname, destination, renames: [], originKnown: true, renamesPlannable },
-    ).verbs;
+      { origin: withNickname, destination, renames: [], originKnown: true, keepDataByHand },
+    );
+  }
+
+  function verbsFor(field: string, destination: typeof origin, renamesPlannable: boolean) {
+    return questionFor(field, destination, renamesPlannable ? undefined : keepByHand).verbs;
   }
 
   it('offers rename for a field the destination no longer has', () => {
@@ -82,13 +92,24 @@ describe('dataLossQuestion verbs', () => {
         destination,
         renames: [{ verb: 'rename', text: 'User.nickname:User.handle' }],
         originKnown: true,
-        renamesPlannable: true,
+        keepDataByHand: undefined,
       },
     );
     expect(question.verbs).toEqual(['delete']);
   });
 
-  it('offers only delete where the planner cannot carry out a rename', () => {
-    expect(verbsFor('nickname', destinationWithoutNickname, false)).toEqual(['delete']);
+  it('offers only delete where the planner cannot carry out a rename, and says how to keep the data by hand', () => {
+    const question = questionFor('nickname', destinationWithoutNickname, keepByHand);
+    expect({ verbs: question.verbs, question: question.question }).toEqual({
+      verbs: ['delete'],
+      question:
+        'An operation would lose the values of field "User.nickname". Rename it by hand first.',
+    });
+  });
+
+  it('writes the rename form of a field with its model, as a field rename is written', () => {
+    expect(questionFor('nickname', destinationWithoutNickname, undefined).forms).toEqual({
+      rename: 'User.nickname:User.<new name>',
+    });
   });
 });

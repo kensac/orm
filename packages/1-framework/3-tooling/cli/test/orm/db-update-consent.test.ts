@@ -65,7 +65,13 @@ const origin = {
 const destination = {
   domain: { namespaces: { app: { models: { User: { fields: {}, relations: {}, storage: {} } } } } },
 };
-const contracts = { origin, destination, renames: [], originKnown: true, renamesPlannable: true };
+const contracts = {
+  origin,
+  destination,
+  renames: [],
+  originKnown: true,
+  keepDataByHand: undefined,
+};
 
 /** One question of each kind, across two spaces: an extension's recorded drop is a storage subject. */
 function planQuestions(): readonly PlanQuestion[] {

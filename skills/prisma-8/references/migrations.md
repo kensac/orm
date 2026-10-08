@@ -477,7 +477,7 @@ If self-emit itself fails (e.g. the contract has moved on and the operations no 
 The concept: the planner cannot tell whether a dropped model or field was meant to go, or was renamed. So before `migration plan` writes a package, or `db update` applies, the command asks one question per model, field or storage name an operation would lose data from. `db update` also asks one per model whose rows an operation would open up, such as dropping a row-level-security policy. Each question is answered by a statement:
 
 - `--delete <subject>` lets the data go: `--delete Legacy`, `--delete User.nickname`. A subject no model stores is named by its storage name (`public.audit_log` on Postgres, `audit_log` on SQLite) and can only be deleted.
-- `--rename <subject>:<new name>` keeps it under a new name: `--rename Profile:User`. A field of a renamed model is named through the new name (`--delete User.nickname` after `--rename Profile:User`).
+- `--rename <subject>:<new name>` keeps it under a new name: `--rename Profile:User`, or for a field `--rename User.nickname:User.handle` (the new name keeps its model). A field of a renamed model is named through the new name (`--delete User.nickname` after `--rename Profile:User`).
 - `--allow <Model>` (`db update` only) lets the widening run.
 
 ```bash

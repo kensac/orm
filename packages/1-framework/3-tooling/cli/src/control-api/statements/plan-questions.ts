@@ -6,6 +6,7 @@ import {
   migrationSubjectKey,
   modelDisplayName,
   type ResolvedMigrationStatement,
+  type TargetMigrationsCapability,
 } from '@internal/framework-components/control';
 import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok, type Result } from '@internal/utils/result';
@@ -168,6 +169,25 @@ function namesSubject(verb: ConsentVerb, subject: string) {
     text === subject ? undefined : `${verb} names "${subject}": --${verb} ${subject}.`;
 }
 
+/**
+ * How the target says to keep a subject's data by hand when its planner carries out no rename, or
+ * `undefined` when it carries them out.
+ */
+export function keepDataByHandFor(
+  migrations: { readonly renameStatements?: TargetMigrationsCapability['renameStatements'] },
+  origin: ContractWithDomain,
+): ((subject: MigrationSubject) => string) | undefined {
+  const refused = migrations.renameStatements;
+  return refused === undefined ? undefined : (subject) => refused.keepDataByHand(subject, origin);
+}
+
+/** A rename as a statement is written: a field's new name keeps the model, `User.nickname:User.<new name>`. */
+function renameForm(subject: MigrationSubject, text: string): string {
+  return subject.kind === 'field'
+    ? `${text}:${text.slice(0, text.lastIndexOf('.'))}.<new name>`
+    : `${text}:<new name>`;
+}
+
 /** Whether a rename statement of the plan already gives the subject a new name. */
 function renamedByPlan(
   subject: MigrationSubject,
@@ -197,32 +217,35 @@ function inDestination(
 
 /**
  * The question for one operation that would lose data. A model or field the destination no longer
- * has, and no rename of the plan renamed, may be renamed instead of deleted, when the planner can
- * carry out a rename; a rename is
- * resolved against the two contracts after the plan's other renames, and its old name must be the
- * subject. A subject the destination keeps, such as a field whose type changes, and data no model
- * stores, can only be deleted.
+ * has, and no rename of the plan renamed, may be renamed instead of deleted; a rename is resolved
+ * against the two contracts after the plan's other renames, and its old name must be the subject.
+ * A subject the destination keeps, such as a field whose type changes, and data no model stores,
+ * can only be deleted. Where the target's planner carries out no rename, `keepDataByHand` says how
+ * to keep the data instead.
  */
 export function dataLossQuestion(
   loss: PlannedSubject,
   contracts: StatementContracts & {
     readonly destination: ContractWithDomain;
     readonly originKnown: boolean;
-    readonly renamesPlannable: boolean;
+    readonly keepDataByHand: ((subject: MigrationSubject) => string) | undefined;
   },
 ): PlanQuestion {
   const subject = subjectText(loss.subject, contracts);
   const renamable =
-    contracts.renamesPlannable &&
+    contracts.keepDataByHand === undefined &&
     loss.subject.kind !== 'storage' &&
     !inDestination(loss.subject, contracts) &&
     !renamedByPlan(loss.subject, contracts);
   const deleteNames = namesSubject('delete', subject);
   return {
-    question: `${loss.label} ${lossText(loss.subject, subject, contracts.originKnown)}.`,
+    question: [
+      `${loss.label} ${lossText(loss.subject, subject, contracts.originKnown)}.`,
+      ...(contracts.keepDataByHand === undefined ? [] : [contracts.keepDataByHand(loss.subject)]),
+    ].join(' '),
     subject,
     verbs: renamable ? ['rename', 'delete'] : ['delete'],
-    forms: renamable ? { rename: `${subject}:<new name>` } : {},
+    forms: renamable ? { rename: renameForm(loss.subject, subject) } : {},
     validate: (verb, text) => {
       if (verb !== 'rename') return deleteNames(text);
       const resolved = resolveStatements({
@@ -234,7 +257,7 @@ export function dataLossQuestion(
       const statement = resolved.value.at(-1);
       return statement !== undefined && sameCoordinate(statement, loss.subject)
         ? undefined
-        : `The rename's old name is not "${subject}". Write it as ${subject}:<new name>.`;
+        : `The rename's old name is not "${subject}". Write it as ${renameForm(loss.subject, subject)}.`;
     },
   };
 }
@@ -320,7 +343,7 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
   readonly consentAll: { readonly [verb in ConsentVerb]: boolean };
   readonly origin: ContractWithDomain;
   readonly originKnown: boolean;
-  readonly renamesPlannable: boolean;
+  readonly keepDataByHand: ((subject: MigrationSubject) => string) | undefined;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
   readonly replan: (renames: readonly StatementText[]) => Promise<Result<TPlan, TFailure>>;
@@ -342,7 +365,7 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
     const contracts = {
       origin: input.origin,
       originKnown: input.originKnown,
-      renamesPlannable: input.renamesPlannable,
+      keepDataByHand: input.keepDataByHand,
       destination: input.destination,
       renames,
     };

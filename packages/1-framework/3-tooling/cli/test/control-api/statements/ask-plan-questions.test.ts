@@ -44,7 +44,7 @@ function run(replanned: PlannedQuestions, typed: readonly (readonly string[])[])
       consentAll: { delete: false, allow: false },
       origin,
       originKnown: true,
-      renamesPlannable: true,
+      keepDataByHand: undefined,
       destination,
       answer: async (questions: readonly PlanQuestion[]) => {
         asked.push(questions.map(({ question }) => question));
@@ -101,7 +101,7 @@ describe('questions about storage when the origin contract is unknown', () => {
       consentAll: { delete: false, allow: false },
       origin,
       originKnown: false,
-      renamesPlannable: true,
+      keepDataByHand: undefined,
       destination,
       answer: async (questions) => {
         asked.push(...questions.map(({ question }) => question));

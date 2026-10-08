@@ -895,7 +895,7 @@ describe('migration plan', () => {
           .nextActions,
       );
       expect(actions).toContain('--delete User.nickname');
-      expect(actions).toContain("--rename 'User.nickname:<new name>'");
+      expect(actions).toContain("--rename 'User.nickname:User.<new name>'");
 
       const deleted = await harness(project, { script }).run(
         ['migration', 'plan', '--rename', 'Profile:User', '--delete', 'User.nickname', '--json'],
