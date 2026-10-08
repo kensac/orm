@@ -187,7 +187,7 @@ describe('db update questions', () => {
     for (const flag of [
       '--delete audit_old',
       '--delete Legacy',
-      '--rename Legacy:<new name>',
+      "--rename 'Legacy:<new name>'",
       '--allow User',
     ]) {
       expect(actions).toContain(flag);
