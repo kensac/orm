@@ -150,7 +150,7 @@ function lossText(subject: MigrationSubject, text: string, originKnown: boolean)
  * advises, then answer with a rename. The refusal gives it once, on its first storage question.
  */
 export const ORIGIN_SNAPSHOT_RECOVERY = [
-  'If a table or column was renamed, keep its rows instead: store the snapshot of the contract the database is at, then run this command again and answer with --rename.',
+  'If it was renamed, keep its data instead: store the snapshot of the contract the database is at, then run this command again and answer with --rename.',
   ...STORE_ORIGIN_SNAPSHOT_STEPS.map((step) => step.replaceAll('`{bin} ', '`')),
 ].join(' ');
 
