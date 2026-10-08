@@ -61,6 +61,7 @@ import {
 import { resolveStatements, type StatementOrigin } from '../statements/resolve-statements';
 import type { StatementText } from '../statements/statement-text';
 import type {
+  AskedAccessChange,
   AskedSubject,
   DbInitFailure,
   DbInitResult,
@@ -292,11 +293,10 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
         ? subjectsAcrossSpaces(orderedResolutions)
         : { dataLoss: [], accessWidening: [] };
     const operations = orderedResolutions.flatMap((r) => r.entry.displayOps);
-    const labelled = (entries: readonly MigrationOperationSubject[]) =>
-      entries.map(({ operationIndex, subject }) => ({
-        operationIndex,
-        subject,
-        label: operations[operationIndex]?.label ?? JSON.stringify(subject),
+    const labelled = <TEntry extends MigrationOperationSubject>(entries: readonly TEntry[]) =>
+      entries.map((entry) => ({
+        ...entry,
+        label: operations[entry.operationIndex]?.label ?? JSON.stringify(entry.subject),
       }));
     return ok({
       planned: planned.value,
@@ -379,12 +379,14 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
           ...consented.map((entry) =>
             reportConsentStatement(
               entry,
-              (entry.verb === 'delete' ? run.subjects.dataLoss : run.subjects.accessWidening)
-                .filter(
-                  ({ subject }) =>
-                    migrationSubjectKey(subject) === migrationSubjectKey(entry.subject),
-                )
-                .map(({ operationIndex }) => operationIndex),
+              entry.verb === 'allow' && entry.operationIndex !== undefined
+                ? [entry.operationIndex]
+                : run.subjects.dataLoss
+                    .filter(
+                      ({ subject }) =>
+                        migrationSubjectKey(subject) === migrationSubjectKey(entry.subject),
+                    )
+                    .map(({ operationIndex }) => operationIndex),
             ),
           ),
         ]
@@ -394,7 +396,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     destination: contract,
     renames: renameTexts,
   };
-  const asked = (entries: readonly MigrationOperationSubject[]) =>
+  const asked = <TEntry extends MigrationOperationSubject>(entries: readonly TEntry[]) =>
     entries.map((entry) => ({ ...entry, text: subjectText(entry.subject, contractsAsked) }));
   const subjects =
     action === 'dbUpdate'
@@ -548,7 +550,10 @@ function operationsBefore(
 function subjectsAcrossSpaces(
   orderedResolutions: readonly OrderedResolution[],
 ): MigrationPlanSubjects {
-  const offset = (resolution: OrderedResolution, entries: readonly MigrationOperationSubject[]) =>
+  const offset = <TEntry extends MigrationOperationSubject>(
+    resolution: OrderedResolution,
+    entries: readonly TEntry[],
+  ) =>
     entries.map((entry) => ({
       ...entry,
       operationIndex:
@@ -667,7 +672,7 @@ function wrapPlanResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: MigrationPlanSubjects<AskedSubject> | undefined;
+  readonly subjects: MigrationPlanSubjects<AskedSubject, AskedAccessChange> | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {
@@ -699,7 +704,7 @@ function wrapApplyResult(args: {
   /** `undefined` for `db init`, which reports no statements. */
   readonly appliedStatements: readonly AppliedStatementReport[] | undefined;
   /** `undefined` for `db init`, which reports no data loss. */
-  readonly subjects: MigrationPlanSubjects<AskedSubject> | undefined;
+  readonly subjects: MigrationPlanSubjects<AskedSubject, AskedAccessChange> | undefined;
   readonly warnings?: readonly MigrationPlannerConflict[];
 }): DbInitResult | DbUpdateResult {
   const success: DbInitSuccess | DbUpdateSuccess = {

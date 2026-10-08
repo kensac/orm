@@ -126,6 +126,7 @@ export type {
   AppliedMigrationStatement,
   FieldCoordinate,
   FieldCoordinateJson,
+  MigrationAccessChange,
   MigrationOperationSubject,
   MigrationPlanSubjects,
   MigrationStatementJson,

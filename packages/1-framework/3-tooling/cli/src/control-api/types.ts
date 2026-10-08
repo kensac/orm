@@ -13,6 +13,7 @@ import type {
   ControlFamilyDescriptor,
   ControlTargetDescriptor,
   CoreSchemaView,
+  MigrationAccessChange,
   MigrationOperationSubject,
   MigrationPlannerConflict,
   MigrationPlanOperation,
@@ -454,10 +455,13 @@ export interface AskedSubject extends MigrationOperationSubject {
   readonly text: string;
 }
 
+/** An operation an apply asks about because it changes who can read or write its subject's rows. */
+export interface AskedAccessChange extends AskedSubject, MigrationAccessChange {}
+
 /**
  * Successful dbUpdate result.
  */
-export interface DbUpdateSuccess extends MigrationPlanSubjects<AskedSubject> {
+export interface DbUpdateSuccess extends MigrationPlanSubjects<AskedSubject, AskedAccessChange> {
   readonly mode: 'plan' | 'apply';
   readonly plan: {
     readonly operations: ReadonlyArray<{

@@ -19,6 +19,7 @@ import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   AppliedMigrationStatement,
+  MigrationAccessChange,
   MigrationOperationSubject,
   MigrationPlanner,
   MigrationScaffoldContext,
@@ -72,7 +73,7 @@ export type SqlitePlanResult =
       readonly plan: TypeScriptRenderableSqliteMigration;
       readonly appliedStatements: readonly AppliedMigrationStatement[];
       readonly dataLoss: readonly MigrationOperationSubject[];
-      readonly accessWidening: readonly MigrationOperationSubject[];
+      readonly accessWidening: readonly MigrationAccessChange[];
     }
   | SqlPlannerFailureResult;
 

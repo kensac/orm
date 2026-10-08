@@ -100,15 +100,15 @@ function accessWideningOf(
   locator: Locator,
   call: OpFactoryCall,
   replaced: ReadonlySet<string>,
-): readonly SubjectStorage[] {
+): CallSubjects['accessWidening'] {
   if (call instanceof DisableRowLevelSecurityCall) {
-    return [target(locator, call.schemaName, call.tableName, undefined)];
+    return [{ ...target(locator, call.schemaName, call.tableName, undefined), widens: true }];
   }
   if (
     call instanceof DropPostgresRlsPolicyCall &&
     !replaced.has(policyKey(call.schemaName, call.tableName, call.policyName))
   ) {
-    return [target(locator, call.schemaName, call.tableName, undefined)];
+    return [{ ...target(locator, call.schemaName, call.tableName, undefined), widens: false }];
   }
   return [];
 }

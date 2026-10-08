@@ -116,7 +116,7 @@ const migrations = {
         operationIndexes: [0],
       })),
       dataLoss: [{ operationIndex: 0, subject: LOST }],
-      accessWidening: [{ operationIndex: 0, subject: LOST }],
+      accessWidening: [{ operationIndex: 0, subject: LOST, widens: true }],
       plan: {
         targetId: 'postgres',
         origin: options.origin,

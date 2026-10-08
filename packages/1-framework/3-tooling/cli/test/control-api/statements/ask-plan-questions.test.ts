@@ -120,3 +120,58 @@ describe('questions about storage when the origin contract is unknown', () => {
     );
   });
 });
+
+describe('questions about access', () => {
+  it('ask once per operation, and say a policy drop changes access where disabling row-level security widens it', async () => {
+    const user = { kind: 'model', namespaceId: asNamespaceId('app'), model: 'T' } as const;
+    const asked: string[] = [];
+    const result = await askPlanQuestions({
+      plan: {
+        dataLoss: [],
+        accessWidening: [
+          {
+            operationIndex: 0,
+            label: 'Drop RLS policy "readers" on "T"',
+            subject: user,
+            widens: false,
+          },
+          {
+            operationIndex: 1,
+            label: 'Disable row-level security on "T"',
+            subject: user,
+            widens: true,
+          },
+        ],
+      },
+      askAccess: true,
+      renames: [],
+      preAnswers: [],
+      consentAll: { delete: false, allow: false },
+      origin,
+      originKnown: true,
+      keepDataByHand: undefined,
+      destination,
+      answer: async (questions) => {
+        asked.push(...questions.map(({ question }) => question));
+        return questions.map(({ subject }) => ({ verb: 'allow', text: subject }));
+      },
+      replan: async () => ok({ dataLoss: [], accessWidening: [] }),
+    });
+
+    expect(asked).toEqual([
+      'Drop RLS policy "readers" on "T" would change who can read and write its rows.',
+      'Disable row-level security on "T" would widen who can read and write its rows.',
+    ]);
+    expect(
+      result.ok &&
+        result.value.consented.map(({ verb, text, operationIndex }) => ({
+          verb,
+          text,
+          operationIndex,
+        })),
+    ).toEqual([
+      { verb: 'allow', text: 'T', operationIndex: 0 },
+      { verb: 'allow', text: 'T', operationIndex: 1 },
+    ]);
+  });
+});

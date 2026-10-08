@@ -131,13 +131,24 @@ describe('subjectsOfCalls', () => {
   it('lists access-widening operations with the model of their table', () => {
     expect(
       subjectsOfCalls(
-        [unchanged, { operationCount: 1, dataLoss: [], accessWidening: [table('user')] }],
+        [
+          unchanged,
+          {
+            operationCount: 1,
+            dataLoss: [],
+            accessWidening: [{ ...table('user'), widens: false }],
+          },
+        ],
         { fromContract: origin, contract: origin, statements: [] },
       ),
     ).toEqual({
       dataLoss: [],
       accessWidening: [
-        { operationIndex: 1, subject: { kind: 'model', namespaceId: app, model: 'User' } },
+        {
+          operationIndex: 1,
+          subject: { kind: 'model', namespaceId: app, model: 'User' },
+          widens: false,
+        },
       ],
     });
   });

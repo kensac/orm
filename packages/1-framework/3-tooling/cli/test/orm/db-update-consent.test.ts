@@ -97,6 +97,7 @@ function planQuestions(): readonly PlanQuestion[] {
         operationIndex: 2,
         label: 'Disable row-level security on "User"',
         subject: { kind: 'model', namespaceId: asNamespaceId('app'), model: 'User' },
+        widens: true,
       },
       contracts,
     ),

@@ -23,6 +23,7 @@ import type { ExecuteRequestLowerer } from '@internal/family-sql/control-adapter
 import type { TargetBoundComponentDescriptor } from '@internal/framework-components/components';
 import type {
   AppliedMigrationStatement,
+  MigrationAccessChange,
   MigrationOperationClass,
   MigrationOperationSubject,
   MigrationPlanner,
@@ -134,7 +135,7 @@ export type PostgresPlanResult =
       readonly warnings?: readonly SqlPlannerConflict[];
       readonly appliedStatements: readonly AppliedMigrationStatement[];
       readonly dataLoss: readonly MigrationOperationSubject[];
-      readonly accessWidening: readonly MigrationOperationSubject[];
+      readonly accessWidening: readonly MigrationAccessChange[];
     }
   | SqlPlannerFailureResult;
 

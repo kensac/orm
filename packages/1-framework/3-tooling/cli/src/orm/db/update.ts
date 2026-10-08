@@ -74,12 +74,30 @@ function updatePresentations(inputs: {
   };
 }
 
-function subjectEntryJson(verb: 'delete' | 'allow', given: readonly StatementText[]) {
-  return (entry: AskedSubject) => ({
-    operationIndex: entry.operationIndex,
-    subject: migrationSubjectJson(entry.subject),
-    text: entry.text,
-    answered: given.some((statement) => statement.verb === verb && statement.text === entry.text),
+/**
+ * The entries a dry run lists, each marked answered when a flag it was given answers its question:
+ * a `--delete` answers every loss of its subject, and an `--allow` one operation, in order.
+ */
+function subjectEntriesJson(
+  entries: readonly AskedSubject[],
+  verb: 'delete' | 'allow',
+  given: readonly StatementText[],
+) {
+  const flagsLeft = new Map<string, number>();
+  for (const statement of given) {
+    if (statement.verb === verb) {
+      flagsLeft.set(statement.text, (flagsLeft.get(statement.text) ?? 0) + 1);
+    }
+  }
+  return entries.map((entry) => {
+    const left = flagsLeft.get(entry.text) ?? 0;
+    if (left > 0 && verb === 'allow') flagsLeft.set(entry.text, left - 1);
+    return {
+      operationIndex: entry.operationIndex,
+      subject: migrationSubjectJson(entry.subject),
+      text: entry.text,
+      answered: left > 0,
+    };
   });
 }
 
@@ -129,8 +147,8 @@ function updateDocument(inputs: {
     appliedStatements: value.appliedStatements,
     ...(value.mode === 'plan'
       ? {
-          dataLoss: value.dataLoss.map(subjectEntryJson('delete', inputs.statements)),
-          accessWidening: value.accessWidening.map(subjectEntryJson('allow', inputs.statements)),
+          dataLoss: subjectEntriesJson(value.dataLoss, 'delete', inputs.statements),
+          accessWidening: subjectEntriesJson(value.accessWidening, 'allow', inputs.statements),
         }
       : {}),
     ...ifDefined('warnings', value.warnings),

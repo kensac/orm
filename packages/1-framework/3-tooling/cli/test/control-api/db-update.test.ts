@@ -499,7 +499,7 @@ describe('executeDbUpdate', () => {
         planResult: {
           kind: 'success',
           dataLoss: [{ operationIndex: 0, subject: NICKNAME }],
-          accessWidening: [{ operationIndex: 2, subject: USER }],
+          accessWidening: [{ operationIndex: 2, subject: USER, widens: true }],
           appliedStatements: [],
           plan: {
             targetId: 'postgres',
@@ -763,7 +763,7 @@ describe('executeDbUpdate', () => {
         },
       ).toEqual({
         dataLoss: [{ operationIndex: 0, subject: NICKNAME, text: 'user.nickname' }],
-        accessWidening: [{ operationIndex: 2, subject: USER, text: 'user' }],
+        accessWidening: [{ operationIndex: 2, subject: USER, widens: true, text: 'user' }],
       });
     });
   });

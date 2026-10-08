@@ -1,5 +1,6 @@
 import { asNamespaceId, type ContractWithDomain } from '@internal/contract/types';
 import type {
+  MigrationAccessChange,
   MigrationOperationSubject,
   MigrationPlanSubjects,
   MigrationSubject,
@@ -68,8 +69,8 @@ export interface CallSubjects {
   readonly operationCount: number;
   /** What the call's operation loses, one entry per model, field or storage name. */
   readonly dataLoss: readonly SubjectStorage[];
-  /** What the call's operation widens access to. */
-  readonly accessWidening: readonly SubjectStorage[];
+  /** What the call's operation changes access to, and whether it widens it. */
+  readonly accessWidening: readonly (SubjectStorage & { readonly widens: boolean })[];
 }
 
 interface SubjectContext {
@@ -174,14 +175,18 @@ export function subjectsOfCalls(
   context: SubjectContext,
 ): MigrationPlanSubjects {
   const dataLoss: MigrationOperationSubject[] = [];
-  const accessWidening: MigrationOperationSubject[] = [];
+  const accessWidening: MigrationAccessChange[] = [];
   let operationIndex = 0;
   for (const call of calls) {
     for (const target of call.dataLoss) {
       dataLoss.push({ operationIndex, subject: subjectOf(target, context) });
     }
     for (const target of call.accessWidening) {
-      accessWidening.push({ operationIndex, subject: subjectOf(target, context) });
+      accessWidening.push({
+        operationIndex,
+        subject: subjectOf(target, context),
+        widens: target.widens,
+      });
     }
     operationIndex += call.operationCount;
   }

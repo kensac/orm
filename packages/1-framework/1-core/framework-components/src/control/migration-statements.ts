@@ -68,14 +68,24 @@ export interface MigrationOperationSubject {
   readonly subject: MigrationSubject;
 }
 
-/** What the operations of a plan lose and whose access they widen, each by its position in the plan. */
+/** An operation that changes who can read or write the rows of its subject. */
+export interface MigrationAccessChange extends MigrationOperationSubject {
+  /**
+   * True when it lets more people read or write, such as disabling row-level security; false when
+   * the change can go either way, such as dropping a policy.
+   */
+  readonly widens: boolean;
+}
+
+/** What the operations of a plan lose and whose access they change, each by its position in the plan. */
 export interface MigrationPlanSubjects<
   TEntry extends MigrationOperationSubject = MigrationOperationSubject,
+  TAccess extends MigrationAccessChange = MigrationAccessChange,
 > {
   /** Each operation that loses data, in plan order, with what it loses. */
   readonly dataLoss: readonly TEntry[];
-  /** Each operation that widens who can read or write data, in plan order, with what it is about. */
-  readonly accessWidening: readonly TEntry[];
+  /** Each operation that changes who can read or write data, in plan order, with what it is about. */
+  readonly accessWidening: readonly TAccess[];
 }
 
 /**

@@ -60,10 +60,15 @@ export interface PlannedSubject {
   readonly subject: MigrationSubject;
 }
 
-/** What a plan would lose, and whose access it would widen. */
+/** An operation of a plan that changes who can read or write its subject's rows. */
+export interface PlannedAccessChange extends PlannedSubject {
+  readonly widens: boolean;
+}
+
+/** What a plan would lose, and whose access it would change. */
 export interface PlannedQuestions {
   readonly dataLoss: readonly PlannedSubject[];
-  readonly accessWidening: readonly PlannedSubject[];
+  readonly accessWidening: readonly PlannedAccessChange[];
 }
 
 function modelText(contract: ContractWithDomain, coordinate: ModelCoordinate): string {
@@ -262,14 +267,18 @@ export function dataLossQuestion(
   };
 }
 
-/** The question for one operation that would widen who can read or write its subject's rows. */
+/**
+ * The question for one operation that changes who can read or write its subject's rows: it widens
+ * access, as disabling row-level security does, or changes it either way, as dropping a policy
+ * does. Each such operation is its own question, answered by its own `allow`.
+ */
 export function accessWideningQuestion(
-  widening: PlannedSubject,
+  widening: PlannedAccessChange,
   contracts: StatementContracts,
 ): PlanQuestion {
   const subject = subjectText(widening.subject, contracts);
   return {
-    question: `${widening.label} would widen who can read and write its rows.`,
+    question: `${widening.label} would ${widening.widens ? 'widen' : 'change'} who can read and write its rows.`,
     subject,
     verbs: ['allow'],
     forms: {},
@@ -282,9 +291,18 @@ export interface ConsentedSubject {
   readonly verb: ConsentVerb;
   readonly subject: MigrationSubject;
   readonly text: string;
+  /** The position of the operation an `allow` consented to; a `delete` covers every loss of its subject. */
+  readonly operationIndex: number | undefined;
 }
 
 const keyOf = (planned: PlannedSubject) => migrationSubjectKey(planned.subject);
+
+/** A `delete` answers for its subject; an `allow` for its one operation. */
+function questionKey(verb: ConsentVerb, entry: PlannedSubject): string {
+  return verb === 'allow'
+    ? `allow:${entry.operationIndex}:${entry.label}:${keyOf(entry)}`
+    : `delete:${keyOf(entry)}`;
+}
 
 function checkAnswers(questions: readonly PlanQuestion[], answers: readonly PlanAnswer[]): void {
   if (answers.length !== questions.length) {
@@ -369,18 +387,23 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
       destination: input.destination,
       renames,
     };
-    const pending = (
+    const pending = <TEntry extends PlannedSubject>(
       verb: ConsentVerb,
-      planned: readonly PlannedSubject[],
-    ): readonly PlannedSubject[] => [
+      planned: readonly TEntry[],
+    ): readonly TEntry[] => [
       ...new Map(
         planned
-          .filter((entry) => !consented.has(`${verb}:${keyOf(entry)}`))
-          .map((entry) => [keyOf(entry), entry]),
+          .filter((entry) => !consented.has(questionKey(verb, entry)))
+          .map((entry) => [questionKey(verb, entry), entry]),
       ).values(),
     ];
     const consent = (verb: ConsentVerb, entry: PlannedSubject, text: string) =>
-      consented.set(`${verb}:${keyOf(entry)}`, { verb, subject: entry.subject, text });
+      consented.set(questionKey(verb, entry), {
+        verb,
+        subject: entry.subject,
+        text,
+        operationIndex: entry.operationIndex,
+      });
     for (const [verb, entries] of [
       ['delete', pending('delete', plan.dataLoss)],
       ['allow', input.askAccess ? pending('allow', plan.accessWidening) : []],
