@@ -11,6 +11,9 @@
 // Re-export core control plane types for consumer convenience
 export type {
   ControlStack,
+  MigrationOperationSubject,
+  MigrationPlanSubjects,
+  MigrationSubject,
   ResolvedMigrationStatement,
   VerifyDatabaseResult,
   VerifyDatabaseSchemaResult,
@@ -157,6 +160,7 @@ export {
 export type { StatementText, StatementVerb } from '../control-api/statements/statement-text';
 // CLI-specific types
 export type {
+  AskedSubject,
   ContractEmitOptions,
   ContractEmitResult,
   ControlActionName,

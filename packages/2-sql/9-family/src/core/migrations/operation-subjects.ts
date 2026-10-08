@@ -30,7 +30,7 @@ export interface SubjectStorage {
     | undefined;
 }
 
-/** The target of a codec hook's call: the column of the field event it was returned for. */
+/** What a codec hook's call is about: the column of the field event it was returned for. */
 export function fieldEventStorage(field: {
   readonly namespaceId: string;
   readonly tableName: string;

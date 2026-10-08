@@ -90,7 +90,7 @@ These come from `@prisma/orm-toolchain/cli/control-api`.
 - `delete` and `allow` statements in `statements` (`{ verb: 'delete', text: 'Legacy' }`) answer their questions without asking. One that answers no question fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`, in plan mode as in apply mode.
 - `consent` is gone from `executeDbUpdate`'s and `dbUpdate`'s options: the plan-hash binding it carried no longer exists. Remove it.
 - `executeMigrationPlanCommand(options)` requires `answerQuestions`, with the same contract, and loses `consent` and `carryEmittedExtensionDirs`. Remove both.
-- `DbUpdateSuccess` gains `dataLoss` and `accessWidening`, the operations of the plan that lose data or widen access, by position.
+- `DbUpdateSuccess` gains `dataLoss` and `accessWidening`, the operations of the plan that lose data or widen access, by position, each an `AskedSubject` with the subject's `text` as the question writes it. `AskedSubject`, `MigrationSubject`, `MigrationOperationSubject` and `MigrationPlanSubjects` are exported from `@prisma/orm-toolchain/cli/control-api`.
 
 ## `applied-statement-report-verb`
 

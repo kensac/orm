@@ -653,8 +653,8 @@ export interface TargetMigrationsCapability<
   ): MigrationPlanner<TFamilyId, TTargetId>;
   createRunner(family: TFamilyInstance): MigrationRunner<TFamilyId, TTargetId>;
   /**
-   * Set when the target's planner refuses every rename statement, so the CLI does not offer
-   * `--rename` as an answer to a data-loss question.
+   * Set when the target's planner carries out no rename statement; a data-loss question then
+   * offers no rename.
    */
   readonly refusesRenameStatements?: true;
   /**
