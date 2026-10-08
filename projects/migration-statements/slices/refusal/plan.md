@@ -18,7 +18,7 @@ Dispatches 1 and 2 do not touch the prompt and start before the engine ships. Di
 
 ### 2 — The planner result names what each destructive operation would lose
 
-**Outcome.** The framework type `MigrationStatementSubject` beside `AppliedMigrationStatement`; the planner success result carries `dataLoss: { operationIndex, subject }[]` and `accessWidening: { operationIndex, subject }[]`; the SQL family maps a dropped or type-changed table or column back to the origin contract's model or field when `fromContract` is present, else to a storage subject; MongoDB maps a dropped collection to its model; the transient DROP of a policy replacement is not listed. The aggregate planner and `planFromDiff` pass both lists through. The missing-origin check in `resolve-statements.ts` moves inside the per-statement loop.
+**Outcome.** The framework type `MigrationSubject` beside `AppliedMigrationStatement`; the planner success result carries `dataLoss: { operationIndex, subject }[]` and `accessWidening: { operationIndex, subject }[]`; the SQL family maps a dropped or type-changed table or column back to the origin contract's model or field when `fromContract` is present, else to a storage subject; MongoDB maps a dropped collection to its model; the transient DROP of a policy replacement is not listed. The aggregate planner and `planFromDiff` pass both lists through. The missing-origin check in `resolve-statements.ts` moves inside the per-statement loop.
 
 **Builds on.** Dispatch 1.
 
@@ -42,7 +42,7 @@ Dispatches 1 and 2 do not touch the prompt and start before the engine ships. Di
 
 ### 5 — Journeys, docs, upgrade fragments
 
-**Outcome.** The slice done conditions hold through journeys on Postgres, SQLite and MongoDB (rename plus delete through both commands; the refusal's `nextActions` flag then succeeds; `--confirm <database>` no longer consents; a required field plans without refusal; `--allow` on a policy drop). The CLI README's two command sections, the Migration System doc § Statements and § `db update`, the error reference, the CLI Style Guide's consent section, and `skills/prisma-8` describe statements as the data-loss consent. The app upgrade fragment records that `--confirm` no longer consents to data loss and that `migration plan` refuses every plan that loses data; the extension fragment records `dataLoss`, `accessWidening` and `MigrationStatementSubject`. Every `--confirm` in tests and journeys for these two commands is replaced.
+**Outcome.** The slice done conditions hold through journeys on Postgres, SQLite and MongoDB (rename plus delete through both commands; the refusal's `nextActions` flag then succeeds; `--confirm <database>` no longer consents; a required field plans without refusal; `--allow` on a policy drop). The CLI README's two command sections, the Migration System doc § Statements and § `db update`, the error reference, the CLI Style Guide's consent section, and `skills/prisma-8` describe statements as the data-loss consent. The app upgrade fragment records that `--confirm` no longer consents to data loss and that `migration plan` refuses every plan that loses data; the extension fragment records `dataLoss`, `accessWidening` and `MigrationSubject`. Every `--confirm` in tests and journeys for these two commands is replaced.
 
 **Builds on.** Dispatch 4.
 
