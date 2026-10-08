@@ -27,49 +27,6 @@ import {
 
 const FIXTURES_DIR = join(fixtureAppDir, 'fixtures/mongo-cli-journeys');
 
-const USER_WITH_NICKNAME = `import { defineContract, field, index, model } from '@internal/mongo/contract-builder';
-
-const User = model('User', {
-  collection: 'users',
-  fields: {
-    _id: field.objectId(),
-    email: field.string(),
-    name: field.string(),
-    nickname: field.string(),
-  },
-  indexes: [index({ email: 1 }, { unique: true }), index({ name: 1 })],
-});
-
-export const contract = defineContract({
-  models: { User },
-});
-`;
-
-const EVENT_RENAMED = `import { defineContract, field, index, model } from '@internal/mongo/contract-builder';
-
-const User = model('User', {
-  collection: 'users',
-  fields: {
-    _id: field.objectId(),
-    email: field.string(),
-    name: field.string(),
-  },
-  indexes: [index({ email: 1 }, { unique: true }), index({ name: 1 })],
-});
-
-const Occasion = model('Occasion', {
-  collection: 'occasions',
-  fields: {
-    _id: field.objectId(),
-    name: field.string(),
-  },
-});
-
-export const contract = defineContract({
-  models: { User, Occasion },
-});
-`;
-
 interface AppliedStatementReport {
   readonly description: string;
 }
@@ -106,10 +63,6 @@ function setupProject(connectionString: string): JourneyContext {
   const configPath = join(testDir, 'prisma.config.ts');
   writeFileSync(configPath, config, 'utf-8');
   return { testDir, configPath, outputDir };
-}
-
-function useContract(ctx: JourneyContext, source: string): void {
-  writeFileSync(join(ctx.testDir, 'contract.ts'), source, 'utf-8');
 }
 
 function useFixture(ctx: JourneyContext, name: string): void {
@@ -247,7 +200,7 @@ describe('Journeys (MongoDB): statements that consent to data loss', {
     const create = await runDbUpdate(ctx, ['--no-interactive', '--json']);
     expect(create.exitCode, `S3.02: db update creates users: ${create.stderr}`).toBe(0);
     await client.db(dbName).collection('users').insertOne({ email: 'a@example.com', name: 'a' });
-    useContract(ctx, USER_WITH_NICKNAME);
+    useFixture(ctx, 'contract-user-nickname.ts');
     await emit(ctx, 'S3.03');
 
     const update = await runDbUpdate(ctx, ['--no-interactive', '--json']);
@@ -261,7 +214,7 @@ describe('Journeys (MongoDB): statements that consent to data loss', {
     await emit(ctx, 'S4.01');
     const create = await runDbUpdate(ctx, ['--no-interactive', '--json']);
     expect(create.exitCode, `S4.02: db update creates the collections: ${create.stderr}`).toBe(0);
-    useContract(ctx, EVENT_RENAMED);
+    useFixture(ctx, 'contract-events-renamed.ts');
     await emit(ctx, 'S4.03');
 
     const renamed = await runDbUpdate(ctx, [
