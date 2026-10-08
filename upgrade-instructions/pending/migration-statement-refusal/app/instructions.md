@@ -73,7 +73,7 @@ Detection finds `--confirm` on the same command line as `db update`, including a
 
 - `--delete <Model>` or `--delete <Model.field>` for each model or field whose data the update may lose, or `--rename <Model>:<New>` / `--rename <Model.field>:<Model.newField>` if it was renamed.
 - `--delete <storage name>` for data no model stores, such as a table or column added by hand; on Postgres the name is schema-qualified (`public.audit_log`).
-- `--allow <Model>` before an operation that widens who can read or write that model's rows, such as dropping its row-level-security policy.
+- `--allow <Model>` before each operation that changes who can read or write that model's rows, such as dropping its row-level-security policy or disabling row-level security; each operation is its own question, so both on one model take `--allow User --allow User`.
 
 To find the subjects, run the same command with `--no-interactive --json` and read `meta.unanswered[]`, or `--dry-run --json` and read `dataLoss` and `accessWidening`. A `--delete` or `--allow` that answers no question fails the run with `CLI.CONSENT_UNUSED`; on `--dry-run`, which asks nothing, it fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`, so the exact command you will apply can be previewed with `--dry-run` first.
 

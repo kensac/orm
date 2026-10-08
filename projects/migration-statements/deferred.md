@@ -46,3 +46,15 @@ The Postgres planner has a temporary-default recipe for a required column added 
 
 Project decision 6 lets a namespace delete cover everything in the namespace while the refusal lists each model. The engine answers a question only by a value equal to its subject or starting with it, so a namespace-wide answer has to be expanded by the ORM before the questions are asked. Slice 3 adds the namespace noun to `rename` and `delete` together and does that expansion there. Until then every `delete` names one model, field or storage object.
 
+
+## A MongoDB validator that requires a new field leaves existing documents unwritable
+
+**Found:** slice 2 manual QA (2026-10-08), F9. For slice 4.
+
+Adding a required field to a populated collection, or making an optional field required, updates the collection's validator with no question and no warning; it is `widening`, since the validator applies only to later writes. Every existing document that lacks the field then fails any update with `Document failed validation`. Nothing is lost, but nothing tells the user that existing documents need the field. A backfill statement would let the user say how to fill them.
+
+## The Postgres runner's NOT NULL failure gives advice about drift
+
+**Found:** slice 2 manual QA (2026-10-08), F10. Pre-existing text.
+
+`db update` making a column NOT NULL on a table with a NULL fails at the precheck (`ensure no NULL values in "note"`) with nothing lost, but the next action says to reconcile schema drift, and the `why` says only "Migration runner failed". The advice should say how many rows hold NULL and how to fix them, or keep the field optional.

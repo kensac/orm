@@ -24,7 +24,7 @@ changes:
         - '(?<![\w$])(?:planMigration|resolveRecordedPath)\s*\('
   - id: family-instance-storage-name-of
     summary: |
-      `ControlFamilyInstance` from `@prisma/orm-framework/components/control` requires `storageNameOf(operation)`: the name the database knows the object an operation acts on by. A family instance, or a test double of one, implements it. `TargetMigrationsCapability` gains an optional `refusesRenameStatements: true` for a target whose planner refuses every rename statement.
+      `ControlFamilyInstance` from `@prisma/orm-framework/components/control` requires `storageNameOf(operation)`: the name the database knows the object an operation acts on by. A family instance, or a test double of one, implements it. `TargetMigrationsCapability` gains an optional `renameStatements: { refused: true, keepDataByHand }` for a target whose planner carries out no rename statement.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -54,17 +54,17 @@ changes:
 `MigrationPlannerSuccessResult` gains:
 
 - `dataLoss: readonly MigrationOperationSubject[]`: one entry per operation, in plan order, that can lose rows or values (dropping a table, a column or a collection, or a type change that can change values).
-- `accessWidening: readonly MigrationOperationSubject[]`: one entry per operation that widens who can read or write rows, such as dropping a row-level-security policy or disabling row-level security.
+- `accessWidening: readonly MigrationAccessChange[]`: one entry per operation that changes who can read or write rows, with `widens: true` when it widens access, such as disabling row-level security, and `false` when the change can go either way, such as dropping a row-level-security policy. Leave out the drop half of a policy replacement, a drop of a policy the same plan creates again (by name, or by generated-name prefix on the same table): it changes nothing in the end, and listing it would make every policy edit ask.
 
 A `MigrationOperationSubject` is `{ operationIndex, subject }`: the operation's position in the plan's `operations`, and a `MigrationSubject`, which is `{ kind: 'model', namespaceId, model }` or `{ kind: 'field', namespaceId, model, field }` when the operation is about a model or field of `fromContract`, else `{ kind: 'storage', name }` with the name the database knows it by. The CLI turns each entry into a question the user answers with `--delete`, `--rename` or `--allow` before anything is written or applied, so a planner must list every operation of these kinds; an operation it leaves out is applied without asking.
 
-`MigrationSubject`, `MigrationOperationSubject`, `MigrationSubjectJson` and `migrationSubjectJson` are imported from `@prisma/orm-framework/components/control`. In a planner or a test double that returns `{ kind: 'success', plan, appliedStatements }`, add `dataLoss: []` and `accessWidening: []` when it plans no such operation.
+`MigrationSubject`, `MigrationOperationSubject`, `MigrationAccessChange`, `MigrationSubjectJson` and `migrationSubjectJson` are imported from `@prisma/orm-framework/components/control`. In a planner or a test double that returns `{ kind: 'success', plan, appliedStatements }`, add `dataLoss: []` and `accessWidening: []` when it plans no such operation.
 
 Detection finds files that name `MigrationPlanner`, `MigrationPlannerResult` or `MigrationPlannerSuccessResult` and return `kind: 'success'` without `dataLoss` anywhere in the file. Check by hand a file that mentions `dataLoss` once, and a success result typed through a family type such as `SqlPlannerSuccessResult`.
 
 ## `sql-planner-success-subjects`
 
-Change `plannerSuccess(plan, appliedStatements)` to `plannerSuccess(plan, appliedStatements, { dataLoss: [], accessWidening: [] })`, and `plannerSuccess(plan, appliedStatements, warnings)` to `plannerSuccess(plan, appliedStatements, { dataLoss: [], accessWidening: [] }, warnings)`, when the planner plans no operation that loses data or widens access. A SQL planner that does computes the lists with `subjectsOfCalls(calls, context)` from the same module, which takes what each call loses and widens (`CallSubjects`, as the Postgres and SQLite planners build them) and names each subject through the origin contract; `planFieldEventCalls(...)` returns the calls of the codec field-event hooks with the column each was returned for (`FieldEventCall`), so their subjects can be named too.
+Change `plannerSuccess(plan, appliedStatements)` to `plannerSuccess(plan, appliedStatements, { dataLoss: [], accessWidening: [] })`, and `plannerSuccess(plan, appliedStatements, warnings)` to `plannerSuccess(plan, appliedStatements, { dataLoss: [], accessWidening: [] }, warnings)`, when the planner plans no operation that loses data or widens access. A SQL planner that does computes the lists with `subjectsOfCalls(calls, context)` from the same module, which takes what each call loses and what access it changes (`CallSubjects`, as the Postgres and SQLite planners build them; each access entry carries `widens`) and names each subject through the origin contract; `planFieldEventCalls(...)` returns the calls of the codec field-event hooks with the column each was returned for (`FieldEventCall`), so their subjects can be named too.
 
 ## `per-space-plan-subjects`
 
@@ -76,7 +76,7 @@ Pass `storageNameOf` to each `planMigration({ ... })` and `resolveRecordedPath({
 
 A `ControlFamilyInstance` implementation adds `storageNameOf(operation: MigrationPlanOperation): string`. The aggregate planner calls it to name what a destructive operation of a recorded migration loses, since no planner mapped it to a model. A SQL family returns the name from the operation's target details, `schema.table.column` for a column and `schema.name` for anything else; `storageNameOfOperation` from `@prisma/orm-family-sql/family/control` does that. A test double returns any stable name.
 
-A target whose planner refuses every rename statement sets `refusesRenameStatements: true` on its `migrations` capability, so the CLI does not offer `--rename` as an answer to a data-loss question. MongoDB's target sets it in this release.
+A target whose planner carries out no rename statement sets `renameStatements: { refused: true, keepDataByHand(subject, fromContract) }` on its `migrations` capability. The CLI then offers no `--rename` in a data-loss question, and ends the question with the text `keepDataByHand` returns: how to keep the subject's data by hand before running the command again. MongoDB's target sets it in this release, and its text says to rename the collection in `mongosh`.
 
 ## `operation-classes-and-calls`
 
