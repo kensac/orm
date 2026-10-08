@@ -58,3 +58,10 @@ Adding a required field to a populated collection, or making an optional field r
 **Found:** slice 2 manual QA (2026-10-08), F10. Pre-existing text.
 
 `db update` making a column NOT NULL on a table with a NULL fails at the precheck (`ensure no NULL values in "note"`) with nothing lost, but the next action says to reconcile schema drift, and the `why` says only "Migration runner failed". The advice should say how many rows hold NULL and how to fix them, or keep the field optional.
+
+## The refusal's next actions are one line per flag, not grouped by subject
+
+**Found:** slice 2 manual QA (2026-10-08), F11. Engine side.
+
+`CLI.CONSENT_REQUIRED` lists one `user-choice` next action per flag form ("Run the command again with --delete Legacy", another for the rename form), not grouped by subject and not a complete runnable command, and its summary says "N subjects need a statement", which is project vocabulary. Grouping the forms per subject and printing a full command would need the engine to know the invocation; raise it on prisma/prisma-cli once the statement prompt has shipped.
+
