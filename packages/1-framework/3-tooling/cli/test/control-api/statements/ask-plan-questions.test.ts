@@ -3,6 +3,7 @@ import { ok } from '@internal/utils/result';
 import { describe, expect, it } from 'vitest';
 import {
   askPlanQuestions,
+  ORIGIN_SNAPSHOT_RECOVERY,
   type PlannedQuestions,
   type PlannedSubject,
   type PlanQuestion,
@@ -81,5 +82,41 @@ describe('a rename typed at the prompt', () => {
     expect(!outcome.ok && outcome.failure).toMatchObject({
       code: 'MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS',
     });
+  });
+});
+
+describe('questions about storage when the origin contract is unknown', () => {
+  it('give the steps that store the snapshot once, on the first such question', async () => {
+    const asked: string[] = [];
+    const storage = (name: string, operationIndex: number) => ({
+      operationIndex,
+      label: `Drop table ${name}`,
+      subject: { kind: 'storage', name } as const,
+    });
+    await askPlanQuestions({
+      plan: { dataLoss: [storage('Legacy', 0), storage('Profile', 1)], accessWidening: [] },
+      askAccess: false,
+      renames: [],
+      preAnswers: [],
+      consentAll: { delete: false, allow: false },
+      origin,
+      originKnown: false,
+      renamesPlannable: true,
+      destination,
+      answer: async (questions) => {
+        asked.push(...questions.map(({ question }) => question));
+        return questions.map(({ subject }) => ({ verb: 'delete', text: subject }));
+      },
+      replan: async () => ok({ dataLoss: [], accessWidening: [] }),
+    });
+
+    expect(asked).toEqual([
+      `Drop table Legacy would lose the data in "Legacy", named by its storage name because the origin contract is unknown; --delete loses its rows. ${ORIGIN_SNAPSHOT_RECOVERY}`,
+      'Drop table Profile would lose the data in "Profile", named by its storage name because the origin contract is unknown; --delete loses its rows.',
+    ]);
+    expect(ORIGIN_SNAPSHOT_RECOVERY).toContain('--dry-run');
+    expect(ORIGIN_SNAPSHOT_RECOVERY).toContain(
+      'with the same `--db` as this command if it has one',
+    );
   });
 });

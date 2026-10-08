@@ -12,6 +12,7 @@ import { notOk, ok, type Result } from '@internal/utils/result';
 import {
   errorStatementAnswersNoQuestion,
   errorStatementDidNotResolveLoss,
+  STORE_ORIGIN_SNAPSHOT_STEPS,
 } from '../../utils/cli-errors';
 import type { ConsentVerb } from './parse-consent';
 import { resolveStatements } from './resolve-statements';
@@ -139,9 +140,19 @@ function lossText(subject: MigrationSubject, text: string, originKnown: boolean)
     case 'storage':
       return originKnown
         ? `would lose the data in "${text}", which no model of the origin contract stores`
-        : `would lose the data in "${text}", named by its storage name because the origin contract is unknown. --delete loses its rows. If it was renamed, keep them instead: emit the contract the database is at, run db update --advance-ref <name> to store its snapshot (it changes nothing), then emit the new contract and answer with --rename`;
+        : `would lose the data in "${text}", named by its storage name because the origin contract is unknown; --delete loses its rows`;
   }
 }
+
+/**
+ * How to keep the rows of a storage subject that was renamed, when the origin contract is unknown:
+ * store the snapshot of the contract the database is at, as `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`
+ * advises, then answer with a rename. The refusal gives it once, on its first storage question.
+ */
+export const ORIGIN_SNAPSHOT_RECOVERY = [
+  'If a table or column was renamed, keep its rows instead: store the snapshot of the contract the database is at, then run this command again and answer with --rename.',
+  ...STORE_ORIGIN_SNAPSHOT_STEPS.map((step) => step.replaceAll('`{bin} ', '`')),
+].join(' ');
 
 function sameCoordinate(statement: ResolvedMigrationStatement, subject: MigrationSubject): boolean {
   if (subject.kind === 'storage') return false;
@@ -280,6 +291,18 @@ function checkAnswers(questions: readonly PlanQuestion[], answers: readonly Plan
   });
 }
 
+function withRecoveryOnFirstStorageQuestion(
+  asked: readonly { readonly loss: PlannedSubject; readonly question: PlanQuestion }[],
+  originKnown: boolean,
+): readonly PlanQuestion[] {
+  const first = originKnown ? -1 : asked.findIndex(({ loss }) => loss.subject.kind === 'storage');
+  return asked.map(({ question }, index) =>
+    index === first
+      ? { ...question, question: `${question.question} ${ORIGIN_SNAPSHOT_RECOVERY}` }
+      : question,
+  );
+}
+
 /**
  * Asks about every operation of a plan that would lose data and, when `askAccess`, every one that
  * would widen access, until each is answered. A `delete` or `allow` text in `preAnswers`, or
@@ -352,7 +375,10 @@ export async function askPlanQuestions<TPlan extends PlannedQuestions, TFailure>
     const widenings = input.askAccess ? pending('allow', plan.accessWidening) : [];
     if (losses.length + widenings.length === 0 && round > 0) break;
     const questions = [
-      ...losses.map((loss) => dataLossQuestion(loss, contracts)),
+      ...withRecoveryOnFirstStorageQuestion(
+        losses.map((loss) => ({ loss, question: dataLossQuestion(loss, contracts) })),
+        input.originKnown,
+      ),
       ...widenings.map((widening) => accessWideningQuestion(widening, contracts)),
     ];
     const answers = await input.answer(questions);

@@ -11,7 +11,10 @@ import { InternalError } from '@internal/utils/internal-error';
 import { notOk, ok } from '@internal/utils/result';
 import { describe, expect, it, vi } from 'vitest';
 import { executeDbUpdate } from '../../src/control-api/operations/db-update';
-import type { PlanQuestion } from '../../src/control-api/statements/plan-questions';
+import {
+  ORIGIN_SNAPSHOT_RECOVERY,
+  type PlanQuestion,
+} from '../../src/control-api/statements/plan-questions';
 import type { ControlProgressEvent } from '../../src/control-api/types';
 
 const FAKE_MIGRATIONS_DIR = '/tmp/__test-db-update-migrations';
@@ -576,8 +579,7 @@ describe('executeDbUpdate', () => {
 
       expect(asked).toEqual([
         {
-          question:
-            'Drop column nickname from user would lose the data in "user.nickname", named by its storage name because the origin contract is unknown. --delete loses its rows. If it was renamed, keep them instead: emit the contract the database is at, run db update --advance-ref <name> to store its snapshot (it changes nothing), then emit the new contract and answer with --rename.',
+          question: `Drop column nickname from user would lose the data in "user.nickname", named by its storage name because the origin contract is unknown; --delete loses its rows. ${ORIGIN_SNAPSHOT_RECOVERY}`,
           subject: 'user.nickname',
           verbs: ['delete'],
         },
