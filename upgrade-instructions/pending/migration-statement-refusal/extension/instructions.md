@@ -16,14 +16,15 @@ changes:
         - '(?<![\w$])plannerSuccess\s*\('
   - id: per-space-plan-subjects
     summary: |
-      A `PerSpacePlan` from `@prisma/orm-toolchain/migration-tools/aggregate` carries required `dataLoss` and `accessWidening` lists, empty for a space applied from recorded migrations.
+      A `PerSpacePlan` from `@prisma/orm-toolchain/migration-tools/aggregate` carries required `dataLoss` and `accessWidening` lists, and `planMigration(...)` and `resolveRecordedPath(...)` take a required `storageNameOf(operation)`, which names each destructive operation of a recorded path in `dataLoss`.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
         - 'strategy:\s*["''](?:plan-from-diff|resolve-recorded-path|declared-state)["'']'
+        - '(?<![\w$])(?:planMigration|resolveRecordedPath)\s*\('
   - id: family-instance-storage-name-of
     summary: |
-      `ControlFamilyInstance` from `@prisma/orm-framework/components/control` requires `storageNameOf(operation)`: the name the database knows the object an operation is about by. A family instance, or a test double of one, implements it.
+      `ControlFamilyInstance` from `@prisma/orm-framework/components/control` requires `storageNameOf(operation)`: the name the database knows the object an operation acts on by. A family instance, or a test double of one, implements it. `TargetMigrationsCapability` gains an optional `refusesRenameStatements: true` for a target whose planner refuses every rename statement.
     detection:
       glob: "**/*.{ts,mts,cts}"
       matches:
@@ -67,11 +68,15 @@ Change `plannerSuccess(plan, appliedStatements)` to `plannerSuccess(plan, applie
 
 ## `per-space-plan-subjects`
 
-Add `dataLoss: []` and `accessWidening: []` to each `PerSpacePlan` object a test builds by hand. The aggregate planner fills them from the planner's result for a space it plans from a diff.
+Add `dataLoss: []` and `accessWidening: []` to each `PerSpacePlan` object a test builds by hand. `PerSpacePlan` extends `MigrationPlanSubjects` from `@prisma/orm-framework/components/control`, which declares the two lists; `MigrationPlannerSuccessResult` extends it too.
+
+Pass `storageNameOf` to each `planMigration({ ... })` and `resolveRecordedPath({ ... })` call: the family instance's `storageNameOf`, or `(operation) => operation.id` in a test. The aggregate planner fills the lists from the planner's result for a space it plans from a diff, and for a space it applies from recorded migrations it lists each destructive operation in `dataLoss` under its storage name, and no access widening, since a written migration is reviewed before it runs.
 
 ## `family-instance-storage-name-of`
 
-A `ControlFamilyInstance` implementation adds `storageNameOf(operation: MigrationPlanOperation): string`. The CLI calls it to name what a destructive operation of a recorded migration is about, since no planner mapped it to a model. A SQL family returns the name from the operation's target details, `schema.table.column` for a column and `schema.name` for anything else; `storageNameOfOperation` from `@prisma/orm-family-sql/family/control` does that. A test double returns any stable name.
+A `ControlFamilyInstance` implementation adds `storageNameOf(operation: MigrationPlanOperation): string`. The aggregate planner calls it to name what a destructive operation of a recorded migration loses, since no planner mapped it to a model. A SQL family returns the name from the operation's target details, `schema.table.column` for a column and `schema.name` for anything else; `storageNameOfOperation` from `@prisma/orm-family-sql/family/control` does that. A test double returns any stable name.
+
+A target whose planner refuses every rename statement sets `refusesRenameStatements: true` on its `migrations` capability, so the CLI does not offer `--rename` as an answer to a data-loss question. MongoDB's target sets it in this release.
 
 ## `operation-classes-and-calls`
 
