@@ -81,7 +81,7 @@ One primitive, its flags and its error codes ship together because a prompt with
 
 **In:** `statement` on `PromptSurface` and both renderers (clack, line); verb-flag registration and reservation; consumption and `CLI.CONSENT_UNUSED`; `CLI.CONSENT_REQUIRED` for a statement; tests in `packages/cli-engine/tests/prompts.test.ts` style, with scripted `answers`; the engine `README`, `docs/product/cli-style-guide.md` (consent section: a statement is the second consent form) and `docs/reference/error-reference.md`; `pnpm bump-cli-engine-version minor`.
 
-**Out:** any ORM command; `--confirm` leftovers; `select`-style menus; help text for the ORM's verbs (the ORM owns its briefs).
+**Out:** any ORM command; `--confirm` leftovers on commands that declare no statements (prisma/prisma-cli#339); `select`-style menus; help text for the ORM's verbs (the ORM owns its briefs).
 
 ## Pre-investigated edge cases
 
