@@ -36,6 +36,7 @@ import { baseDirFor, migrationsDirFor } from '../migration/paths';
 import { normalizeError } from '../normalize-error';
 import { promptPlanQuestions } from '../plan-question-prompt';
 import { controlProgressReporter } from '../progress';
+import { ormStatementVerbs } from '../statement-verbs';
 import { migrationResultBlocks, migrationResultNextActions } from './migration-blocks';
 import { prepareMigrationRun } from './prepare';
 
@@ -174,22 +175,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
         }),
       },
     },
-    statements: {
-      rename: {
-        arity: 1,
-        brief:
-          'Rename a model or field instead of dropping it: old:new, each side Model, namespace.Model, Model.field or namespace.Model.field; repeat for several, applied in order',
-      },
-      delete: {
-        arity: 1,
-        brief:
-          'Let the update lose the data of a model, field or storage name the refusal lists: --delete Model',
-      },
-      allow: {
-        arity: 1,
-        brief: 'Let the update widen who can read or write the rows of a model: --allow Model',
-      },
-    },
+    statements: ormStatementVerbs,
     needs: { config: ormConfigSection },
     handler: async (args, ctx) => {
       const startedAt = Date.now();

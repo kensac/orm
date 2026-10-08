@@ -20,6 +20,7 @@ import { defineOrmCommand } from '../define-command';
 import { normalizeError } from '../normalize-error';
 import { promptPlanQuestions } from '../plan-question-prompt';
 import { appliedStatementBlocks } from '../statement-blocks';
+import { ormStatementVerbs } from '../statement-verbs';
 import {
   appMigrationsDirFor,
   baseDirFor,
@@ -289,18 +290,7 @@ export function createMigrationPlanCommand(createClient: CreateControlClient) {
         }),
       },
     },
-    statements: {
-      rename: {
-        arity: 1,
-        brief:
-          'Rename a model or field instead of dropping it: old:new, each side Model, namespace.Model, Model.field or namespace.Model.field; repeat for several, applied in order',
-      },
-      delete: {
-        arity: 1,
-        brief:
-          'Let the plan lose the data of a model, field or storage name the refusal lists: --delete Model',
-      },
-    },
+    statements: { rename: ormStatementVerbs.rename, delete: ormStatementVerbs.delete },
     needs: { config: ormConfigSection },
     handler: async (args, ctx) => {
       const seeded = (record: ContractSpaceSeedPhaseRecord): void => {
