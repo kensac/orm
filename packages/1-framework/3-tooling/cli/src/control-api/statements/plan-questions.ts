@@ -153,11 +153,12 @@ function lossText(subject: MigrationSubject, text: string, originKnown: boolean)
 /**
  * How to keep the rows of a storage subject that was renamed, when the origin contract is unknown:
  * store the snapshot of the contract the database is at, as `MIGRATION.STATEMENT_ORIGIN_UNKNOWN`
- * advises, then answer with a rename. The refusal gives it once, on its first storage question.
+ * advises, then answer with a rename. The refusal gives it once, on its first storage question. The
+ * engine does not put the CLI's name in a question's text, so the steps name `prisma`.
  */
 export const ORIGIN_SNAPSHOT_RECOVERY = [
   'If it was renamed, keep its data instead: store the snapshot of the contract the database is at, then run this command again and answer with --rename.',
-  ...STORE_ORIGIN_SNAPSHOT_STEPS.map((step) => step.replaceAll('`{bin} ', '`')),
+  ...STORE_ORIGIN_SNAPSHOT_STEPS.map((step) => step.replaceAll('{bin}', 'prisma')),
 ].join(' ');
 
 function sameCoordinate(statement: ResolvedMigrationStatement, subject: MigrationSubject): boolean {

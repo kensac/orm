@@ -115,6 +115,7 @@ describe('questions about storage when the origin contract is unknown', () => {
       'Drop table Profile would lose the data in "Profile", named by its storage name because the origin contract is unknown; --delete loses its rows.',
     ]);
     expect(ORIGIN_SNAPSHOT_RECOVERY).toContain('--dry-run');
+    expect(ORIGIN_SNAPSHOT_RECOVERY).toContain('`prisma db update --advance-ref <name> --dry-run`');
     expect(ORIGIN_SNAPSHOT_RECOVERY).toContain(
       'with the same `--db` as this command if it has one',
     );
