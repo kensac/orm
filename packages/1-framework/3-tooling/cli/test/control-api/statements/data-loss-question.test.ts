@@ -1,3 +1,4 @@
+import { asNamespaceId } from '@internal/contract/types';
 import { describe, expect, it } from 'vitest';
 import { dataLossQuestion } from '../../../src/control-api/statements/data-loss-questions';
 import { contractOf } from './statement-fixtures';
@@ -17,6 +18,7 @@ describe('dataLossQuestion for data no model names', () => {
       destination,
       renames: [],
       originKnown: true,
+      renamesPlannable: true,
     });
 
     expect({ question: question.question, verbs: question.verbs }).toEqual({
@@ -32,10 +34,42 @@ describe('dataLossQuestion for data no model names', () => {
       destination,
       renames: [],
       originKnown: false,
+      renamesPlannable: true,
     });
 
     expect(question.question).toBe(
-      'Drop column age from user would lose the data in "public.user.age", named by its storage name because the origin contract is unknown.',
+      'Drop column age from user would lose the data in "public.user.age", named by its storage name because the origin contract is unknown. --delete loses its rows. If it was renamed, keep them instead: emit the contract the database is at, run db update --advance-ref <name> to store its snapshot (it changes nothing), then emit the new contract and answer with --rename.',
     );
+  });
+});
+
+describe('dataLossQuestion verbs', () => {
+  const unbound = asNamespaceId('app');
+  const destinationWithoutNickname = contractOf({
+    app: { models: { User: { fields: ['email'] } } },
+  });
+  const withNickname = contractOf({ app: { models: { User: { fields: ['email', 'nickname'] } } } });
+
+  function verbsFor(field: string, destination: typeof origin, renamesPlannable: boolean) {
+    return dataLossQuestion(
+      {
+        operationIndex: 0,
+        label: 'An operation',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field },
+      },
+      { origin: withNickname, destination, renames: [], originKnown: true, renamesPlannable },
+    ).verbs;
+  }
+
+  it('offers rename for a field the destination no longer has', () => {
+    expect(verbsFor('nickname', destinationWithoutNickname, true)).toEqual(['rename', 'delete']);
+  });
+
+  it('offers only delete for a field that keeps its name, such as one whose type changes', () => {
+    expect(verbsFor('email', destinationWithoutNickname, true)).toEqual(['delete']);
+  });
+
+  it('offers only delete where the planner cannot carry out a rename', () => {
+    expect(verbsFor('nickname', destinationWithoutNickname, false)).toEqual(['delete']);
   });
 });

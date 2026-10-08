@@ -325,6 +325,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       consentAll: { delete: options.acceptDataLoss, allow: options.acceptAccessWidening },
       origin: fromContract ?? EMPTY_ORIGIN,
       originKnown: fromContract !== null,
+      renamesPlannable: migrations.refusesRenameStatements !== true,
       destination: contract,
       answer: options.answerQuestions,
       replan: (renames) => plan(resolveRenames(renames)),

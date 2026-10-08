@@ -656,6 +656,11 @@ export interface TargetMigrationsCapability<
   ): MigrationPlanner<TFamilyId, TTargetId>;
   createRunner(family: TFamilyInstance): MigrationRunner<TFamilyId, TTargetId>;
   /**
+   * Set when the target's planner refuses every rename statement, so the CLI does not offer
+   * `--rename` as an answer to a data-loss question.
+   */
+  readonly refusesRenameStatements?: true;
+  /**
    * Synthesizes a family-specific schema IR from a contract for offline planning.
    * The returned schema can be passed to `planner.plan({ schema })` as the "from" state.
    *

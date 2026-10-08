@@ -577,7 +577,7 @@ describe('executeDbUpdate', () => {
       expect(asked).toEqual([
         {
           question:
-            'Drop column nickname from user would lose the data in "user.nickname", named by its storage name because the origin contract is unknown.',
+            'Drop column nickname from user would lose the data in "user.nickname", named by its storage name because the origin contract is unknown. --delete loses its rows. If it was renamed, keep them instead: emit the contract the database is at, run db update --advance-ref <name> to store its snapshot (it changes nothing), then emit the new contract and answer with --rename.',
           subject: 'user.nickname',
           verbs: ['delete'],
         },

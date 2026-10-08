@@ -296,6 +296,7 @@ async function answerPlannedDataLoss(input: {
   readonly consents: readonly StatementText[];
   readonly origin: ContractWithDomain;
   readonly originKnown: boolean;
+  readonly renamesPlannable: boolean;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
   readonly planDelta: (
@@ -323,6 +324,7 @@ async function answerPlannedDataLoss(input: {
     consentAll: { delete: false, allow: false },
     origin: input.origin,
     originKnown: input.originKnown,
+    renamesPlannable: input.renamesPlannable,
     destination: input.destination,
     answer: input.answer,
     replan: async (renames) => {
@@ -745,6 +747,7 @@ async function executeMigrationPlanCommandInner(
         consents: statementTexts.filter((statement) => statement.verb !== 'rename'),
         origin: fromContract ?? EMPTY_ORIGIN,
         originKnown: true,
+        renamesPlannable: migrations.refusesRenameStatements !== true,
         destination: toContract,
         answer: options.answerQuestions,
         planDelta: async (renames) => {

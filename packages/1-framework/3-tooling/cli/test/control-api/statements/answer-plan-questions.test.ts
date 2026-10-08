@@ -43,6 +43,7 @@ function run(replanned: PlannedQuestions, typed: readonly (readonly string[])[])
       consentAll: { delete: false, allow: false },
       origin,
       originKnown: true,
+      renamesPlannable: true,
       destination,
       answer: async (questions: readonly PlanQuestion[]) => {
         asked.push(questions.map(({ question }) => question));

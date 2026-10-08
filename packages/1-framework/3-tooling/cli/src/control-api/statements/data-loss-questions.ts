@@ -141,7 +141,7 @@ function lossText(subject: MigrationStatementSubject, text: string, originKnown:
     case 'storage':
       return originKnown
         ? `would lose the data in "${text}", which no model of the origin contract stores`
-        : `would lose the data in "${text}", named by its storage name because the origin contract is unknown`;
+        : `would lose the data in "${text}", named by its storage name because the origin contract is unknown. --delete loses its rows. If it was renamed, keep them instead: emit the contract the database is at, run db update --advance-ref <name> to store its snapshot (it changes nothing), then emit the new contract and answer with --rename`;
   }
 }
 
@@ -162,20 +162,39 @@ function namesSubject(verb: ConsentVerb, subject: string) {
     text === subject ? undefined : `${verb} names "${subject}": --${verb} ${subject}.`;
 }
 
+/** Whether the destination still has the subject's model or field, under the name a rename gives it. */
+function inDestination(
+  subject: MigrationStatementSubject,
+  contracts: StatementContracts & { readonly destination: ContractWithDomain },
+): boolean {
+  if (subject.kind === 'storage') return false;
+  const model = renamedModel(subject, contracts) ?? subject;
+  const destinationModel =
+    contracts.destination.domain.namespaces[model.namespaceId]?.models[model.model];
+  if (destinationModel === undefined) return false;
+  return subject.kind === 'model' || Object.hasOwn(destinationModel.fields, subject.field);
+}
+
 /**
- * The question for one operation that would lose data. A model or field may be renamed instead of
- * deleted; a rename is resolved against the two contracts after the plan's other renames, and its
- * old name must be the subject. Data no model stores can only be deleted.
+ * The question for one operation that would lose data. A model or field the destination no longer
+ * has may be renamed instead of deleted, when the planner can carry out a rename; a rename is
+ * resolved against the two contracts after the plan's other renames, and its old name must be the
+ * subject. A subject the destination keeps, such as a field whose type changes, and data no model
+ * stores, can only be deleted.
  */
 export function dataLossQuestion(
   loss: PlannedSubject,
   contracts: StatementContracts & {
     readonly destination: ContractWithDomain;
     readonly originKnown: boolean;
+    readonly renamesPlannable: boolean;
   },
 ): PlanQuestion {
   const subject = subjectText(loss.subject, contracts);
-  const renamable = loss.subject.kind !== 'storage';
+  const renamable =
+    contracts.renamesPlannable &&
+    loss.subject.kind !== 'storage' &&
+    !inDestination(loss.subject, contracts);
   const deleteNames = namesSubject('delete', subject);
   return {
     question: `${loss.label} ${lossText(loss.subject, subject, contracts.originKnown)}.`,
@@ -267,6 +286,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   readonly consentAll: { readonly [verb in ConsentVerb]: boolean };
   readonly origin: ContractWithDomain;
   readonly originKnown: boolean;
+  readonly renamesPlannable: boolean;
   readonly destination: ContractWithDomain;
   readonly answer: AnswerPlanQuestions;
   readonly replan: (renames: readonly StatementText[]) => Promise<Result<TPlan, TFailure>>;
@@ -288,6 +308,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
     const contracts = {
       origin: input.origin,
       originKnown: input.originKnown,
+      renamesPlannable: input.renamesPlannable,
       destination: input.destination,
       renames,
     };
