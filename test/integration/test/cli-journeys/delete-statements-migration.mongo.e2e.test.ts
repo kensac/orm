@@ -65,6 +65,61 @@ function setupProject(connectionString: string): JourneyContext {
   return { testDir, configPath, outputDir };
 }
 
+const USERS_PSL = `// use prisma-8
+
+model User {
+  id    ObjectId @id @map("_id")
+  email String
+  name  String
+
+  @@map("users")
+}
+`;
+
+const USERS_WITH_NICKNAME_PSL = USERS_PSL.replace(
+  '  name  String\n',
+  '  name  String\n  nickname String\n',
+);
+
+/** A project whose contract is PSL, which emits a validator for each collection. */
+function setupPslProject(connectionString: string): JourneyContext {
+  const testDir = join(
+    fixtureAppDir,
+    `test-mongo-delete-psl-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  const outputDir = join(testDir, 'output');
+  mkdirSync(outputDir, { recursive: true });
+  writeFileSync(
+    join(testDir, 'package.json'),
+    JSON.stringify({
+      name: 'mongo-delete-psl-journey',
+      private: true,
+      type: 'module',
+      dependencies: { '@prisma/orm-mongo': 'workspace:0.16.0' },
+    }),
+    'utf-8',
+  );
+  writeFileSync(join(testDir, 'contract.prisma'), USERS_PSL, 'utf-8');
+  const configPath = join(testDir, 'prisma.config.ts');
+  writeFileSync(
+    configPath,
+    [
+      "import { defineConfig as ormConfig } from '@prisma/orm-mongo/config';",
+      "import { definePrismaConfig } from '@prisma/cli-engine';",
+      '',
+      'export default definePrismaConfig({',
+      '  orm: ormConfig({',
+      "    contract: './contract.prisma',",
+      "    output: 'output',",
+      `    db: { connection: ${JSON.stringify(connectionString)} },`,
+      '  }),',
+      '});',
+      '',
+    ].join('\n'),
+  );
+  return { testDir, configPath, outputDir };
+}
+
 function useFixture(ctx: JourneyContext, name: string): void {
   copyFileSync(join(FIXTURES_DIR, name), join(ctx.testDir, 'contract.ts'));
 }
@@ -193,18 +248,34 @@ describe('Journeys (MongoDB): statements that consent to data loss', {
 
   it('S3: db update adds a required field to a collection with documents without asking', async () => {
     const dbName = 'mongo_delete_required';
-    const ctx = setupProject(withDatabase(replSet.getUri(), dbName));
+    const ctx = setupPslProject(withDatabase(replSet.getUri(), dbName));
     created.add(ctx.testDir);
-    useFixture(ctx, 'contract-additive.ts');
     await emit(ctx, 'S3.01');
     const create = await runDbUpdate(ctx, ['--no-interactive', '--json']);
     expect(create.exitCode, `S3.02: db update creates users: ${create.stderr}`).toBe(0);
     await client.db(dbName).collection('users').insertOne({ email: 'a@example.com', name: 'a' });
-    useFixture(ctx, 'contract-user-nickname.ts');
+    writeFileSync(join(ctx.testDir, 'contract.prisma'), USERS_WITH_NICKNAME_PSL, 'utf-8');
     await emit(ctx, 'S3.03');
 
     const update = await runDbUpdate(ctx, ['--no-interactive', '--json']);
     expect(update.exitCode, `S3.04: db update adds the field: ${update.stdout}`).toBe(0);
+    const [users] = await client
+      .db(dbName)
+      .listCollections({ name: 'users' }, { nameOnly: false })
+      .toArray();
+    expect(users, 'S3.05: the validator requires the new field').toMatchObject({
+      options: {
+        validator: { $jsonSchema: { required: expect.arrayContaining(['nickname']) } },
+      },
+    });
+    const documents = await client
+      .db(dbName)
+      .collection('users')
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+    expect(documents, 'S3.05: the existing document is kept').toEqual([
+      { email: 'a@example.com', name: 'a' },
+    ]);
   });
 
   it('S4: the planner refuses a rename statement', async () => {
