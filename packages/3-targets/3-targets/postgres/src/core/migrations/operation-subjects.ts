@@ -10,6 +10,7 @@ import {
 import type { OpFactoryCall } from '@internal/framework-components/control';
 import { UNBOUND_NAMESPACE_ID } from '@internal/framework-components/ir';
 import type { SqlStorage } from '@internal/sql-contract/types';
+import { parseWireName } from '@internal/sql-schema-ir/naming';
 import { resolveNamespaceIdForDdlSchema } from './control-policy';
 import {
   AlterColumnTypeCall,
@@ -73,13 +74,17 @@ function knownTarget(locator: Locator, call: OpFactoryCall): SubjectTarget | und
   return fieldEvent === undefined ? undefined : fieldEventTarget(fieldEvent);
 }
 
+/**
+ * A policy's identity across a replacement: its name, or the prefix of a generated (wire) name,
+ * whose hash changes with the policy's body.
+ */
 function policyKey(schemaName: string, tableName: string, policyName: string): string {
-  return JSON.stringify([schemaName, tableName, policyName]);
+  return JSON.stringify([schemaName, tableName, parseWireName(policyName)?.prefix ?? policyName]);
 }
 
 /**
- * The policies the plan creates. A drop of one of them is the first half of a replacement, which
- * leaves the policy in place, so it widens no access.
+ * The policies the plan creates. A drop of one of them, by name or by generated-name prefix, is
+ * half of a replacement, which leaves a policy in place, so it widens no access.
  */
 function createdPolicies(calls: readonly OpFactoryCall[]): ReadonlySet<string> {
   return new Set(

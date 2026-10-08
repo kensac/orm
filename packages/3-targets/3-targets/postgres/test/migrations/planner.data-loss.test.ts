@@ -42,11 +42,16 @@ interface TableSpec {
   readonly policy?: string;
   /** A column with an index named after the table. */
   readonly indexed?: string;
+  /** The hash of the policy's generated (wire) name; without it the policy has an exact name. */
+  readonly policyHash?: string;
 }
 
-function policyOn(table: string, using: string): PostgresRlsPolicy {
+function policyOn(table: string, using: string, hash: string | undefined): PostgresRlsPolicy {
   return new PostgresRlsPolicy({
-    naming: { kind: 'exact', name: `${table} readers` },
+    naming:
+      hash === undefined
+        ? { kind: 'exact', name: `${table} readers` }
+        : { kind: 'wire', prefix: `${table}_readers`, hash },
     tableName: table,
     namespaceId: 'public',
     operation: 'select',
@@ -61,7 +66,7 @@ function policyOn(table: string, using: string): PostgresRlsPolicy {
 function contract(seed: string, tables: Readonly<Record<string, TableSpec>>): Contract<SqlStorage> {
   const specs = Object.entries(tables);
   const policies = specs.flatMap(([table, spec]) =>
-    spec.policy === undefined ? [] : [policyOn(table, spec.policy)],
+    spec.policy === undefined ? [] : [policyOn(table, spec.policy, spec.policyHash)],
   );
   const schema = new PostgresSchema({
     id: 'public',
@@ -240,6 +245,33 @@ describe('Postgres planner, data loss', () => {
         { operation: 'Drop RLS policy "User readers" on "User"', subject: user },
       ],
     });
+  });
+
+  it('leaves out the drop of a generated-name policy the plan replaces under a new hash', async () => {
+    const from = contract('from', {
+      User: { columns: { id: 'int4' }, policy: 'true', policyHash: 'aaaaaaaa' },
+    });
+    const to = contract('to', {
+      User: { columns: { id: 'int4' }, policy: 'false', policyHash: 'bbbbbbbb' },
+    });
+
+    const { labels, accessWidening } = await planned(from, to);
+    expect(labels).toEqual(
+      expect.arrayContaining([expect.stringContaining('User_readers_aaaaaaaa')]),
+    );
+    expect(accessWidening).toEqual([]);
+  });
+
+  it('lists the drop of a generated-name policy the plan does not replace', async () => {
+    const from = contract('from', {
+      User: { columns: { id: 'int4' }, policy: 'true', policyHash: 'aaaaaaaa' },
+    });
+    const to = contract('to', { User: { columns: { id: 'int4' } } });
+
+    const { accessWidening } = await planned(from, to);
+    expect(accessWidening.map(({ operation }) => operation)).toEqual(
+      expect.arrayContaining([expect.stringContaining('User_readers_aaaaaaaa')]),
+    );
   });
 
   it('leaves out the drop of a policy the plan replaces', async () => {
