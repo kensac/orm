@@ -27,7 +27,7 @@ changes:
       `prisma db update` reads the snapshot of the contract the database is at on every run, to name what an operation would lose. Nothing to change.
   - id: control-api-answer-questions
     summary: |
-      In `@prisma/orm-toolchain/cli/control-api`, `executeMigrationPlanCommand` and `executeDbUpdate`, and the control client's `dbUpdate`, require an `answerQuestions` callback; `consent` and `carryEmittedExtensionDirs` are gone. `delete` and `allow` statements in `statements` answer questions without asking, and one that answers none fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`.
+      In `@prisma/orm-toolchain/cli/control-api`, `executeMigrationPlanCommand` and `executeDbUpdate`, and the control client's `dbUpdate`, require an `answerQuestions` callback; `consent` and `carryEmittedExtensionDirs` are gone. `delete` and `allow` statements in `statements` answer questions without asking, and one that answers none fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`. `acceptDataLoss: true` no longer answers access-widening questions; `acceptAccessWidening: true` does.
     detection:
       glob: "**/*.{ts,mts,cts,js,mjs,cjs}"
       matches:
@@ -86,7 +86,7 @@ To find the subjects, run the same command with `--no-interactive --json` and re
 These come from `@prisma/orm-toolchain/cli/control-api`.
 
 - `executeDbUpdate(options)` and the control client's `dbUpdate(options)` require `answerQuestions: (questions) => Promise<answers>`. Before an apply it is called with every question no statement answered, at least once, with an empty list when nothing is in question, and also under `acceptDataLoss: true`. Return one `{ verb, text }` per question, in order, with a verb from `question.verbs` and `question.subject` as the text (or `<subject>:<new name>` for a rename); throw to refuse. A callback that returns too few answers, or an answer its question rejects, throws an `InternalError`. To keep a script that refuses every data loss, write `answerQuestions: async (questions) => { if (questions.length > 0) throw new Error('db update would lose data or widen access'); return []; }`.
-- `acceptDataLoss: true` answers every data-loss and access-widening question.
+- `acceptDataLoss: true` answers every data-loss question, and `acceptAccessWidening: true` every access-widening question. A caller that passed `acceptDataLoss: true` to apply whatever the plan holds passes both.
 - `delete` and `allow` statements in `statements` (`{ verb: 'delete', text: 'Legacy' }`) answer their questions without asking. One that answers no question fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`, in plan mode as in apply mode.
 - `consent` is gone from `executeDbUpdate`'s and `dbUpdate`'s options: the plan-hash binding it carried no longer exists. Remove it.
 - `executeMigrationPlanCommand(options)` requires `answerQuestions`, with the same contract, and loses `consent` and `carryEmittedExtensionDirs`. Remove both.

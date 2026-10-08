@@ -253,7 +253,7 @@ function checkAnswers(questions: readonly PlanQuestion[], answers: readonly Plan
 /**
  * Asks about every operation of a plan that would lose data and, when `askAccess`, every one that
  * would widen access, until each is answered. A `delete` or `allow` text in `preAnswers`, or
- * `consentAll`, answers its question without asking. A rename typed at the prompt is a statement
+ * `consentAll` for its verb, answers its question without asking. A rename typed at the prompt is a statement
  * the plan did not have, so the plan is made again with it, and the operation it answered must be
  * gone; a loss the new plan has on the same subject, such as a type change on the renamed field,
  * is asked in the next round. The first round asks even when nothing is in question, so a statement no question consumed is
@@ -264,7 +264,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   readonly askAccess: boolean;
   readonly renames: readonly StatementText[];
   readonly preAnswers: readonly StatementText[];
-  readonly consentAll: boolean;
+  readonly consentAll: { readonly [verb in ConsentVerb]: boolean };
   readonly origin: ContractWithDomain;
   readonly originKnown: boolean;
   readonly destination: ContractWithDomain;
@@ -313,7 +313,7 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
           (statement) => statement.verb === verb && statement.text === text,
         );
         for (const statement of given) usedPreAnswers.add(statement);
-        if (input.consentAll || given.length > 0) consent(verb, entry, text);
+        if (input.consentAll[verb] || given.length > 0) consent(verb, entry, text);
       }
     }
     const losses = pending('delete', plan.dataLoss);

@@ -40,7 +40,7 @@ function run(replanned: PlannedQuestions, typed: readonly (readonly string[])[])
       askAccess: false,
       renames: [],
       preAnswers: [],
-      consentAll: false,
+      consentAll: { delete: false, allow: false },
       origin,
       originKnown: true,
       destination,

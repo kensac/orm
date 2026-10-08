@@ -126,7 +126,7 @@ export interface ExecuteRunSharedOptions<TFamilyId extends string, TTargetId ext
  * `db init` takes no statements. `db update` takes the statements as the user wrote them, in
  * order, and the answer to each question its plan raises: what an operation that would lose data
  * means and, when it applies, whether an operation may widen access. `acceptDataLoss` answers
- * every question with consent.
+ * every data-loss question with consent, and `acceptAccessWidening` every access question.
  */
 export type ExecuteRunOptions<
   TFamilyId extends string,
@@ -139,6 +139,7 @@ export type ExecuteRunOptions<
         readonly statements: readonly StatementText[];
         readonly answerQuestions: AnswerPlanQuestions;
         readonly acceptDataLoss: boolean;
+        readonly acceptAccessWidening: boolean;
       }
   );
 
@@ -321,7 +322,7 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
       askAccess: true,
       renames: renameTexts,
       preAnswers: statementTexts.filter((statement) => statement.verb !== 'rename'),
-      consentAll: options.acceptDataLoss,
+      consentAll: { delete: options.acceptDataLoss, allow: options.acceptAccessWidening },
       origin: fromContract ?? EMPTY_ORIGIN,
       originKnown: fromContract !== null,
       destination: contract,

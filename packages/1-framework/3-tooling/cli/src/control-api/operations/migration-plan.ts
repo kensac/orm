@@ -320,7 +320,7 @@ async function answerPlannedDataLoss(input: {
     askAccess: false,
     renames: input.renames,
     preAnswers: input.consents,
-    consentAll: false,
+    consentAll: { delete: false, allow: false },
     origin: input.origin,
     originKnown: input.originKnown,
     destination: input.destination,

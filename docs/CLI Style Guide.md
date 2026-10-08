@@ -135,7 +135,7 @@ This is a deliberate divergence from clig.dev §Arguments §Confirmation. AI age
 - Non-interactively (closed stdin, CI, `--no-interactive`) without `--confirm`: no prompt is shown; the command fails with the engine's `CLI.CONSENT_REQUIRED` (exit `2`), whose `meta.consentToken` and `nextActions` name the token to pass. A cancelled prompt is `CLI.PROMPT_CANCELLED` (exit `3`); a mistyped token is `CLI.PROMPT_INVALID` (exit `2`).
 - `--confirm` is read only when the run is non-interactive or `--yes` is set. A script that runs from a terminal must pass `--no-interactive --confirm <token>`, or it will stop at the prompt.
 - Each `--confirm` value grants at most one consent; a command that asks twice needs two.
-- The control API takes the same consent programmatically: `migration plan` and `db update` take an answer callback for their questions, and `db update`'s `acceptDataLoss: true` answers every one.
+- The control API takes the same consent programmatically: `migration plan` and `db update` take an answer callback for their questions, and `db update`'s `acceptDataLoss: true` answers every data-loss question and `acceptAccessWidening: true` every access question.
 
 #### Examples
 

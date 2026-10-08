@@ -38,8 +38,10 @@ export interface ExecuteDbUpdateOptions<TFamilyId extends string, TTargetId exte
     ControlFamilyInstance<TFamilyId, unknown>
   >;
   readonly frameworkComponents: ReadonlyArray<TargetBoundComponentDescriptor<TFamilyId, TTargetId>>;
-  /** Consents to every operation that would lose data or widen access, without asking. */
+  /** Consents to every operation that would lose data, without asking. */
   readonly acceptDataLoss?: boolean;
+  /** Consents to every operation that would widen who can read or write rows, without asking. */
+  readonly acceptAccessWidening?: boolean;
   readonly migrationsDir: string;
   readonly targetId: TTargetId;
   readonly extensions?: ReadonlyArray<ControlExtensionDescriptor<TFamilyId, TTargetId>>;
@@ -75,6 +77,7 @@ export async function executeDbUpdate<TFamilyId extends string, TTargetId extend
     statements: options.statements ?? [],
     answerQuestions: options.answerQuestions,
     acceptDataLoss: options.acceptDataLoss ?? false,
+    acceptAccessWidening: options.acceptAccessWidening ?? false,
     ...ifDefined('verifySnapshotContent', options.verifySnapshotContent),
     ...ifDefined('onProgress', options.onProgress),
   })) as DbUpdateResult;

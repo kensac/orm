@@ -649,9 +649,27 @@ describe('executeDbUpdate', () => {
       expect(execute).not.toHaveBeenCalled();
     });
 
-    it('answers every question with acceptDataLoss: true', async () => {
+    it('answers every data-loss question with acceptDataLoss: true, and still asks about access', async () => {
+      const asked: string[] = [];
+      const result = await executeDbUpdate(
+        applyInputs({
+          acceptDataLoss: true,
+          answerQuestions: async (questions) => {
+            asked.push(...questions.map(({ subject }) => subject));
+            return questions.map(({ subject }) => ({ verb: 'allow', text: subject }));
+          },
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+      expect(asked).toEqual(['user']);
+    });
+
+    it('answers every question with acceptDataLoss and acceptAccessWidening', async () => {
       const answerQuestions = vi.fn(noQuestions);
-      const result = await executeDbUpdate(applyInputs({ acceptDataLoss: true, answerQuestions }));
+      const result = await executeDbUpdate(
+        applyInputs({ acceptDataLoss: true, acceptAccessWidening: true, answerQuestions }),
+      );
 
       expect(result.ok).toBe(true);
       expect(answerQuestions).toHaveBeenCalledWith([]);

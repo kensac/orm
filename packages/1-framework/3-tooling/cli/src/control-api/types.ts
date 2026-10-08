@@ -212,8 +212,10 @@ export interface DbUpdateOptions {
    * The type is driver-specific (e.g., string URL for Postgres).
    */
   readonly connection?: unknown;
-  /** Consents to every operation that would lose data or widen access, without asking. */
+  /** Consents to every operation that would lose data, without asking. */
   readonly acceptDataLoss?: boolean;
+  /** Consents to every operation that would widen who can read or write rows, without asking. */
+  readonly acceptAccessWidening?: boolean;
   /**
    * On-disk migrations directory. Always required — every `db update`
    * routes through the per-space flow, which reads on-disk
