@@ -75,7 +75,7 @@ Detection finds `--confirm` on the same command line as `db update`, including a
 - `--delete <storage name>` for data no model stores, such as a table or column added by hand; on Postgres the name is schema-qualified (`public.audit_log`).
 - `--allow <Model>` before an operation that widens who can read or write that model's rows, such as dropping its row-level-security policy.
 
-To find the subjects, run the same command with `--no-interactive --json` and read `meta.unanswered[]`, or `--dry-run --json` and read `dataLoss` and `accessWidening`. A `--delete` or `--allow` that answers no question fails the run with `CLI.CONSENT_UNUSED`, and a dry run asks nothing, so do not pass them to `--dry-run`.
+To find the subjects, run the same command with `--no-interactive --json` and read `meta.unanswered[]`, or `--dry-run --json` and read `dataLoss` and `accessWidening`. A `--delete` or `--allow` that answers no question fails the run with `CLI.CONSENT_UNUSED`; on `--dry-run`, which asks nothing, it fails with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION`, so the exact command you will apply can be previewed with `--dry-run` first.
 
 ## `db-update-reads-origin-snapshot`
 

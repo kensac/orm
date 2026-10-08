@@ -23,6 +23,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
+import type { StatementText } from '../../control-api/statements/statement-text';
 import type { AskedSubject, CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
 import { closeQuietly } from '../../utils/command-helpers';
@@ -130,6 +131,15 @@ function updateDocument(inputs: {
   };
 }
 
+/** The delete and allow values the engine still holds for the questions, read without taking them. */
+function unansweredConsents(statements: {
+  readonly values: () => readonly { readonly verb: string; readonly text: string }[];
+}): readonly StatementText[] {
+  return statements
+    .values()
+    .flatMap(({ verb, text }) => (verb === 'delete' || verb === 'allow' ? [{ verb, text }] : []));
+}
+
 export function createDbUpdateCommand(createClient: CreateControlClient) {
   return defineOrmCommand({
     help: {
@@ -186,6 +196,14 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
       const renames = ctx.statements
         .take('rename')
         .map(({ text }) => ({ verb: 'rename' as const, text }));
+      // A dry run asks nothing, so it takes the delete and allow values and the control API
+      // checks each against the subjects an apply would ask about.
+      const previewConsents = args.flags.dryRun
+        ? [
+            ...ctx.statements.take('delete').map(({ text }) => ({ verb: 'delete' as const, text })),
+            ...ctx.statements.take('allow').map(({ text }) => ({ verb: 'allow' as const, text })),
+          ]
+        : [];
       let destination: ResolveContractRefToSnapshotSuccess | undefined;
       if (args.flags.to !== undefined) {
         const resolved = await resolveContractRefToSnapshot({
@@ -207,18 +225,12 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
         db: args.flags.db,
         commandName: 'db update',
         createClient,
-        // Only a failed preparation suggests a retry. The engine keeps the delete and allow
-        // values for the questions, so they are taken here, where no question will be asked.
         retryCommand: () =>
           retryCommandFor({
             commandName: args.flags.dryRun ? 'db update --dry-run' : 'db update',
             to: args.flags.to,
             advanceRef: args.flags.advanceRef,
-            statements: [
-              ...renames,
-              ...ctx.statements.take('delete'),
-              ...ctx.statements.take('allow'),
-            ],
+            statements: [...renames, ...previewConsents, ...unansweredConsents(ctx.statements)],
             canRunOffline: false,
           }),
       });
@@ -266,7 +278,7 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
           contract: contractJson,
           mode,
           migrationsDir,
-          statements: renames,
+          statements: [...renames, ...previewConsents],
           answerQuestions: promptPlanQuestions(ctx.prompt),
           onProgress: controlProgressReporter(ctx.report),
         });

@@ -294,19 +294,23 @@ describe('db update questions', () => {
     expect(envelopeOf(run.json)).toMatchObject({ error: { code: 'CLI.CONSENT_UNUSED' } });
   });
 
-  it('asks nothing on a dry run, so a --delete given to one is unused', async () => {
-    const asked = await harness().run(['db', 'update', '--dry-run', '--json'], { cwd: projectDir });
-    const unused = await harness().run(
-      ['db', 'update', '--dry-run', '--delete', 'Legacy', '--json'],
-      {
-        cwd: projectDir,
-      },
+  it('asks nothing on a dry run, and hands it the delete and allow flags to check', async () => {
+    const run = await harness().run(
+      ['db', 'update', '--dry-run', '--delete', 'Legacy', '--allow', 'User', '--json'],
+      { cwd: projectDir },
     );
 
-    expect(asked.exitCode).toBe(0);
+    expect(run.exitCode).toBe(0);
     expect(answers).toEqual([]);
-    expect(mocks.dbUpdate).toHaveBeenCalledWith(expect.objectContaining({ mode: 'plan' }));
-    expect(envelopeOf(unused.json)).toMatchObject({ error: { code: 'CLI.CONSENT_UNUSED' } });
+    expect(mocks.dbUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'plan',
+        statements: [
+          { verb: 'delete', text: 'Legacy' },
+          { verb: 'allow', text: 'User' },
+        ],
+      }),
+    );
   });
 
   it('keeps every statement in the retry command when no connection is configured', async () => {

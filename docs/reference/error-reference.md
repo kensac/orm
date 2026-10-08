@@ -85,7 +85,7 @@ Raised by the CLI engine, not by Prisma ORM's own code; the engine's entry is th
 
 ### CLI.CONSENT_UNUSED
 
-Raised by the CLI engine; the engine's entry is the reference: [CLI.CONSENT_UNUSED](https://docs.prisma.io/docs/cli/error-reference#CLI.CONSENT_UNUSED). `migration plan` and `db update` raise it when a `--delete` or `--allow` value answers no question the plan asks, for example a mistyped name or a model the plan does not drop, before they write or apply anything. A `db update --dry-run` asks no questions, so it raises it for every `--delete` and `--allow` it is given.
+Raised by the CLI engine; the engine's entry is the reference: [CLI.CONSENT_UNUSED](https://docs.prisma.io/docs/cli/error-reference#CLI.CONSENT_UNUSED). `migration plan` and `db update` raise it when a `--delete` or `--allow` value answers no question the plan asks, for example a mistyped name or a model the plan does not drop, before they write or apply anything. A `db update --dry-run` asks no questions; it checks its `--delete` and `--allow` values against the subjects an apply would ask about and refuses an unmatched one with `MIGRATION.STATEMENT_ANSWERS_NO_QUESTION` instead.
 
 ### CLI.CONTRACT_ARG_CONFLICT
 
@@ -1650,7 +1650,7 @@ SQLite twin of `MIGRATION.POSTGRES_CONTROL_STACK_MISSING`: a `SqliteMigration` o
 
 ### MIGRATION.STATEMENT_ANSWERS_NO_QUESTION
 
-A program called the control API's `dbUpdate` with `delete` or `allow` statements in `statements`, and some of them name no subject the plan asks about: no operation would lose that subject's data or widen access to its rows. Such a statement would consent to nothing, so the call fails before anything is applied, in plan mode as in apply mode. The CLI never raises it; there an unused `--delete` or `--allow` is the engine's `CLI.CONSENT_UNUSED`. Leave the statements out, or name a subject the plan asks about. Payload: `statements` (each `{ verb, text }` that answered nothing), `subjects` (the subjects the plan asks about).
+It is the control API's form of `CLI.CONSENT_UNUSED`: the same condition, met where the engine does not check the flags. A program called the control API's `dbUpdate` or `executeMigrationPlanCommand` with `delete` or `allow` statements in `statements`, and some of them name no subject the plan asks about: no operation would lose that subject's data or, for `db update`, widen access to its rows. `migration plan` asks no access questions, so an `allow` given to it always fails. Such a statement would consent to nothing, so the call fails before anything is written or applied, in plan mode as in apply mode. `db update --dry-run` raises it too, because a dry run asks nothing and hands its `--delete` and `--allow` values to the control API to check; an apply's unused flag is the engine's `CLI.CONSENT_UNUSED`. Leave the statements out, or name a subject the plan asks about. Payload: `statements` (each `{ verb, text }` that answered nothing), `subjects` (the subjects the plan asks about).
 
 ### MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS
 
