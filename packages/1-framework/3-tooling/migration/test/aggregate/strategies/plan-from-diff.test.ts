@@ -236,7 +236,7 @@ describe('planFromDiff', () => {
         plan: makeStubPlan('placeholder'),
         appliedStatements: [],
         dataLoss: [{ operationIndex: 0, subject }],
-        accessWidening: [{ operationIndex: 0, subject }],
+        accessWidening: [{ operationIndex: 0, subject, widens: true }],
       }),
       emptyMigration: () => {
         throw new Error('not used');
