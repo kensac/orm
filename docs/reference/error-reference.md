@@ -1654,7 +1654,7 @@ A program called the control API's `dbUpdate` with `delete` or `allow` statement
 
 ### MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS
 
-A `rename` typed at `migration plan`'s data-loss question was planned with the plan's other renames, and the plan still loses the data of the subject the question was about: the rename resolves, but it does not keep that data, for example because it renames a different model or field. Nothing is written. Answer the question with `--delete <subject>` if the data may be lost, or with a rename whose old name stores that data. Payload: `statement` (the rename's text), `verb` (`rename`), `subject`.
+A `rename` typed at a data-loss question of `migration plan` or `db update` was planned with the plan's other renames, and the plan still loses the data of the subject the question was about: the rename resolves, but it does not keep that data, for example because it renames a different model or field. Nothing is written or applied. Answer the question with `--delete <subject>` if the data may be lost, or with a rename whose old name stores that data. Payload: `statement` (the rename's text), `verb` (`rename`), `subject`.
 
 ### MIGRATION.STATEMENT_INVALID
 
