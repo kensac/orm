@@ -254,8 +254,9 @@ function checkAnswers(questions: readonly PlanQuestion[], answers: readonly Plan
  * Asks about every operation of a plan that would lose data and, when `askAccess`, every one that
  * would widen access, until each is answered. A `delete` or `allow` text in `preAnswers`, or
  * `consentAll`, answers its question without asking. A rename typed at the prompt is a statement
- * the plan did not have, so the plan is made again with it, and the loss it answered must be gone.
- * The first round asks even when nothing is in question, so a statement no question consumed is
+ * the plan did not have, so the plan is made again with it, and the operation it answered must be
+ * gone; a loss the new plan has on the same subject, such as a type change on the renamed field,
+ * is asked in the next round. The first round asks even when nothing is in question, so a statement no question consumed is
  * refused before anything is done.
  */
 export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailure>(input: {
@@ -340,8 +341,9 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
     const replanned = await input.replan(renames);
     if (!replanned.ok) return replanned;
     plan = replanned.value;
-    const stillLost = new Set(plan.dataLoss.map(keyOf));
-    const unresolved = typedRenames.find(({ loss }) => stillLost.has(keyOf(loss)));
+    const operationOf = (entry: PlannedSubject) => `${entry.label}:${keyOf(entry)}`;
+    const stillPlanned = new Set(plan.dataLoss.map(operationOf));
+    const unresolved = typedRenames.find(({ loss }) => stillPlanned.has(operationOf(loss)));
     if (unresolved !== undefined) {
       return notOk(
         errorStatementDidNotResolveLoss(
