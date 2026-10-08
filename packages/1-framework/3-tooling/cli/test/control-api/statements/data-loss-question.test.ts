@@ -69,6 +69,25 @@ describe('dataLossQuestion verbs', () => {
     expect(verbsFor('email', destinationWithoutNickname, true)).toEqual(['delete']);
   });
 
+  it('offers only delete for a field a rename statement of the plan already renamed', () => {
+    const destination = contractOf({ app: { models: { User: { fields: ['email', 'handle'] } } } });
+    const question = dataLossQuestion(
+      {
+        operationIndex: 1,
+        label: 'Recreate table User',
+        subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' },
+      },
+      {
+        origin: withNickname,
+        destination,
+        renames: [{ verb: 'rename', text: 'User.nickname:User.handle' }],
+        originKnown: true,
+        renamesPlannable: true,
+      },
+    );
+    expect(question.verbs).toEqual(['delete']);
+  });
+
   it('offers only delete where the planner cannot carry out a rename', () => {
     expect(verbsFor('nickname', destinationWithoutNickname, false)).toEqual(['delete']);
   });
