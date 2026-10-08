@@ -81,11 +81,13 @@ An operation is `destructive` only when it can lose rows or values. Postgres `se
 
 ## `control-client-db-update-answer-questions`
 
-In code and documentation that call the control client's `dbUpdate({ ... })` without `answerQuestions`, add a callback. Detection finds files that call `dbUpdate(` and never mention `answerQuestions`; a file with one call that has it and another that lacks it is skipped, so check it by hand. One that refuses every data loss and access widening, as `dbUpdate` used to without consent:
+In code and documentation that call the control client's `dbUpdate({ ... })` without `answerQuestions`, add a callback. Detection finds files that call `dbUpdate(` and never mention `answerQuestions`; a file with one call that has it and another that lacks it is skipped, so check it by hand. Pass the options `dbUpdate` takes: `contract` (the emitted `contract.json`), `mode` and `migrationsDir`. In a README example that has none of them, add `import contract from './src/prisma/contract.json' with { type: 'json' };` after the control client's import, and write the call with a callback that refuses every data loss and access widening, as `dbUpdate` used to without consent:
 
 ```typescript
 await control.dbUpdate({
-  migrations: { dir: 'migrations/app' },
+  contract,
+  mode: 'apply',
+  migrationsDir: 'migrations',
   answerQuestions: async (questions) => {
     if (questions.length > 0) throw new Error('db update would lose data or widen access');
     return [];

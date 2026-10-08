@@ -1454,10 +1454,11 @@ try {
 
   // Run operations
   const verifyResult = await client.verify({ contract });
-  const initResult = await client.dbInit({ contract, mode: 'apply' });
+  const initResult = await client.dbInit({ contract, mode: 'apply', migrationsDir: 'migrations' });
   const updateResult = await client.dbUpdate({
     contract,
     mode: 'apply',
+    migrationsDir: 'migrations',
     // Asked before an apply about each operation that would lose data or widen access.
     // Answer each question in order, as `{ verb, text }`, or throw to refuse.
     answerQuestions: async (questions) => {

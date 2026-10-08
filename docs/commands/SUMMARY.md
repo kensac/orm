@@ -145,15 +145,17 @@ const client = createControlClient({
 
 // db init
 const initResult = await client.dbInit({
-  contractIR: contractJson,
+  contract: contractJson,
   mode: 'apply',
+  migrationsDir: 'migrations',
   connection: databaseUrl,
 });
 
 // db update
 const updateResult = await client.dbUpdate({
-  contractIR: contractJson,
-  mode: 'plan', // or 'apply'
+  contract: contractJson,
+  mode: 'apply', // or 'plan'
+  migrationsDir: 'migrations',
   connection: databaseUrl,
   answerQuestions: async (questions) => {
     if (questions.length > 0) throw new Error('db update would lose data or widen access');

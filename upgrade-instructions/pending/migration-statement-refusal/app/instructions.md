@@ -21,7 +21,7 @@ changes:
     detection:
       glob: "**/*.{sh,bash,zsh,yml,yaml,json,toml,mjs,cjs,js,ts,mts,cts}"
       matches:
-        - 'db\s+update[^\n]*(?<![\w-])--confirm(?![\w-])'
+        - 'db\s+update(?:[^\n\\]|\\\r?\n|\\.)*(?<![\w-])--confirm(?![\w-])'
   - id: db-update-reads-origin-snapshot
     summary: |
       `prisma db update` reads the snapshot of the contract the database is at on every run, to name what an operation would lose. Nothing to change.
@@ -69,7 +69,7 @@ Detection lists every script and CI file that runs `migration plan`; it cannot t
 
 ## `db-update-confirm-no-longer-consents`
 
-For each `prisma db update ... --confirm <database>`, replace `--confirm <database>` with one statement per operation it was there to allow:
+Detection finds `--confirm` on the same command line as `db update`, including a command continued over several lines with `\`. For each `prisma db update ... --confirm <database>`, replace `--confirm <database>` with one statement per operation it was there to allow:
 
 - `--delete <Model>` or `--delete <Model.field>` for each model or field whose data the update may lose, or `--rename <Model>:<New>` / `--rename <Model.field>:<Model.newField>` if it was renamed.
 - `--delete <storage name>` for data no model stores, such as a table or column added by hand; on Postgres the name is schema-qualified (`public.audit_log`).
