@@ -48,6 +48,7 @@ import {
   answerPlanQuestions,
   type ConsentedSubject,
   type PlannedQuestions,
+  refuseUnusedConsents,
 } from '../statements/data-loss-questions';
 import {
   type AppliedStatementReport,
@@ -333,6 +334,20 @@ export async function executeRun<TFamilyId extends string, TTargetId extends str
     run = answered.value.plan;
     renameTexts = [...answered.value.renames];
     consented = answered.value.consented;
+  }
+  if (options.action === 'dbUpdate' && mode === 'plan') {
+    const refused = refuseUnusedConsents({
+      plan: run,
+      statements: statementTexts,
+      contracts: {
+        origin: fromContract ?? EMPTY_ORIGIN,
+        destination: contract,
+        renames: renameTexts,
+      },
+    });
+    if (!refused.ok) {
+      throw refused.failure;
+    }
   }
   const { planned, orderedResolutions } = run;
   const plannerWarnings = aggregatePlannerWarnings(orderedResolutions);

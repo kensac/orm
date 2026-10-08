@@ -697,6 +697,40 @@ describe('executeDbUpdate', () => {
       expect(execute).not.toHaveBeenCalled();
     });
 
+    it('refuses, without asking, delete and allow statements that answer no question in plan mode', async () => {
+      const answerQuestions = vi.fn(noQuestions);
+      const error = await executeDbUpdate(
+        applyInputs({
+          mode: 'plan',
+          answerQuestions,
+          statements: [
+            { verb: 'delete', text: 'user.nickname' },
+            { verb: 'allow', text: 'post' },
+          ],
+        }),
+      ).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: 'MIGRATION.STATEMENT_ANSWERS_NO_QUESTION',
+        meta: { statements: [{ verb: 'allow', text: 'post' }] },
+      });
+      expect(answerQuestions).not.toHaveBeenCalled();
+    });
+
+    it('takes delete and allow statements that answer questions in plan mode', async () => {
+      const result = await executeDbUpdate(
+        applyInputs({
+          mode: 'plan',
+          statements: [
+            { verb: 'delete', text: 'user.nickname' },
+            { verb: 'allow', text: 'user' },
+          ],
+        }),
+      );
+
+      expect(result.ok).toBe(true);
+    });
+
     it('asks nothing in plan mode, and lists the questions an apply would ask', async () => {
       const answerQuestions = vi.fn(noQuestions);
       const result = await executeDbUpdate(applyInputs({ mode: 'plan', answerQuestions }));

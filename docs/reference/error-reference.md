@@ -1650,7 +1650,7 @@ SQLite twin of `MIGRATION.POSTGRES_CONTROL_STACK_MISSING`: a `SqliteMigration` o
 
 ### MIGRATION.STATEMENT_ANSWERS_NO_QUESTION
 
-A program called the control API's `dbUpdate` with `delete` or `allow` statements in `statements`, and some of them name no subject the plan asks about: no operation would lose that subject's data or widen access to its rows. Such a statement would consent to nothing, so the apply fails before anything is applied. The CLI never raises it; there an unused `--delete` or `--allow` is the engine's `CLI.CONSENT_UNUSED`. Leave the statements out, or name a subject the plan asks about. Payload: `statements` (each `{ verb, text }` that answered nothing), `subjects` (the subjects the plan asks about).
+A program called the control API's `dbUpdate` with `delete` or `allow` statements in `statements`, and some of them name no subject the plan asks about: no operation would lose that subject's data or widen access to its rows. Such a statement would consent to nothing, so the call fails before anything is applied, in plan mode as in apply mode. The CLI never raises it; there an unused `--delete` or `--allow` is the engine's `CLI.CONSENT_UNUSED`. Leave the statements out, or name a subject the plan asks about. Payload: `statements` (each `{ verb, text }` that answered nothing), `subjects` (the subjects the plan asks about).
 
 ### MIGRATION.STATEMENT_DID_NOT_RESOLVE_LOSS
 

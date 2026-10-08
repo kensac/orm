@@ -353,11 +353,45 @@ export async function answerPlanQuestions<TPlan extends PlannedQuestions, TFailu
   }
   const unused = input.preAnswers.filter((statement) => !usedPreAnswers.has(statement));
   if (unused.length > 0) {
-    const contracts = { origin: input.origin, destination: input.destination, renames };
-    const subjects = [...plan.dataLoss, ...(input.askAccess ? plan.accessWidening : [])].map(
-      (entry) => subjectText(entry.subject, contracts),
+    return notOk(
+      errorStatementAnswersNoQuestion(
+        unused,
+        questionSubjects(plan, input.askAccess, { ...input, renames }),
+      ),
     );
-    return notOk(errorStatementAnswersNoQuestion(unused, [...new Set(subjects)]));
   }
   return ok({ plan, renames, consented: [...consented.values()] });
+}
+
+function questionSubjects(
+  plan: PlannedQuestions,
+  askAccess: boolean,
+  contracts: StatementContracts,
+): readonly string[] {
+  const subjects = [...plan.dataLoss, ...(askAccess ? plan.accessWidening : [])].map((entry) =>
+    subjectText(entry.subject, contracts),
+  );
+  return [...new Set(subjects)];
+}
+
+/**
+ * Refuses the `delete` and `allow` statements that name no subject a plan asks about, without
+ * asking anything: a run that only plans still says which statements would consent to nothing.
+ */
+export function refuseUnusedConsents(input: {
+  readonly plan: PlannedQuestions;
+  readonly statements: readonly StatementText[];
+  readonly contracts: StatementContracts;
+}): Result<void, CliStructuredError> {
+  const subjects = questionSubjects(input.plan, true, input.contracts);
+  const matches = (statement: StatementText, entries: readonly PlannedSubject[]) =>
+    entries.some((entry) => subjectText(entry.subject, input.contracts) === statement.text);
+  const unused = input.statements.filter(
+    (statement) =>
+      (statement.verb === 'delete' && !matches(statement, input.plan.dataLoss)) ||
+      (statement.verb === 'allow' && !matches(statement, input.plan.accessWidening)),
+  );
+  return unused.length === 0
+    ? ok(undefined)
+    : notOk(errorStatementAnswersNoQuestion(unused, subjects));
 }
