@@ -351,6 +351,11 @@ export class TransactionManager {
     })
   }
 
+  /**
+   * Returns the running transaction to execute a query on. Statements sent on it are refused
+   * once the transaction starts closing. A transaction that is already closing is awaited, and
+   * then rejected with the error for how it closed.
+   */
   async getTransaction(txInfo: TransactionInfo, operation: string): Promise<Transaction> {
     let tx = this.#getActiveOrClosingTransaction(txInfo.id, operation)
     if (tx.status === 'closing') {
@@ -363,11 +368,12 @@ export class TransactionManager {
   }
 
   /**
+   * Wraps a transaction so that it refuses statements once it has started closing.
+   *
    * A query holds on to the transaction it was given for as long as it runs, so it can still
    * send statements after the transaction has timed out or been closed. Adapters that close a
    * transaction by sending `COMMIT` or `ROLLBACK` and then releasing the connection would run
-   * those statements outside the transaction, where each one commits on its own. The returned
-   * transaction refuses any statement sent once closing has begun.
+   * those statements outside the transaction, where each one commits on its own.
    */
   #refuseStatementsOnceClosing(tx: TransactionWrapper, transaction: Transaction, operation: string): Transaction {
     const assertRunning = () => {

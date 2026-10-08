@@ -134,6 +134,12 @@ async function startTransaction(transactionManager: TransactionManager, options:
   return id
 }
 
+const INSERT_QUERY: SqlQuery = { sql: 'INSERT INTO "User" ("id") VALUES (1)', args: [], argTypes: [] }
+
+function sentStatements(driverAdapter: MockDriverAdapter): string[] {
+  return driverAdapter.executeRawMock.mock.calls.map(([query]) => query.sql)
+}
+
 test('transaction executes normally', async () => {
   const driverAdapter = new MockDriverAdapter()
   const transactionManager = new TransactionManager({
@@ -894,12 +900,6 @@ test('transaction times out during execution', async () => {
   await expect(transactionManager.commitTransaction(id)).rejects.toBeInstanceOf(TransactionExecutionTimeoutError)
   await expect(transactionManager.rollbackTransaction(id)).rejects.toBeInstanceOf(TransactionExecutionTimeoutError)
 })
-
-const INSERT_QUERY: SqlQuery = { sql: 'INSERT INTO "User" ("id") VALUES (1)', args: [], argTypes: [] }
-
-function sentStatements(driverAdapter: MockDriverAdapter): string[] {
-  return driverAdapter.executeRawMock.mock.calls.map(([query]) => query.sql)
-}
 
 test('a statement sent while a timed-out transaction is rolling back is refused', async () => {
   // A query keeps the transaction it was given while it runs. When the timeout fires in the
