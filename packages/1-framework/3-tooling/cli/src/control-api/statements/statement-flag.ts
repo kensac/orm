@@ -2,7 +2,8 @@ import type { StatementText } from './statement-text';
 
 const SHELL_SAFE = /^[A-Za-z0-9_.:/@%+,-]+$/;
 
-function shellQuoted(value: string): string {
+/** The value as a shell passes it through unchanged, single-quoted when needed. */
+export function shellQuoted(value: string): string {
   return SHELL_SAFE.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`;
 }
 

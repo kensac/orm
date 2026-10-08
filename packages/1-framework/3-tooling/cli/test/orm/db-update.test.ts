@@ -274,6 +274,30 @@ describe('db update --rename', () => {
     ]);
   });
 
+  it('suggests the apply with the database as a placeholder and the ref it advances', async () => {
+    mocks.dbUpdate.mockResolvedValue(ok(planSuccess()));
+    const run = await harness().run(
+      [
+        'db',
+        'update',
+        '--dry-run',
+        '--db',
+        'postgres://user:secret@localhost/appdb',
+        '--advance-ref',
+        'qa',
+      ],
+      { cwd: projectDir, isTty: { stdout: true } },
+    );
+
+    expect(run.presented?.presentation.next).toEqual([
+      {
+        kind: 'run-command',
+        label: 'Apply the planned operations',
+        command: 'prisma-test db update --db <url> --advance-ref qa',
+      },
+    ]);
+  });
+
   it('lists the applied statements on a dry run', async () => {
     mocks.dbUpdate.mockResolvedValue(
       ok({ ...planSuccess(), appliedStatements: [{ ...PROFILE_TO_USER, operationIndexes: [] }] }),

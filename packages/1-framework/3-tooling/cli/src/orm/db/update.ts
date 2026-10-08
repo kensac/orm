@@ -23,7 +23,7 @@ import {
   preflightRefAdvancement,
 } from '../../control-api/operations/ref-advancement';
 import { retryCommandFor } from '../../control-api/operations/ref-resolution';
-import { statementFlag } from '../../control-api/statements/statement-flag';
+import { shellQuoted, statementFlag } from '../../control-api/statements/statement-flag';
 import type { StatementText } from '../../control-api/statements/statement-text';
 import type { AskedSubject, CreateControlClient, DbUpdateSuccess } from '../../control-api/types';
 import { CliStructuredError, errorContractValidationFailed } from '../../utils/cli-errors';
@@ -47,6 +47,9 @@ function updatePresentations(inputs: {
   readonly database: string | undefined;
   readonly to: string | undefined;
   readonly dryRun: boolean;
+  /** Whether the run named its database with `--db`, which the suggested apply repeats as a placeholder. */
+  readonly dbGiven: boolean;
+  readonly advanceRef: string | undefined;
   readonly statements: readonly StatementText[];
 }): Presentations {
   const { document, database, dryRun } = inputs;
@@ -69,7 +72,15 @@ function updatePresentations(inputs: {
     next: () =>
       migrationResultNextActions(
         document,
-        ['{bin} db update', ...inputs.statements.map(statementFlag)].join(' '),
+        [
+          '{bin} db update',
+          ...(inputs.to === undefined ? [] : [`--to ${shellQuoted(inputs.to)}`]),
+          ...(inputs.dbGiven ? ['--db <url>'] : []),
+          ...(inputs.advanceRef === undefined
+            ? []
+            : [`--advance-ref ${shellQuoted(inputs.advanceRef)}`]),
+          ...inputs.statements.map(statementFlag),
+        ].join(' '),
       ),
   };
 }
@@ -373,6 +384,8 @@ export function createDbUpdateCommand(createClient: CreateControlClient) {
             database: prepared.value.database,
             to: args.flags.to,
             dryRun: args.flags.dryRun,
+            dbGiven: args.flags.db !== undefined,
+            advanceRef: args.flags.advanceRef,
             statements: [...renames, ...previewConsents],
           }),
         ),
