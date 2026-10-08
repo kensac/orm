@@ -40,3 +40,9 @@ When one plan renames a column on SQLite and a later step rebuilds the same tabl
 
 The Postgres planner has a temporary-default recipe for a required column added to a populated table under `db update`; SQLite has none, so the runner fails with `MIGRATION.RUNNER_FAILED` ("Cannot add a NOT NULL column with default value NULL"). The slice 2 SQLite journey adds the field to an empty table and says so. Resolving it means a SQLite temporary-default recipe or a table rebuild with a backfill; `--backfill` (slice 3) covers `migration plan`, not `db update`.
 
+## `--delete <namespace>` consenting for every model in the namespace
+
+**Found:** slice 2, whole-slice architect review (2026-10-08). For slice 3.
+
+Project decision 6 lets a namespace delete cover everything in the namespace while the refusal lists each model. The engine answers a question only by a value equal to its subject or starting with it, so a namespace-wide answer has to be expanded by the ORM before the questions are asked. Slice 3 adds the namespace noun to `rename` and `delete` together and does that expansion there. Until then every `delete` names one model, field or storage object.
+
