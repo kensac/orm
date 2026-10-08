@@ -129,6 +129,7 @@ async function planned(
   to: Contract<SqlStorage>,
   fromContract: Contract<SqlStorage> | null = from,
   statements: readonly ResolvedMigrationStatement[] = [],
+  frameworkComponents: typeof postgresTypeComponents = postgresTypeComponents,
 ) {
   const result = createPostgresMigrationPlanner(stubLowerer).plan({
     contract: to,
@@ -137,7 +138,7 @@ async function planned(
     fromContract,
     origin: planOriginOf(fromContract),
     statements,
-    frameworkComponents: postgresTypeComponents,
+    frameworkComponents,
     spaceId: APP_SPACE_ID,
     snapshotsImportPath: '../../snapshots',
   });
@@ -175,6 +176,25 @@ describe('Postgres planner, data loss', () => {
         operation: 'Drop column "nickname" from "User"',
         subject: { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' },
       },
+    ]);
+  });
+
+  it('names the field a destructive codec-hook call is about, after the control-policy partition', async () => {
+    const from = contract('from', { User: { columns: { id: 'int4', nickname: 'text' } } });
+    const to = contract('to', { User: { columns: { id: 'int4' } } });
+    const nickname = { kind: 'field', namespaceId: unbound, model: 'User', field: 'nickname' };
+
+    const plan = await planned(
+      from,
+      to,
+      from,
+      [],
+      withFieldHook(postgresTypeComponents, 'dropped', 'destructive'),
+    );
+
+    expect(plan.dataLoss).toEqual([
+      { operation: 'Drop column "nickname" from "User"', subject: nickname },
+      { operation: 'Codec hook for dropped User.nickname', subject: nickname },
     ]);
   });
 
@@ -270,24 +290,26 @@ describe('Postgres planner, data loss', () => {
   });
 });
 
-/** A codec hook that adds an operation for every field it is told was added. */
-function withAddedFieldHook(
+/** A codec hook that adds an operation of `operationClass` for every field of the `on` event. */
+function withFieldHook(
   components: typeof postgresTypeComponents,
+  on: 'added' | 'dropped',
+  operationClass: 'additive' | 'destructive',
 ): typeof postgresTypeComponents {
   const hooks: CodecControlHooks = {
     onFieldEvent: (event, ctx) =>
-      event === 'added'
+      event === on
         ? [
             {
-              factoryName: 'codecAdded',
-              operationClass: 'additive',
-              label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
-              renderTypeScript: () => 'codecAdded()',
+              factoryName: 'codecHook',
+              operationClass,
+              label: `Codec hook for ${on} ${ctx.tableName}.${ctx.fieldName}`,
+              renderTypeScript: () => 'codecHook()',
               importRequirements: () => [],
               toOp: () => ({
-                id: `codec.added.${ctx.tableName}.${ctx.fieldName}`,
-                label: `Codec hook for added ${ctx.tableName}.${ctx.fieldName}`,
-                operationClass: 'additive',
+                id: `codec.${on}.${ctx.tableName}.${ctx.fieldName}`,
+                label: `Codec hook for ${on} ${ctx.tableName}.${ctx.fieldName}`,
+                operationClass,
                 target: { id: 'postgres' },
                 precheck: [],
                 execute: [],
@@ -325,7 +347,7 @@ describe('Postgres planner under db update', () => {
       fromContract,
       origin: null,
       statements: [],
-      frameworkComponents: withAddedFieldHook(postgresTypeComponents),
+      frameworkComponents: withFieldHook(postgresTypeComponents, 'added', 'additive'),
       spaceId: APP_SPACE_ID,
       snapshotsImportPath: '../../snapshots',
     });
