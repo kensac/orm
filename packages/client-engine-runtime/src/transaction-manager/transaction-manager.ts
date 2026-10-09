@@ -413,6 +413,9 @@ export class TransactionManager {
     }
   }
 
+  /**
+   * Returns the error a query gets on a transaction that closed with `status`.
+   */
   #closedTransactionError(
     tx: TransactionWrapper,
     status: 'committed' | 'rolled_back' | 'timed_out',
@@ -433,6 +436,10 @@ export class TransactionManager {
     }
   }
 
+  /**
+   * Returns the transaction if it is running or closing. Throws the matching error if it has
+   * already closed or does not exist.
+   */
   #getActiveOrClosingTransaction(transactionId: string, operation: string): TransactionWrapper {
     const transaction = this.transactions.get(transactionId)
 
